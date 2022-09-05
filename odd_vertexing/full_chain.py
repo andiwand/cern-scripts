@@ -6,7 +6,7 @@ from common import getOpenDataDetector, getOpenDataDetectorDirectory
 
 
 u = acts.UnitConstants
-outputDir = pathlib.Path.cwd() / "odd_output"
+outputDir = pathlib.Path(__file__).parent / "odd_output"
 outputDir.mkdir(exist_ok=True)
 
 oddDir = getOpenDataDetectorDirectory()
