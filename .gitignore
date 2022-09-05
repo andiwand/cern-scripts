@@ -1,0 +1,16 @@
+*.csv
+*.tsv
+*.json
+
+*.root
+*.gdml
+
+*.html
+*.pdf
+*.svg
+*.png
+
+*.obj
+*.mtl
+
+**/__pycache__

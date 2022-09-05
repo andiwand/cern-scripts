@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 import pathlib, acts, acts.examples
 from acts.examples.simulation import (
-    addParticleGun,
-    MomentumConfig,
-    EtaConfig,
-    ParticleConfig,
     addPythia8,
     addFatras,
     addDigitization,
@@ -12,8 +8,6 @@ from acts.examples.simulation import (
 from acts.examples.reconstruction import (
     addSeeding,
     SeedingAlgorithm,
-    ParticleSmearingSigmas,
-    addKalmanTracks,
     addCKFTracks,
     CKFPerformanceConfig,
     TrackSelectorRanges,
@@ -40,22 +34,7 @@ detector, trackingGeometry, decorators = getOpenDataDetector(
 field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
-s = acts.examples.Sequencer(events=100, numThreads=1, outputDir=str(outputDir))
-
-"""
-addParticleGun(
-    s,
-    MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
-    EtaConfig(-3.0, 3.0, uniform=True),
-    ParticleConfig(2, acts.PdgParticle.eMuon, randomizeCharge=True),
-    vtxGen=acts.examples.GaussianVertexGenerator(
-        stddev=acts.Vector4(12.5 * u.um, 12.5 * u.um, 55.5 * u.mm, 10000.0 * u.ns),
-        mean=acts.Vector4(0, 0, 0, 0),
-    ),
-    multiplicity=5,
-    rnd=rnd,
-)
-"""
+s = acts.examples.Sequencer(events=100000, numThreads=1, outputDir=str(outputDir))
 
 addPythia8(
     s,
@@ -90,19 +69,11 @@ addSeeding(
     s,
     trackingGeometry,
     field,
-    # ParticleSmearingSigmas(d0=20*u.um, d0PtA=0, d0PtB=0, z0=20*u.um, z0PtA=0, z0PtB=0),
-    seedingAlgorithm=SeedingAlgorithm.TruthSmeared,
+    seedingAlgorithm=SeedingAlgorithm.Default,
     geoSelectionConfigFile=oddSeedingSel,
     outputDirRoot=outputDir,
 )
 
-addKalmanTracks(
-    s,
-    trackingGeometry,
-    field,
-)
-
-"""
 addCKFTracks(
     s,
     trackingGeometry,
@@ -117,18 +88,6 @@ addAmbiguityResolution(
     CKFPerformanceConfig(ptMin=0.0, nMeasurementsMin=6),
     outputDirRoot=outputDir,
 )
-"""
-
-"""
-s.addAlgorithm(acts.examples.TrackModifier(
-    inputTrackParameters="trackParameters",
-    outputTrackParameters="modifiedTrackParameters",
-    dropCovariance=False,
-    covScale=1,
-    level=acts.logging.Level.DEBUG,
-))
-s.addWhiteboardAlias("trackParameters", "modifiedTrackParameters")
-"""
 
 addVertexFitting(
     s,
@@ -140,8 +99,6 @@ addVertexFitting(
         removeNeutral=True,
     ),
     vertexFinder=VertexFinder.AMVF,
-    associatedParticles="particles_input",
-    trackParametersTips=None,
     outputDirRoot=outputDir,
     logLevel=acts.logging.Level.VERBOSE,
 )

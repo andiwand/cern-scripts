@@ -7,6 +7,8 @@ from acts.examples.geant4.dd4hep import DDG4DetectorConstruction
 from common import getOpenDataDetector, getOpenDataDetectorDirectory
 
 
+geant4 = False
+
 u = acts.UnitConstants
 outputDir = pathlib.Path(__file__).parent / "odd_output"
 outputDir.mkdir(exist_ok=True)
@@ -29,7 +31,7 @@ from seeding import addSeeding, SeedfinderConfigArg, SeedingAlgorithm
 from ckf_tracks import addCKFTracks, CKFPerformanceConfig
 from vertex_fitting import addVertexFitting, VertexFinder
 
-s = acts.examples.Sequencer(events=10000, numThreads=1, logLevel=acts.logging.INFO)
+s = acts.examples.Sequencer(events=100000, numThreads=-1, logLevel=acts.logging.INFO)
 
 s = addParticleGun(
     s,
@@ -38,32 +40,32 @@ s = addParticleGun(
     ParticleConfig(1, acts.PdgParticle.eMuon, True),
     rnd=rnd,
 )
-g4detector = DDG4DetectorConstruction(detector.geometryService)
-g4conf = geant4SimulationConfig(
-            level=s.config.logLevel,
-            detector=g4detector,
-            inputParticles="particles_input",
-            trackingGeometry=trackingGeometry,
-            magneticField=field,
-        )
-g4conf.outputSimHits = "simhits"
-g4conf.outputParticlesInitial = "particles_initial"
-g4conf.outputParticlesFinal = "particles_final"
-s.addAlgorithm(
-    Geant4Simulation(
+if geant4:
+    g4detector = DDG4DetectorConstruction(detector.geometryService)
+    g4conf = geant4SimulationConfig(
         level=s.config.logLevel,
-        config=g4conf,
+        detector=g4detector,
+        inputParticles="particles_input",
+        trackingGeometry=trackingGeometry,
+        magneticField=field,
     )
-)
-"""
-s = addFatras(
-    s,
-    trackingGeometry,
-    field,
-    outputDirRoot=outputDir,
-    rnd=rnd,
-)
-"""
+    g4conf.outputSimHits = "simhits"
+    g4conf.outputParticlesInitial = "particles_initial"
+    g4conf.outputParticlesFinal = "particles_final"
+    s.addAlgorithm(
+        Geant4Simulation(
+            level=s.config.logLevel,
+            config=g4conf,
+        )
+    )
+else:
+    s = addFatras(
+        s,
+        trackingGeometry,
+        field,
+        outputDirRoot=outputDir,
+        rnd=rnd,
+    )
 s = addDigitization(
     s,
     trackingGeometry,
@@ -77,10 +79,10 @@ s = addSeeding(
     trackingGeometry,
     field,
     SeedfinderConfigArg(
-        r=(33 * u.mm, 300 * u.mm),
+        r=(20 * u.mm, 300 * u.mm),
         collisionRegion=(-250 * u.mm, 250 * u.mm),
         z=(-2000 * u.mm, 2000 * u.mm),
-        maxSeedsPerSpM=0,
+        maxSeedsPerSpM=4,
         bFieldInZ=2 * u.T,
         impactMax=3 * u.mm,
         cotThetaMax=17,
