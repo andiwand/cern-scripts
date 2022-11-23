@@ -5,20 +5,14 @@ from acts.examples.simulation import (
     MomentumConfig,
     EtaConfig,
     ParticleConfig,
-    addPythia8,
     addFatras,
     addDigitization,
 )
 from acts.examples.reconstruction import (
     addSeeding,
     SeedingAlgorithm,
-    ParticleSmearingSigmas,
     addKalmanTracks,
-    addCKFTracks,
-    CKFPerformanceConfig,
     TrackSelectorRanges,
-    addAmbiguityResolution,
-    AmbiguityResolutionConfig,
     addVertexFitting,
     VertexFinder,
 )
@@ -110,7 +104,7 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
     addVertexFitting(
         s,
         field,
-        TrackSelectorRanges(pt=(0.5 * u.GeV, None), loc0=(-4.0 * u.mm, 4.0 * u.mm), absEta=(None, 2.5), removeNeutral=True),
+        TrackSelectorRanges(pt=(0.5 * u.GeV, None), loc0=(-4.0 * u.mm, 4.0 * u.mm), absEta=(None, 3.0), removeNeutral=True),
         vertexFinder=vertexing,
         associatedParticles="particles_input",
         trackParametersTips=None,
