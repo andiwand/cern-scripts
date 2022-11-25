@@ -5,14 +5,21 @@ from acts.examples.simulation import (
     MomentumConfig,
     EtaConfig,
     ParticleConfig,
+    addPythia8,
     addFatras,
+    ParticleSelectorConfig,
     addDigitization,
 )
 from acts.examples.reconstruction import (
     addSeeding,
     SeedingAlgorithm,
+    TruthSeedRanges,
     addKalmanTracks,
+    addCKFTracks,
+    CKFPerformanceConfig,
     TrackSelectorRanges,
+    addAmbiguityResolution,
+    AmbiguityResolutionConfig,
     addVertexFitting,
     VertexFinder,
 )
@@ -34,7 +41,6 @@ detector, trackingGeometry, decorators = getOpenDataDetector(
     geoDir, mdecorator=oddMaterialDeco
 )
 field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
-rnd = acts.examples.RandomNumbers(seed=42)
 
 data = {
   VertexFinder.Iterative: {
@@ -53,6 +59,8 @@ multiplicity=10
 
 for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
   for particles in range(2, 11):
+    rnd = acts.examples.RandomNumbers(seed=42)
+
     s = acts.examples.Sequencer(events=100, numThreads=-1, outputDir=str(outputDir))
 
     addParticleGun(
@@ -61,7 +69,7 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
         EtaConfig(-3.0, 3.0, uniform=True),
         ParticleConfig(particles, acts.PdgParticle.eMuon, randomizeCharge=True),
         vtxGen=acts.examples.GaussianVertexGenerator(
-            stddev=acts.Vector4(12.5 * u.um, 12.5 * u.um, 55.5 * u.mm, 10000.0 * u.ns),
+            stddev=acts.Vector4(12.5 * u.um, 12.5 * u.um, 55.5 * u.mm, 0.0 * u.ns),
             mean=acts.Vector4(0, 0, 0, 0),
         ),
         multiplicity=multiplicity,
@@ -101,13 +109,38 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
         field,
     )
 
+    """
+    addSeeding(
+        s,
+        trackingGeometry,
+        field,
+        geoSelectionConfigFile=oddSeedingSel,
+        outputDirRoot=outputDir,
+    )
+
+    addCKFTracks(
+        s,
+        trackingGeometry,
+        field,
+        CKFPerformanceConfig(ptMin=0.0, nMeasurementsMin=6),
+        TrackSelectorRanges(pt=(1.0 * u.GeV, None), absEta=(None, 3.0), removeNeutral=True),
+        outputDirRoot=outputDir,
+    )
+
+    addAmbiguityResolution(
+        s,
+        AmbiguityResolutionConfig(maximumSharedHits=3),
+        CKFPerformanceConfig(ptMin=0.0, nMeasurementsMin=6),
+        outputDirRoot=outputDir,
+    )
+    """
+
     addVertexFitting(
         s,
         field,
         TrackSelectorRanges(pt=(0.5 * u.GeV, None), loc0=(-4.0 * u.mm, 4.0 * u.mm), absEta=(None, 3.0), removeNeutral=True),
         vertexFinder=vertexing,
         associatedParticles="particles_input",
-        trackParametersTips=None,
         outputDirRoot=outputDir,
         logLevel=acts.logging.Level.VERBOSE,
     )
