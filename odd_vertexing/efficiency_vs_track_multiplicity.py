@@ -93,6 +93,7 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
         outputDirRoot=outputDir,
     )
 
+    """
     addSeeding(
         s,
         trackingGeometry,
@@ -108,8 +109,8 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
         trackingGeometry,
         field,
     )
-
     """
+
     addSeeding(
         s,
         trackingGeometry,
@@ -133,14 +134,12 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
         CKFPerformanceConfig(ptMin=0.0, nMeasurementsMin=6),
         outputDirRoot=outputDir,
     )
-    """
 
     addVertexFitting(
         s,
         field,
         TrackSelectorRanges(pt=(0.5 * u.GeV, None), loc0=(-4.0 * u.mm, 4.0 * u.mm), absEta=(None, 3.0), removeNeutral=True),
         vertexFinder=vertexing,
-        associatedParticles="particles_input",
         outputDirRoot=outputDir,
         logLevel=acts.logging.Level.VERBOSE,
     )
