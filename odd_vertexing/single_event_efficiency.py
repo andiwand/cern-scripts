@@ -30,7 +30,6 @@ import uproot
 
 u = acts.UnitConstants
 geoDir = getOpenDataDetectorDirectory()
-outputDir = pathlib.Path.cwd() / "output"
 
 oddMaterialMap = geoDir / "data/odd-material-maps.root"
 oddDigiConfig = geoDir / "config/odd-digi-smearing-config.json"
@@ -46,16 +45,22 @@ multiplicity=10
 particles=4
 
 data = {
-  'events': {
-    'vertices': []
-  },
   VertexFinder.Iterative: {
-    'vertices': []
+    'event_vertices': [],
+    'reco_vertices': []
   },
   VertexFinder.AMVF: {
-    'vertices': []
+    'event_vertices': [],
+    'reco_vertices': []
   },
 }
+
+vertexing_label = {
+  VertexFinder.Iterative: 'IVF',
+  VertexFinder.AMVF: 'AMVF',
+}
+
+outputDir = pathlib.Path.cwd() / "output"
 
 for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
   rnd = acts.examples.RandomNumbers(seed=42)
@@ -141,28 +146,24 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
       TrackSelectorRanges(pt=(0.5 * u.GeV, None), loc0=(-4.0 * u.mm, 4.0 * u.mm), absEta=(None, 3.0), removeNeutral=True),
       vertexFinder=vertexing,
       outputDirRoot=outputDir,
+      logLevel=acts.logging.Level.VERBOSE,
   )
 
   s.run()
 
   particles_data = uproot.open(outputDir / 'particles.root')
   particles_data = particles_data['particles'].arrays(library='pd')
-  for i,(x,y,z,px,py,pz) in particles_data[['vx','vy','vz','px','py','pz']].iterrows():
-    data['events']['vertices'].append((x,y,z,px,py,pz))
+  for _,(x,y,z,px,py,pz) in particles_data[['vx','vy','vz','px','py','pz']].iterrows():
+    data[vertexing]['event_vertices'].append((x,y,z,px,py,pz))
 
   vertex_data = uproot.open(outputDir / 'performance_vertexing.root')
   vertex_data = vertex_data['vertexing'].arrays(library='pd')
-  for i,(x,y,z) in vertex_data[['recoX','recoY','recoZ']].iterrows():
-    data[vertexing]['vertices'].append((x,y,z))
+  for _,(x,y,z) in vertex_data[['recoX','recoY','recoZ']].iterrows():
+    data[vertexing]['reco_vertices'].append((x,y,z))
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
-
-vertexing_label = {
-  VertexFinder.Iterative: 'IVF',
-  VertexFinder.AMVF: 'AMVF',
-}
 
 fig = plt.figure()
 gs = gridspec.GridSpec(2, 1, height_ratios=[1, 1]) 
@@ -175,7 +176,7 @@ ax1 = plt.subplot(gs[1], sharex=ax0)
 ax1.set_xlabel('z')
 ax1.set_ylabel('y')
 
-vertices = np.array(data['events']['vertices'])
+vertices = np.array(data[VertexFinder.Iterative]['event_vertices'])
 p = vertices[:,3:6] / np.linalg.norm(vertices[:,3:6], axis=-1)[:,np.newaxis]
 ax0.quiver(vertices[:,2], vertices[:,0], p[:,2], p[:,0], angles='uv', units='inches')
 ax1.quiver(vertices[:,2], vertices[:,1], p[:,2], p[:,1], angles='uv', units='inches')
@@ -183,7 +184,7 @@ ax0.scatter(vertices[:,2], vertices[:,0], label='true')
 ax1.scatter(vertices[:,2], vertices[:,1], label='true')
 
 for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
-  vertices = np.array(data[vertexing]['vertices'])
+  vertices = np.array(data[vertexing]['reco_vertices'])
   if len(vertices) == 0:
     continue
   ax0.scatter(vertices[:,2], vertices[:,0], label=vertexing_label[vertexing])

@@ -152,8 +152,6 @@ for vertexing in [VertexFinder.Iterative, VertexFinder.AMVF]:
     data[vertexing]['mean'].append(vertex_perf['nRecoVtx'].mean())
     data[vertexing]['std'].append(vertex_perf['nRecoVtx'].std())
 
-print(data)
-
 import numpy as np
 import matplotlib.pyplot as plt
 
