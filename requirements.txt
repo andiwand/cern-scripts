@@ -1,0 +1,8 @@
+snakemake
+scipy
+pandas
+numpy
+uproot
+matplotlib
+Pyarrow
+awkward
