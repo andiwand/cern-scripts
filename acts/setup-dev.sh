@@ -24,7 +24,7 @@ cd $source
 git remote rm origin
 git remote add origin git@github.com:andiwand/acts.git
 git remote add upstream git@github.com:acts-project/acts.git
-git fetch
+git fetch --all
 git submodule update --init --recursive
 
 # TODO the activate script needs to be configured
