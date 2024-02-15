@@ -35,6 +35,7 @@ source "$source/activate.sh"
 cmake -S "$source" -B "$build" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
