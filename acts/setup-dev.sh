@@ -6,11 +6,12 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+script=$(readlink -f "$0")
+script_dir=$(dirname "$script")
+
 name=$1
 source=~/cern/source/acts/acts/$name
 build=~/cern/build/acts/acts/$name
-script=$(readlink -f "$0")
-script_dir=$(dirname "$script")
 
 # check if directory exists
 if [[ -d "$source" || -d "$build" ]]; then
@@ -26,11 +27,23 @@ git remote add upstream git@github.com:acts-project/acts.git
 git fetch
 git submodule update --init --recursive
 
+# TODO the activate script needs to be configured
+cp "$script_dir/activate.sh" "$source"
+
+source "$source/activate.sh"
+
 cmake -S "$source" -B "$build" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  -DACTS_FORCE_ASSERTIONS=ON
-
-cp "$script_dir/activate.sh" "$source"
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+  -DACTS_FORCE_ASSERTIONS=ON \
+  -DACTS_BUILD_EXAMPLES_DD4HEP=ON \
+  -DACTS_BUILD_EXAMPLES_GEANT4=ON \
+  -DACTS_BUILD_EXAMPLES_PYTHON_BINDINGS=ON \
+  -DACTS_BUILD_FATRAS=ON \
+  -DACTS_BUILD_FATRAS_GEANT4=ON \
+  -DACTS_BUILD_ODD=ON \
+  -DACTS_BUILD_UNITTESTS=ON \
+  -DACTS_BUILD_INTEGRATIONTESTS=ON
