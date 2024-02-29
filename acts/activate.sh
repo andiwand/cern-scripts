@@ -32,6 +32,7 @@ export CMAKE_PREFIX_PATH="~/cern/install/pythia/8310:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/podio/00-17-04:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-10-03:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-27-02:${CMAKE_PREFIX_PATH}"
+export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
 
 # ATLAS
 export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase

@@ -141,3 +141,18 @@ cmake -S ~/cern/source/dd4hep/01-27-02 -B ~/cern/build/dd4hep/01-27-02 \
 cmake --build ~/cern/build/dd4hep/01-27-02 --target install
 
 export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-27-02:$CMAKE_PREFIX_PATH"
+
+###
+
+cmake -S ~/cern/source/hepmc3/3.2.7 -B ~/cern/build/hepmc3/3.2.7 \
+  -GNinja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_STANDARD=17 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/hepmc3/3.2.7 \
+  -DHEPMC3_BUILD_STATIC_LIBS=OFF \
+  -DHEPMC3_ENABLE_PYTHON=OFF \
+  -DHEPMC3_ENABLE_ROOTIO=OFF \
+  -DHEPMC3_ENABLE_SEARCH=OFF
+cmake --build ~/cern/build/hepmc3/3.2.7 --target install
+
+export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
