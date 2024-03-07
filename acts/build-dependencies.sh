@@ -76,19 +76,19 @@ export CMAKE_PREFIX_PATH="~/cern/install/root/6.30.02:$CMAKE_PREFIX_PATH"
 
 brew install xerces-c
 
-cmake -S ~/cern/source/geant4/11.2.0 -B ~/cern/build/geant4/11.2.0 \
+cmake -S ~/cern/source/geant4/11.2.1 -B ~/cern/build/geant4/11.2.1 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=17 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/geant4/11.2.0 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/geant4/11.2.1 \
   -DGEANT4_BUILD_TLS_MODEL=global-dynamic \
   -DGEANT4_INSTALL_DATA=ON \
   -DGEANT4_USE_GDML=ON \
   -DGEANT4_USE_SYSTEM_EXPAT=ON \
   -DGEANT4_USE_SYSTEM_ZLIB=ON
-cmake --build ~/cern/build/geant4/11.2.0 --target install
+cmake --build ~/cern/build/geant4/11.2.1 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.2.0:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.2.1:$CMAKE_PREFIX_PATH"
 
 ###
 
