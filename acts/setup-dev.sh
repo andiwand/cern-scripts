@@ -27,6 +27,8 @@ git remote add upstream git@github.com:acts-project/acts.git
 git fetch --all
 git submodule update --init --recursive
 
+git maintenance start
+
 # TODO the activate script needs to be configured
 cp "$script_dir/activate.sh" "$source"
 

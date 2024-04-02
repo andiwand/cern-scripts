@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-import acts, acts.examples
+import acts
+import acts.examples
 from acts.examples.simulation import (
     addPythia8,
     addParticleGun,
@@ -18,8 +19,7 @@ from acts.examples.reconstruction import (
     addSeeding,
     addCKFTracks,
 )
-from acts.examples.odd import getOpenDataDetector
-from common import getOpenDataDetectorDirectory
+from acts.examples.odd import getOpenDataDetector, getOpenDataDetectorDirectory
 
 import argparse
 
@@ -40,7 +40,7 @@ oddSeedingSel = geoDir / "config/odd-seeding-config.json"
 oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
 
 detector, trackingGeometry, decorators = getOpenDataDetector(
-    geoDir, mdecorator=oddMaterialDeco
+    odd_dir=geoDir, mdecorator=oddMaterialDeco
 )
 field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
