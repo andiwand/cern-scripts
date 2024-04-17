@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 
 # check if parameter is given
 if [ -z "$1" ]; then

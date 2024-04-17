@@ -17,6 +17,7 @@ from acts.examples.simulation import (
 )
 from acts.examples.reconstruction import (
     addSeeding,
+    CkfConfig,
     addCKFTracks,
 )
 from acts.examples.odd import getOpenDataDetector, getOpenDataDetectorDirectory
@@ -46,9 +47,17 @@ field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
 
-def run_one():
+events = 20
+runs = 50
+
+if args.ttbar:
+    events = 1
+    runs = 10
+
+
+def create_sequencer():
     s = acts.examples.Sequencer(
-        events=20,
+        events=events,
         numThreads=1,
         outputDir=str(outputDir),
         trackFpes=False,
@@ -77,7 +86,7 @@ def run_one():
         addPythia8(
             s,
             hardProcess=["Top:qqbar2ttbar=on"],
-            npileup=10,
+            npileup=200,
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
@@ -129,23 +138,27 @@ def run_one():
         s,
         trackingGeometry,
         field,
+        CkfConfig(
+            seedDeduplication=True,
+            #stayOnSeed=True,
+        ),
         # writeCovMat=True,
         # outputDirCsv=outputDir,
         # outputDirRoot=outputDir,
         # logLevel=acts.logging.VERBOSE,
     )
 
-    s.run()
-
-    del s
+    return s
 
 
 import pandas as pd
 
+s = create_sequencer()
+
 times = []
-for i in range(50):
+for i in range(runs):
     print(f"start round {i}")
-    run_one()
+    s.run()
     d = pd.read_csv(outputDir / "timing.tsv", sep="\t")
     t = {
         "fatras": d[d["identifier"] == "Algorithm:FatrasSimulation"][
