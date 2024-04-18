@@ -29,11 +29,6 @@ else
     echo "source directory already exists: $source"
 fi
 
-# TODO the activate script needs to be configured
-cp "$script_dir/activate.sh" "$source"
-
-source "$source/activate.sh"
-
 if [[ -d "$build" ]]; then
     echo "create build directory: $build"
 
@@ -47,6 +42,7 @@ if [[ -d "$build" ]]; then
         -DACTS_FORCE_ASSERTIONS=ON \
         -DACTS_BUILD_EXAMPLES_DD4HEP=ON \
         -DACTS_BUILD_EXAMPLES_GEANT4=ON \
+        -DACTS_BUILD_EXAMPLES_PYTHIA8=ON \
         -DACTS_BUILD_EXAMPLES_PYTHON_BINDINGS=ON \
         -DACTS_BUILD_FATRAS=ON \
         -DACTS_BUILD_FATRAS_GEANT4=ON \
