@@ -17,6 +17,7 @@ from acts.examples.simulation import (
 )
 from acts.examples.reconstruction import (
     addSeeding,
+    TrackSelectorConfig,
     CkfConfig,
     addCKFTracks,
 )
@@ -138,9 +139,17 @@ def create_sequencer():
         s,
         trackingGeometry,
         field,
+        TrackSelectorConfig(
+            pt=(1.0 * u.GeV, None),
+            absEta=(None, 3.0),
+            loc0=(-4.0 * u.mm, 4.0 * u.mm),
+            nMeasurementsMin=7,
+            maxHoles=2,
+            maxOutliers=2,
+        ),
         CkfConfig(
             seedDeduplication=True,
-            #stayOnSeed=True,
+            stayOnSeed=True,
         ),
         # writeCovMat=True,
         # outputDirCsv=outputDir,

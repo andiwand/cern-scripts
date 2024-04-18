@@ -7,6 +7,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ###
 # Versions
 ###
+cmake_version="3.29.2"
 json_version="3.11.3"
 tbb_version="2021.11.0"
 eigen_version="3.4.0"
@@ -21,6 +22,7 @@ hepmc3_version="3.2.7"
 ###
 # Resulting URLs
 ###
+cmake_url="https://github.com/Kitware/CMake/releases/download/v${cmake_version}/cmake-${cmake_version}.tar.gz"
 json_url="https://github.com/nlohmann/json/releases/download/v${json_version}/json.tar.xz"
 tbb_url="https://github.com/oneapi-src/oneTBB/archive/refs/tags/v${tbb_version}.tar.gz"
 eigen_url="https://gitlab.com/libeigen/eigen/-/archive/${eigen_version}/eigen-${eigen_version}.tar.gz"
@@ -101,6 +103,9 @@ download_unpack() {
     rm "${destination}_download"
 }
 
+echo "cmake version: ${cmake_version}"
+download_unpack "$cmake_url" "${source_tree}/cmake/${cmake_version}"
+
 echo "json version: ${json_version}"
 download_unpack "$json_url" "${source_tree}/json/${json_version}"
 
@@ -134,6 +139,15 @@ download_unpack "$hepmc3_url" "${source_tree}/hepmc3/${hepmc3_version}"
 ###
 # Configure, build and install
 ###
+
+function build_cmake() {
+    cmake -S "${source_tree}/cmake/${cmake_version}" -B "${build_tree}/cmake/${cmake_version}" \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_INSTALL_PREFIX="${install_tree}/cmake/${cmake_version}"
+    cmake --build "${build_tree}/cmake/${cmake_version}" --target install
+}
 
 function build_json() {
     cmake -S "${source_tree}/json/${json_version}" -B "${build_tree}/json/${json_version}" \
@@ -280,6 +294,9 @@ function build_hepmc3 {
 echo "###"
 echo "# Configure, build and install"
 echo "###"
+
+echo "cmake version: ${cmake_version}"
+build_cmake
 
 echo "json version: ${json_version}"
 build_json
