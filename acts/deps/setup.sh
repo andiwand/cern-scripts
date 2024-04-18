@@ -2,6 +2,8 @@
 
 set -e
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
 ###
 # Versions
 ###
@@ -33,11 +35,11 @@ hepmc3_url="https://gitlab.cern.ch/hepmc/HepMC3/-/archive/${hepmc3_version}/HepM
 ###
 # Options
 ###
-source_tree=~/cern/tmp/source
-build_tree=
-install_tree=
+source_tree=$(pwd)/source
+build_tree=$(pwd)/build
+install_tree=$(pwd)/install
 
-activate_script=
+activate_script=$(pwd)/activate.sh
 
 ###
 # OS detection
@@ -58,6 +60,12 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     os_id=macos
+fi
+
+# if centos7 or el9 and cvmfs is available
+if [[ "$os_id" == "centos" || "$os_id" == "rhel" ]] && [[ "$VERSION_ID" == "7" || "${VERSION_ID:0:1}" == "9" ]] && [[ "$has_cvmfs" == "true" ]]; then
+    cp "${SCRIPT_DIR}/cvmfs_lcg/setup_cvmfs_lcg105.sh" "${activate_script}"
+    exit 0
 fi
 
 if [[ -z "$os_id" ]]; then
@@ -217,7 +225,7 @@ function build_pythia() {
 }
 
 function build_podio() {
-    export CMAKE_PREFIX_PATH="${install_tree}/root/${root_version}"
+    export CMAKE_PREFIX_PATH="${install_tree}/json/${json_version}:${install_tree}/root/${root_version}"
     cmake -S "${source_tree}/podio/${podio_version}" -B "${build_tree}/podio/${podio_version}" \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
