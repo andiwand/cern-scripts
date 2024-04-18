@@ -10,8 +10,8 @@ script=$(readlink -f "$0")
 script_dir=$(dirname "$script")
 
 name=$1
-source=~/cern/source/acts/acts/$name
-build=~/cern/build/acts/acts/$name
+source=$(pwd)/source/acts/acts/$name
+build=$(pwd)/build/acts/acts/$name
 
 if [[ ! -d "$source" ]]; then
     echo "create source directory: $source"
