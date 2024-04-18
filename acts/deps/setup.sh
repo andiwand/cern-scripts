@@ -218,7 +218,7 @@ function build_geant4() {
     cmake --build "${build_tree}/geant4/${geant4_version}" --target install
 }
 
-function build_pythia() {
+function build_pythia8() {
     cd "${source_tree}/pythia8/${pythia8_version}"
     ./configure --enable-shared --prefix="${install_tree}/pythia8/${pythia8_version}"
     make -j12 install
