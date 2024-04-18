@@ -237,7 +237,7 @@ function build_podio() {
 }
 
 function build_edm4hep() {
-    export CMAKE_PREFIX_PATH="${install_tree}/root/${root_version}:${install_tree}/podio/${podio_version}"
+    export CMAKE_PREFIX_PATH="${install_tree}/json/${json_version}:${install_tree}/root/${root_version}:${install_tree}/podio/${podio_version}"
     cmake -S "${source_tree}/edm4hep/${edm4hep_version}" -B "${build_tree}/edm4hep/${edm4hep_version}" \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
