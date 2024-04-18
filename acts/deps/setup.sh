@@ -249,7 +249,7 @@ function build_edm4hep() {
 }
 
 function build_dd4hep() {
-    export CMAKE_PREFIX_PATH="${install_tree}/json/${json_version}:${install_tree}/root/${root_version}:${install_tree}/podio/${podio_version}:${install_tree}/edm4hep/${edm4hep_version}"
+    export CMAKE_PREFIX_PATH="${install_tree}/json/${json_version}:${install_tree}/root/${root_version}:${install_tree}/geant4/${geant4_version}:${install_tree}/podio/${podio_version}:${install_tree}/edm4hep/${edm4hep_version}"
     cmake -S "${source_tree}/dd4hep/${dd4hep_version}" -B "${build_tree}/dd4hep/${dd4hep_version}" \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
