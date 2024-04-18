@@ -29,7 +29,7 @@ else
     echo "source directory already exists: $source"
 fi
 
-if [[ -d "$build" ]]; then
+if [[ ! -d "$build" ]]; then
     echo "create build directory: $build"
 
     cmake -S "$source" -B "$build" \
