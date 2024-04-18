@@ -263,16 +263,17 @@ function build_dd4hep() {
     cmake --build "${build_tree}/dd4hep/${dd4hep_version}" --target install
 }
 
-function build_edm4hep() {
-    export CMAKE_PREFIX_PATH="${install_tree}/root/${root_version}:${install_tree}/podio/${podio_version}"
-    cmake -S "${source_tree}/edm4hep/${edm4hep_version}" -B "${build_tree}/edm4hep/${edm4hep_version}" \
+function build_hepmc3 {
+    cmake -S "${source_tree}/hepmc3/${hepmc3_version}" -B "${build_tree}/hepmc3/${hepmc3_version}" \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=17 \
-        -DCMAKE_INSTALL_PREFIX="${install_tree}/edm4hep/${edm4hep_version}" \
-        -DBUILD_TESTING=OFF \
-        -DUSE_EXTERNAL_CATCH2=OFF
-    cmake --build "${build_tree}/edm4hep/${edm4hep_version}" --target install
+        -DCMAKE_INSTALL_PREFIX="${install_tree}/hepmc3/${hepmc3_version}" \
+        -DHEPMC3_BUILD_STATIC_LIBS=OFF \
+        -DHEPMC3_ENABLE_PYTHON=OFF \
+        -DHEPMC3_ENABLE_ROOTIO=OFF \
+        -DHEPMC3_ENABLE_SEARCH=OFF
+    cmake --build "${build_tree}/hepmc3/${hepmc3_version}" --target install
 }
 
 echo "###"
