@@ -5,14 +5,15 @@ from pathlib import Path
 import acts
 import acts.examples
 from acts.examples.simulation import (
-    addPythia8,
-    addParticleGun,
     MomentumConfig,
     EtaConfig,
     PhiConfig,
     ParticleConfig,
-    addFatras,
+    addParticleGun,
+    addPythia8,
     ParticleSelectorConfig,
+    addFatras,
+    addGeant4,
     addDigitization,
 )
 from acts.examples.reconstruction import (
@@ -28,6 +29,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("outputDir", help="Output directory", type=Path)
 parser.add_argument("--ttbar", help="Use ttbar events", action="store_true")
+parser.add_argument("--geant4", help="Use geant4 simulation", action="store_true")
 args = parser.parse_args()
 
 u = acts.UnitConstants
@@ -99,22 +101,42 @@ def create_sequencer():
             # outputDirCsv=outputDir,
         )
 
-    addFatras(
-        s,
-        trackingGeometry,
-        field,
-        preSelectParticles=ParticleSelectorConfig(
-            rho=(0.0, 24 * u.mm),
-            absZ=(0.0, 1.0 * u.m),
-            eta=(-3.0, 3.0),
-            pt=(150 * u.MeV, None),
-            removeNeutral=True,
-        ),
-        enableInteractions=True,
-        # outputDirRoot=outputDir,
-        # outputDirCsv=outputDir,
-        rnd=rnd,
-    )
+    if not args.geant4:
+        addFatras(
+            s,
+            trackingGeometry,
+            field,
+            preSelectParticles=ParticleSelectorConfig(
+                rho=(0.0, 24 * u.mm),
+                absZ=(0.0, 1.0 * u.m),
+                eta=(-3.0, 3.0),
+                pt=(150 * u.MeV, None),
+                removeNeutral=True,
+            ),
+            enableInteractions=True,
+            # outputDirRoot=outputDir,
+            # outputDirCsv=outputDir,
+            rnd=rnd,
+        )
+    else:
+        addGeant4(
+            s,
+            detector,
+            trackingGeometry,
+            field,
+            preSelectParticles=ParticleSelectorConfig(
+                rho=(0.0, 24 * u.mm),
+                absZ=(0.0, 1.0 * u.m),
+                eta=(-3.0, 3.0),
+                pt=(150 * u.MeV, None),
+                removeNeutral=True,
+            ),
+            outputDirRoot=outputDir,
+            # outputDirCsv=outputDir,
+            rnd=rnd,
+            killVolume=trackingGeometry.worldVolume,
+            killAfterTime=25 * u.ns,
+        )
 
     addDigitization(
         s,
@@ -148,6 +170,8 @@ def create_sequencer():
             maxOutliers=2,
         ),
         CkfConfig(
+            chi2CutOff=15,
+            numMeasurementsCutOff=1,
             seedDeduplication=True,
             stayOnSeed=True,
         ),
@@ -169,14 +193,18 @@ for i in range(runs):
     print(f"start round {i}")
     s.run()
     d = pd.read_csv(outputDir / "timing.tsv", sep="\t")
-    t = {
-        "fatras": d[d["identifier"] == "Algorithm:FatrasSimulation"][
+    t = {}
+    if not args.geant4:
+        t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
             "time_perevent_s"
-        ].values[0],
-        "ckf": d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
+        ].values[0]
+    else:
+        t["geant4"] = d[d["identifier"] == "Algorithm:Geant4Simulation"][
             "time_perevent_s"
-        ].values[0],
-    }
+        ].values[0]
+    t["ckf"] = d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
+        "time_perevent_s"
+    ].values[0]
     print(f"finished and got times {t}")
     times.append(t)
     pd.DataFrame(times).to_csv(outputDir / "times.csv", index=False)
