@@ -25,12 +25,33 @@ if [[ ! -d "$source" ]]; then
     git submodule update --init --recursive
 
     git maintenance start
+
+    echo "" > "$source/.clangd"
+    echo "CompileFlags:" >> "$source/.clangd"
+    echo "  CompilationDatabase: $build" >> "$source/.clangd"
+
+    echo "" > "$source/activate.sh"
+    echo ". ~/cern/venv/bin/activate" >> "$source/activate.sh"
+    echo "" >> "$source/activate.sh"
+    echo ". $build/this_acts_withdeps.sh" >> "$source/activate.sh"
 else
     echo "source directory already exists: $source"
 fi
 
 if [[ ! -d "$build" ]]; then
     echo "create build directory: $build"
+
+    # TODO source deps activate.sh
+    export CMAKE_PREFIX_PATH="~/cern/install/json/3.11.3:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/tbb/2021.11.0:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/eigen/3.4.0:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/root/6.30.02:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.2.1:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/pythia/8310:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/podio/00-17-04:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-10-03:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-27-02:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
 
     cmake -S "$source" -B "$build" \
         -GNinja \
