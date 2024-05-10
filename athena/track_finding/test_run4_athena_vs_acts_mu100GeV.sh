@@ -34,41 +34,44 @@ run () {
     return $rc
 }
 
-# Run athena
-run "Reconstruction-athena" \
-    Reco_tf.py --CA \
-    --steering doRAWtoALL \
-    --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude" \
-    --preExec "ConfigFlags.Tracking.doStoreSiSPSeededTracks=True; ConfigFlags.Tracking.writeExtendedSi_PRDInfo=True" \
-    --inputRDOFile ${rdo_23p0} \
-    --outputAODFile AOD.athena.root \
-    --maxEvents ${nEvents}
+# # Run athena
+# run "Reconstruction-athena" \
+#     Reco_tf.py --CA \
+#     --steering doRAWtoALL \
+#     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude" \
+#     --preExec "ConfigFlags.Tracking.doStoreSiSPSeededTracks=True; ConfigFlags.Tracking.writeExtendedSi_PRDInfo=True" \
+#     --inputRDOFile ${rdo_23p0} \
+#     --outputAODFile AOD.athena.root \
+#     --maxEvents ${nEvents}
 
-reco_rc=$?
+# reco_rc=$?
 
-# Rename log
-mv log.RAWtoALL log.RAWtoALL.ATHENA
+# # Rename log
+# mv log.RAWtoALL log.RAWtoALL.ATHENA
 
-if [ $reco_rc != 0 ]; then
-    exit $reco_rc
-fi
+# if [ $reco_rc != 0 ]; then
+#     exit $reco_rc
+# fi
 
-run "IDPVM" \
-    runIDPVM.py \
-    --filesInput AOD.athena.root \
-    --outputFile idpvm.athena.root
+# run "IDPVM" \
+#     runIDPVM.py \
+#     --filesInput AOD.athena.root \
+#     --outputFile idpvm.athena.root \
+#     --validateExtraTrackCollections 'SiSPSeededTracksTrackParticles' \
+#     --doTechnicalEfficiency \
+#     --doExpertPlots
 
-reco_rc=$?
-if [ $reco_rc != 0 ]; then
-    exit $reco_rc
-fi
+# reco_rc=$?
+# if [ $reco_rc != 0 ]; then
+#     exit $reco_rc
+# fi
 
 # Run acts
 run "Reconstruction-acts" \
     Reco_tf.py --CA \
     --steering doRAWtoALL \
     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
-    --preExec "ConfigFlags.Tracking.writeExtendedSi_PRDInfo=True" \
+    --preExec "flags.Tracking.doStoreSiSPSeededTracks=True; flags.Tracking.doTruth=True; flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True; flags.Tracking.writeExtendedSi_PRDInfo=True" \
     --inputRDOFile ${rdo_23p0} \
     --outputAODFile AOD.acts.root \
     --maxEvents ${nEvents}
@@ -85,7 +88,10 @@ fi
 run "IDPVM" \
     runIDPVM.py \
     --filesInput AOD.acts.root \
-    --outputFile idpvm.acts.root
+    --outputFile idpvm.acts.root \
+    --validateExtraTrackCollections 'SiSPSeededValidateActsSeedsTrackParticles' \
+    --doTechnicalEfficiency \
+    --doExpertPlots
 
 reco_rc=$?
 if [ $reco_rc != 0 ]; then
