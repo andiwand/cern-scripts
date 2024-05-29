@@ -55,7 +55,7 @@ events = 20
 runs = 50
 
 if args.ttbar:
-    events = 3
+    events = 5
     runs = 10
 
 

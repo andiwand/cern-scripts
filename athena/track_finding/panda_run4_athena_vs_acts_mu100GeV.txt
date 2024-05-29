@@ -1,0 +1,14 @@
+setupATLAS
+asetup Athena,main,latest
+
+lsetup panda
+
+pathena --trf "Reco_tf.py --maxEvents=%MAXEVENTS --skipEvents=%SKIPEVENTS --inputRDOFile=%IN --outputAODFile=%OUT.AOD.pool.root
+  --CA 'all:True' --autoConfiguration 'everything' --conditionsTag 'all:OFLCOND-MC15c-SDR-14-05' --multithreaded 'True' --postInclude 'all:PyJobTransforms.UseFrontier'
+  --preInclude 'all:Campaigns.PhaseIINoPileUp;InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude'
+  --preExec 'all:ConfigFlags.Tracking.doStoreSiSPSeededTracks=True;ConfigFlags.Tracking.writeExtendedSi_PRDInfo=True'
+  --steering 'doRAWtoALL' "
+  --inDS=mc21_14TeV.900498.PG_single_muonpm_Pt100_etaFlatnp0_43.recon.RDO.e8481_s4149_r14697
+  --outDS=user.astefl.mc21_14TeV.900498.PG_single_muonpm_Pt100_etaFlatnp0_43.recon.e8481_s4149_r14697.May28 --nEventsPerJob=1000 --nEventsPerFile=1000 --forceStaged --memory 4000
+
+# same for acts, change output
