@@ -7,9 +7,13 @@
 # art-output: dcube*
 # art-html: dcube_last
 
+mkdir run4_acts_ttbar200_chi2cut
+cd run4_acts_ttbar200_chi2cut
+
 lastref_dir=last_results
 dcubeXml=dcube_ART_IDPVMPlots_ITk.xml
 rdo=/cvmfs/atlas-nightlies.cern.ch/repo/data/data-art/PhaseIIUpgrade/RDO/ATLAS-P2-RUN4-03-00-00/mc21_14TeV.601229.PhPy8EG_A14_ttbar_hdamp258p75_SingleLep.recon.RDO.e8481_s4149_r14700/RDO.33629020._000047.pool.root.1
+nEvents=20
 
 # search in $DATAPATH for matching file
 dcubeXmlAbsPath=$(find -H ${DATAPATH//:/ } -mindepth 1 -maxdepth 1 -name $dcubeXml -print -quit 2>/dev/null)
@@ -35,7 +39,10 @@ run "Reconstruction" \
     --inputRDOFile ${rdo} \
     --outputAODFile AOD.root \
     --steering doRAWtoALL \
-    --preInclude InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude
+    --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
+    --preExec "flags.Acts.doMonitoring=True;" \
+    --postExec "cfg.getEventAlgo('ActsValidateTracksTrackFindingAlg').OutputLevel=1" \
+    --maxEvents ${nEvents}
 
 run "IDPVM" \
     runIDPVM.py \
