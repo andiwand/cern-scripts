@@ -53,8 +53,9 @@ field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
 
-events = 20
-runs = 50
+events = 20 if not args.ttbar else 5
+runs = 50 if not args.ttbar else 10
+pus = [0, 60, 120, 200, 300]
 
 vertexingVariants = [
     {
@@ -68,23 +69,19 @@ vertexingVariants = [
         "useTime": False,
     },
     {
-        "name": "amvf_grid_sparse_time",
-        "seeder": acts.VertexSeedFinder.SparseGridSeeder,
-        "useTime": True,
-    },
-    {
         "name": "amvf_grid_adaptive",
         "seeder": acts.VertexSeedFinder.AdaptiveGridSeeder,
         "useTime": False,
     },
+    {
+        "name": "amvf_grid_sparse_time",
+        "seeder": acts.VertexSeedFinder.SparseGridSeeder,
+        "useTime": True,
+    },
 ]
 
-if args.ttbar:
-    events = 5
-    runs = 10
 
-
-def create_sequencer():
+def create_sequencer(ttbar: bool, pu: int, geant4: bool):
     s = acts.examples.Sequencer(
         events=events,
         numThreads=1,
@@ -93,7 +90,7 @@ def create_sequencer():
         # logLevel=acts.logging.WARNING,
     )
 
-    if not args.ttbar:
+    if not ttbar:
         addParticleGun(
             s,
             MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
@@ -106,7 +103,7 @@ def create_sequencer():
                     0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
                 ),
             ),
-            multiplicity=50,
+            multiplicity=1 + pu,
             rnd=rnd,
             # outputDirRoot=outputDir,
             # outputDirCsv=outputDir,
@@ -115,7 +112,7 @@ def create_sequencer():
         addPythia8(
             s,
             hardProcess=["Top:qqbar2ttbar=on"],
-            npileup=200,
+            npileup=pu,
             vtxGen=acts.examples.GaussianVertexGenerator(
                 mean=acts.Vector4(0, 0, 0, 0),
                 stddev=acts.Vector4(
@@ -127,7 +124,7 @@ def create_sequencer():
             # outputDirCsv=outputDir,
         )
 
-    if not args.geant4:
+    if not geant4:
         addFatras(
             s,
             trackingGeometry,
@@ -227,6 +224,8 @@ def create_sequencer():
     )
 
     for variant in vertexingVariants:
+        path = outputDir / f"pu{pu}" / variant["name"]
+        path.mkdir(parents=True, exist_ok=True)
         addVertexFitting(
             s,
             field,
@@ -236,70 +235,80 @@ def create_sequencer():
             vertexFinder=VertexFinder.AMVF,
             seeder=variant["seeder"],
             useTime=variant["useTime"],
-            outputDirRoot=outputDir / variant["name"],
+            outputDirRoot=path,
         )
 
     return s
 
 
+import itertools
 import pandas as pd
 import uproot as up
 import awkward as ak
 
 times = []
-for i in range(runs):
-    print(f"start round {i}")
-    s = create_sequencer()
+for pu, run in itertools.product(pus, range(runs)):
+    print(f"start round {run}")
+
+    s = create_sequencer(args.ttbar, pu, args.geant4)
     s.run()
-    d = pd.read_csv(outputDir / "timing.tsv", sep="\t")
-    t = {}
+
+    timing = pd.read_csv(outputDir / "timing.tsv", sep="\t")
+
+    def get_time_per_event(d, algorithm, index):
+        return d[d["identifier"] == algorithm]["time_perevent_s"].values[index]
+
+    t = {
+        "pu": pu,
+        "ckf": get_time_per_event(timing, "Algorithm:TrackFindingAlgorithm", 0),
+    }
     if not args.geant4:
-        t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
-            "time_perevent_s"
-        ].values[0]
+        t["fatras"] = get_time_per_event(timing, "Algorithm:FatrasSimulation", 0)
     else:
-        t["geant4"] = d[d["identifier"] == "Algorithm:Geant4Simulation"][
-            "time_perevent_s"
-        ].values[0]
-    t["ckf"] = d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
-        "time_perevent_s"
-    ].values[0]
+        t["geant4"] = get_time_per_event(timing, "Algorithm:Geant4Simulation", 0)
     for i, variant in enumerate(vertexingVariants):
-        t[variant["name"]] = d[
-            d["identifier"] == "Algorithm:AdaptiveMultiVertexFinder"
-        ]["time_perevent_s"].values[i]
+        t[variant["name"]] = get_time_per_event(
+            timing, "Algorithm:AdaptiveMultiVertexFinder", i
+        )
     print(f"finished and got times {t}")
     times.append(t)
-    pd.DataFrame(times).to_csv(outputDir / "times.csv", index=False)
+
+    times_summarized = pd.DataFrame(times)
+    times_summarized.to_csv(outputDir / "times.csv", index=False)
 
     # summerize the results
 
-    summary = [
-        {
-            "vtxName": variant["name"],
-            "vtxTime_mean": pd.DataFrame(times).mean()[variant["name"]],
-            "nCleanVtx_mean": 0,
-        }
-        for variant in vertexingVariants
-    ]
-
-    for i, variant in enumerate(vertexingVariants):
-        vertex_perf = ak.to_dataframe(
-            up.open(outputDir / variant["name"] / "performance_vertexing.root")[
-                "vertexing"
-            ].arrays(
-                [
-                    "event_nr",
-                    "nRecoVtx",
-                    "nTrueVtx",
-                    "nCleanVtx",
-                    "nMergedVtx",
-                    "nSplitVtx",
-                ],
+    def get_vertex_perf(pu, variant):
+        path = outputDir / f"pu{pu}" / variant["name"] / "performance_vertexing.root"
+        columns = [
+            "event_nr",
+            "nRecoVtx",
+            "nTrueVtx",
+            "nCleanVtx",
+            "nMergedVtx",
+            "nSplitVtx",
+        ]
+        if not path.exists():
+            return pd.DataFrame(columns=columns)
+        return ak.to_dataframe(
+            up.open(path)["vertexing"].arrays(
+                columns,
                 library="ak",
             ),
             how="outer",
         ).dropna()
-        summary[i]["nCleanVtx_mean"] = vertex_perf.mean()["nCleanVtx"]
+
+    summary = [
+        {
+            "pu": pu,
+            "vtxName": variant["name"],
+            "vtxTime_mean": times_summarized[times_summarized["pu"] == pu].mean()[
+                variant["name"]
+            ],
+            "nCleanVtx_mean": get_vertex_perf(pu, variant).mean()["nCleanVtx"],
+        }
+        for pu in pus
+        for variant in vertexingVariants
+    ]
 
     pd.DataFrame(summary).to_csv(outputDir / "summary.csv", index=False)
