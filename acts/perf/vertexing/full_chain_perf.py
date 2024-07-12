@@ -58,9 +58,20 @@ runs = 50 if not args.ttbar else 10
 pus = [0, 60, 120, 200, 300]
 
 vertexingVariants = [
+    # without time
+    {
+        "name": "truth",
+        "seeder": acts.VertexSeedFinder.TruthSeeder,
+        "useTime": False,
+    },
     {
         "name": "amvf_gauss",
         "seeder": acts.VertexSeedFinder.GaussianSeeder,
+        "useTime": False,
+    },
+    {
+        "name": "amvf_grid",
+        "seeder": acts.VertexSeedFinder.GridSeeder,
         "useTime": False,
     },
     {
@@ -72,6 +83,12 @@ vertexingVariants = [
         "name": "amvf_grid_adaptive",
         "seeder": acts.VertexSeedFinder.AdaptiveGridSeeder,
         "useTime": False,
+    },
+    # with time
+    {
+        "name": "truth_time",
+        "seeder": acts.VertexSeedFinder.TruthSeeder,
+        "useTime": True,
     },
     {
         "name": "amvf_grid_sparse_time",
@@ -224,7 +241,7 @@ def create_sequencer(ttbar: bool, pu: int, geant4: bool):
     )
 
     for variant in vertexingVariants:
-        path = outputDir / f"pu{pu}" / variant["name"]
+        path = outputDir / "root" / f"pu{pu}" / variant["name"]
         path.mkdir(parents=True, exist_ok=True)
         addVertexFitting(
             s,
@@ -279,7 +296,7 @@ for pu, run in itertools.product(pus, range(runs)):
     # summerize the results
 
     def get_vertex_perf(pu, variant):
-        path = outputDir / f"pu{pu}" / variant["name"] / "performance_vertexing.root"
+        path = outputDir / "root" / f"pu{pu}" / variant["name"] / "performance_vertexing.root"
         columns = [
             "event_nr",
             "nRecoVtx",
@@ -306,6 +323,8 @@ for pu, run in itertools.product(pus, range(runs)):
                 variant["name"]
             ],
             "nCleanVtx_mean": get_vertex_perf(pu, variant).mean()["nCleanVtx"],
+            "nMergedVtx_mean": get_vertex_perf(pu, variant).mean()["nMergedVtx"],
+            "nSplitVtx_mean": get_vertex_perf(pu, variant).mean()["nSplitVtx"],
         }
         for pu in pus
         for variant in vertexingVariants
