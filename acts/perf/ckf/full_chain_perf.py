@@ -37,7 +37,6 @@ u = acts.UnitConstants
 geoDir = getOpenDataDetectorDirectory()
 outputDir = Path.cwd() / args.outputDir
 outputDir.mkdir(parents=True, exist_ok=True)
-# acts.examples.dump_args_calls(locals())  # show python binding calls
 
 oddMaterialMap = geoDir / "data/odd-material-maps.root"
 oddDigiConfig = geoDir / "config/odd-digi-smearing-config.json"
@@ -72,7 +71,7 @@ def create_sequencer():
         addParticleGun(
             s,
             MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
-            EtaConfig(-3.0, 3.0),
+            EtaConfig(-3.0, 3.0, uniform=True),
             PhiConfig(0.0, 360.0 * u.degree),
             ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
             vtxGen=acts.examples.GaussianVertexGenerator(
