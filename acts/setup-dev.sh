@@ -48,7 +48,7 @@ if [[ ! -d "$build" ]]; then
     export CMAKE_PREFIX_PATH="~/cern/install/root/6.30.06:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.2.1:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="~/cern/install/pythia/8312:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="~/cern/install/podio/00-17-04:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="~/cern/install/podio/01-00-01:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-10-03:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-27-02:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
@@ -71,7 +71,9 @@ if [[ ! -d "$build" ]]; then
         -DACTS_BUILD_FATRAS_GEANT4=ON \
         -DACTS_BUILD_ODD=ON \
         -DACTS_BUILD_UNITTESTS=ON \
-        -DACTS_BUILD_INTEGRATIONTESTS=ON
+        -DACTS_BUILD_INTEGRATIONTESTS=ON \
+        -DACTS_BUILD_EXAMPLES_UNITTESTS=ON \
+        -DACTS_BUILD_NONCOMPILE_TESTS=ON
 else
     echo "build directory already exists: $build"
 fi

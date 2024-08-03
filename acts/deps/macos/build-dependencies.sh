@@ -106,16 +106,16 @@ export CMAKE_PREFIX_PATH="~/cern/install/pythia/8312:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/podio/00-17-04 -B ~/cern/build/podio/00-17-04 \
+cmake -S ~/cern/source/podio/01-00-01 -B ~/cern/build/podio/01-00-01 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/00-17-04 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-00-01 \
   -DBUILD_TESTING=OFF \
   -USE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/podio/00-17-04 --target install
+cmake --build ~/cern/build/podio/01-00-01 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/podio/00-17-04:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/podio/01-00-01:$CMAKE_PREFIX_PATH"
 
 ###
 
