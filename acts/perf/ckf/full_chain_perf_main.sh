@@ -9,4 +9,4 @@ ACTS_ACTIVATE_1=~/cern/source/acts/acts/perf1/activate.sh
 
 mkdir -p results_main
 
-$SCRIPTS_DIR/generic/activate_and_run.sh $ACTS_ACTIVATE_1 python3 -u $FULL_CHAIN --ttbar results_main | tee results_main/log.txt
+$SCRIPTS_DIR/generic/activate_and_run.sh $ACTS_ACTIVATE_1 spyral run -o results_main/spyral.csv -l main -- python3 -u $FULL_CHAIN --ttbar results_main | tee results_main/log.txt

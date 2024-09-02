@@ -203,7 +203,7 @@ times = []
 for i in range(runs):
     print(f"start round {i}")
     s.run()
-    d = pd.read_csv(outputDir / "timing.tsv", sep="\t")
+    d = pd.read_csv(outputDir / "timing.csv")
     t = {}
     if not args.geant4:
         t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
