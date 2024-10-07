@@ -1,5 +1,5 @@
 #!/bin/bash
-# art-description: Run 4 configuration, ITK only recontruction, Single muon 100GeV, acts activated
+# art-description: Run 4 configuration, ITK only recontruction, Single muon 1GeV, acts activated
 # art-type: grid
 # art-include: main/Athena
 # art-output: *.root
@@ -7,14 +7,14 @@
 # art-output: dcube*
 # art-html: dcube_ambi_last
 
-mkdir run4_acts_mu100GeV_verbose
-cd run4_acts_mu100GeV_verbose
+mkdir run4_acts_mu1GeV_verbose
+cd run4_acts_mu1GeV_verbose
 
 lastref_dir=last_results
 dcubeXml=dcube_IDPVMPlots_ACTS_CKF_ITk_techeff.xml
-rdo_23p0=/cvmfs/atlas-nightlies.cern.ch/repo/data/data-art/PhaseIIUpgrade/RDO/ATLAS-P2-RUN4-03-00-00/mc21_14TeV.900498.PG_single_muonpm_Pt100_etaFlatnp0_43.recon.RDO.e8481_s4149_r14697/RDO.33675668._000016.pool.root.1
+rdo_23p0=/cvmfs/atlas-nightlies.cern.ch/repo/data/data-art/PhaseIIUpgrade/RDO/ATLAS-P2-RUN4-03-00-00/mc21_14TeV.900492.PG_single_muonpm_Pt1_etaFlatnp0_43.recon.RDO.e8481_s4149_r14697/RDO.33645151._000047.pool.root.1
 nEvents=1
-sEvents=115
+sEvents=82
 
 # search in $DATAPATH for matching file
 dcubeXmlAbsPath=$(find -H ${DATAPATH//:/ } -mindepth 1 -maxdepth 1 -name $dcubeXml -print -quit 2>/dev/null)
@@ -43,7 +43,7 @@ run "Reconstruction-acts" \
     Reco_tf.py --CA \
     --steering doRAWtoALL \
     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
-    --preExec "flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
+    --preExec "flags.Acts.doPrintTrackStates=True;flags.Common.MsgSuppression=False;flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
     --postExec "cfg.getEventAlgo('ActsValidateTracksTrackFindingAlg').OutputLevel=1" \
     --inputRDOFile ${rdo_23p0} \
     --outputAODFile AOD.acts.root \
@@ -57,4 +57,4 @@ if [ $reco_rc != 0 ]; then
     exit $reco_rc
 fi
 
-runTRKAnalysis.py -i AOD.acts.root -o trk_acts.root
+#runTRKAnalysis.py -i AOD.acts.root -o trk_acts.root

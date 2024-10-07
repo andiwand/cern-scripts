@@ -179,9 +179,11 @@ def create_sequencer():
             nMeasurementsMin=7,
             maxHoles=2,
             maxOutliers=2,
+            maxHolesAndOutliers=4,
         ),
         CkfConfig(
-            chi2CutOff=15,
+            chi2CutOffMeasurement=9,
+            chi2CutOffOutlier=15,
             numMeasurementsCutOff=1,
             seedDeduplication=True,
             stayOnSeed=True,
@@ -213,6 +215,9 @@ for i in range(runs):
         t["geant4"] = d[d["identifier"] == "Algorithm:Geant4Simulation"][
             "time_perevent_s"
         ].values[0]
+    t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm"][
+        "time_perevent_s"
+    ].values[0]
     t["ckf"] = d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
         "time_perevent_s"
     ].values[0]
