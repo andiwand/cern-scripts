@@ -62,7 +62,8 @@ run "IDPVM" \
     --outputFile idpvm.athena.root \
     --validateExtraTrackCollections 'SiSPSeededTracksTrackParticles' \
     --doTechnicalEfficiency \
-    --doExpertPlots
+    --doExpertPlots \
+    --truthMinPt 999
 
 reco_rc=$?
 if [ $reco_rc != 0 ]; then
@@ -74,10 +75,10 @@ run "Reconstruction-acts" \
     Reco_tf.py --CA \
     --steering doRAWtoALL \
     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
-    --preExec "flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
+    --preExec "flags.Detector.EnableHGTD=False;flags.Detector.GeometryHGTD=False;flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
     --inputRDOFile ${rdo_23p0} \
     --outputAODFile AOD.acts.root \
-    --maxEvents ${nEvents}z
+    --maxEvents ${nEvents}
 
 reco_rc=$?
 
@@ -94,7 +95,8 @@ run "IDPVM" \
     --outputFile idpvm.acts.root \
     --validateExtraTrackCollections 'SiSPSeededTracksActsValidateTracksTrackParticles' \
     --doTechnicalEfficiency \
-    --doExpertPlots
+    --doExpertPlots \
+    --truthMinPt 999
 
 reco_rc=$?
 if [ $reco_rc != 0 ]; then

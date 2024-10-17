@@ -7,7 +7,7 @@
 # art-output: dcube*
 # art-html: dcube_ambi_last
 
-missing="48 53 57 67 82 220 259 272 333 353 361 428 533 575 615 662 811 815 820 894 905 954 962"
+missing="67 259 272 333 361 428 533 820 905 954 962"
 
 # for each missing
 for i in $missing; do
@@ -50,7 +50,7 @@ run "Reconstruction-acts" \
     Reco_tf.py --CA \
     --steering doRAWtoALL \
     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
-    --preExec "flags.Acts.doPrintTrackStates=True;flags.Common.MsgSuppression=False;flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
+    --preExec "flags.Detector.EnableHGTD=False;flags.Detector.GeometryHGTD=False;flags.Acts.doPrintTrackStates=True;flags.Common.MsgSuppression=False;flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
     --postExec "cfg.getEventAlgo('ActsValidateTracksTrackFindingAlg').OutputLevel=1" \
     --inputRDOFile ${rdo_23p0} \
     --outputAODFile AOD.acts.root \
@@ -65,5 +65,7 @@ if [ $reco_rc != 0 ]; then
 fi
 
 #runTRKAnalysis.py -i AOD.acts.root -o trk_acts.root
+
+cd ..
 
 done
