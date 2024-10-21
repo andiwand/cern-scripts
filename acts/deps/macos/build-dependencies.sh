@@ -33,11 +33,11 @@ export CMAKE_PREFIX_PATH="~/cern/install/eigen/3.4.0:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/root/6.30.06 -B ~/cern/build/root/6.30.06 \
+cmake -S ~/cern/source/root/6.32.06 -B ~/cern/build/root/6.32.06 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/root/6.30.06 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/root/6.32.06 \
   -Dfail-on-missing=ON \
   -Dgdml=ON \
   -Dx11=ON \
@@ -68,9 +68,9 @@ cmake -S ~/cern/source/root/6.30.06 -B ~/cern/build/root/6.30.06 \
   -Dbuiltin_vdt=ON \
   -Dxrootd=OFF \
   -Dtmva=OFF
-cmake --build ~/cern/build/root/6.30.06 --target install
+cmake --build ~/cern/build/root/6.32.06 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/root/6.30.06:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/root/6.32.06:$CMAKE_PREFIX_PATH"
 
 ###
 
@@ -106,47 +106,48 @@ export CMAKE_PREFIX_PATH="~/cern/install/pythia/8312:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/podio/01-00-01 -B ~/cern/build/podio/01-00-01 \
+cmake -S ~/cern/source/podio/01-01 -B ~/cern/build/podio/01-01 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-00-01 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-01 \
   -DBUILD_TESTING=OFF \
   -USE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/podio/01-00-01 --target install
+cmake --build ~/cern/build/podio/01-01 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/podio/01-00-01:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/podio/01-01:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/edm4hep/00-10-03 -B ~/cern/build/edm4hep/00-10-03 \
+cmake -S ~/cern/source/edm4hep/00-99-01 -B ~/cern/build/edm4hep/00-99-01 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-10-03 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-99-01 \
   -DBUILD_TESTING=OFF \
   -DUSE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/edm4hep/00-10-03 --target install
+cmake --build ~/cern/build/edm4hep/00-99-01 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-10-03:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-01:$CMAKE_PREFIX_PATH"
 
 ###
 
 brew install boost
 
-cmake -S ~/cern/source/dd4hep/01-27-02 -B ~/cern/build/dd4hep/01-27-02 \
+cmake -S ~/cern/source/dd4hep/01-30 -B ~/cern/build/dd4hep/01-30 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-27-02 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-30 \
+  -DBUILD_DOCS=OFF \
   -DBUILD_TESTING=OFF \
   -DDD4HEP_BUILD_PACKAGES="DDG4 DDDetectors DDRec UtilityApps" \
   -DDD4HEP_USE_GEANT4=ON \
   -DDD4HEP_USE_XERCESC=ON \
   -DDD4HEP_USE_EDM4HEP=ON
-cmake --build ~/cern/build/dd4hep/01-27-02 --target install
+cmake --build ~/cern/build/dd4hep/01-30 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-27-02:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-30:$CMAKE_PREFIX_PATH"
 
 ###
 
