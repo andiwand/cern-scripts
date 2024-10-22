@@ -109,6 +109,8 @@ def create_sequencer():
             preSelectParticles=ParticleSelectorConfig(
                 rho=(0.0, 24 * u.mm),
                 absZ=(0.0, 1.0 * u.m),
+            ),
+            postSelectParticles=ParticleSelectorConfig(
                 eta=(-3.0, 3.0),
                 pt=(150 * u.MeV, None),
                 removeNeutral=True,
@@ -127,6 +129,8 @@ def create_sequencer():
             preSelectParticles=ParticleSelectorConfig(
                 rho=(0.0, 24 * u.mm),
                 absZ=(0.0, 1.0 * u.m),
+            ),
+            postSelectParticles=ParticleSelectorConfig(
                 eta=(-3.0, 3.0),
                 pt=(150 * u.MeV, None),
                 removeNeutral=True,
