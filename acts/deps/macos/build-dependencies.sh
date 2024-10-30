@@ -1,3 +1,8 @@
+export Python_ROOT_DIR="~/cern/venv"
+export Python_FIND_VIRTUALENV=ONLY
+
+###
+
 cmake -S ~/cern/source/json/3.11.3 -B ~/cern/build/json/3.11.3 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
@@ -106,48 +111,48 @@ export CMAKE_PREFIX_PATH="~/cern/install/pythia/8312:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/podio/01-01 -B ~/cern/build/podio/01-01 \
+cmake -S ~/cern/source/podio/00-17-02 -B ~/cern/build/podio/00-17-02 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-01 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/00-17-02 \
   -DBUILD_TESTING=OFF \
-  -USE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/podio/01-01 --target install
+  -DUSE_EXTERNAL_CATCH2=OFF
+cmake --build ~/cern/build/podio/00-17-02 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/podio/01-01:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/podio/00-17-02:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/edm4hep/00-99-01 -B ~/cern/build/edm4hep/00-99-01 \
+cmake -S ~/cern/source/edm4hep/00-10-01 -B ~/cern/build/edm4hep/00-10-01 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-99-01 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-10-01 \
   -DBUILD_TESTING=OFF \
   -DUSE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/edm4hep/00-99-01 --target install
+cmake --build ~/cern/build/edm4hep/00-10-01 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-01:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-10-01:$CMAKE_PREFIX_PATH"
 
 ###
 
 brew install boost
 
-cmake -S ~/cern/source/dd4hep/01-30 -B ~/cern/build/dd4hep/01-30 \
+cmake -S ~/cern/source/dd4hep/01-29 -B ~/cern/build/dd4hep/01-29 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-30 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-29 \
   -DBUILD_DOCS=OFF \
   -DBUILD_TESTING=OFF \
   -DDD4HEP_BUILD_PACKAGES="DDG4 DDDetectors DDRec UtilityApps" \
   -DDD4HEP_USE_GEANT4=ON \
   -DDD4HEP_USE_XERCESC=ON \
   -DDD4HEP_USE_EDM4HEP=ON
-cmake --build ~/cern/build/dd4hep/01-30 --target install
+cmake --build ~/cern/build/dd4hep/01-29 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-30:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-29:$CMAKE_PREFIX_PATH"
 
 ###
 
