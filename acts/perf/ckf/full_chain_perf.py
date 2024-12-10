@@ -43,9 +43,11 @@ oddDigiConfig = geoDir / "config/odd-digi-smearing-config.json"
 oddSeedingSel = geoDir / "config/odd-seeding-config.json"
 oddMaterialDeco = acts.IMaterialDecorator.fromFile(oddMaterialMap)
 
-detector, trackingGeometry, decorators = getOpenDataDetector(
+detector = getOpenDataDetector(
     odd_dir=geoDir, mdecorator=oddMaterialDeco
 )
+trackingGeometry = detector.trackingGeometry()
+
 field = acts.ConstantBField(acts.Vector3(0.0, 0.0, 2.0 * u.T))
 rnd = acts.examples.RandomNumbers(seed=42)
 
