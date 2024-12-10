@@ -54,6 +54,7 @@ if [[ ! -d "$build" ]]; then
     export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-10-01:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/dd4hep/01-29:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
+    export CMAKE_PREFIX_PATH="${install_base}/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${venv}:$CMAKE_PREFIX_PATH"
 
     source "${venv}/bin/activate"
@@ -75,9 +76,12 @@ if [[ ! -d "$build" ]]; then
         -DACTS_BUILD_EXAMPLES_PYTHIA8=ON \
         -DACTS_BUILD_EXAMPLES_PYTHON_BINDINGS=ON \
         -DACTS_BUILD_EXAMPLES_EDM4HEP=ON \
+        -DACTS_BUILD_EXAMPLES_HEPMC3=ON \
+        -DACTS_BUILD_PLUGIN_GEOMODEL=ON \
         -DACTS_BUILD_FATRAS=ON \
         -DACTS_BUILD_FATRAS_GEANT4=ON \
         -DACTS_BUILD_ODD=ON \
+        -DACTS_BUILD_BENCHMARKS=ON \
         -DACTS_BUILD_UNITTESTS=ON \
         -DACTS_BUILD_INTEGRATIONTESTS=ON \
         -DACTS_BUILD_EXAMPLES_UNITTESTS=ON \

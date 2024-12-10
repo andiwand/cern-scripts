@@ -97,6 +97,18 @@ export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.2.1:$CMAKE_PREFIX_PATH"
 
 ###
 
+cmake -S ~/cern/source/geomodel -B ~/cern/build/geomodel/6.3.0 \
+  -GNinja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_STANDARD=20 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/geomodel/6.3.0 \
+  -DGEOMODEL_BUILD_GEOMODELG4=ON
+cmake --build ~/cern/build/geomodel/6.3.0 --target install
+
+export CMAKE_PREFIX_PATH="~/cern/install/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
+
+###
+
 # patched with https://raw.githubusercontent.com/acts-project/ci-dependencies/e06f756b158b0d066c64aaa5605532fe4385a6e3/pythia8-forward-decl.patch
 
 cd ~/cern/source/pythia/8312
