@@ -13,8 +13,8 @@ cd run4_acts_mu100GeV_verbose
 lastref_dir=last_results
 dcubeXml=dcube_IDPVMPlots_ACTS_CKF_ITk_techeff.xml
 rdo_23p0=/cvmfs/atlas-nightlies.cern.ch/repo/data/data-art/PhaseIIUpgrade/RDO/ATLAS-P2-RUN4-03-00-00/mc21_14TeV.900498.PG_single_muonpm_Pt100_etaFlatnp0_43.recon.RDO.e8481_s4149_r14697/RDO.33675668._000016.pool.root.1
-nEvents=1
-sEvents=115
+nEvents=1000
+sEvents=0
 
 # search in $DATAPATH for matching file
 dcubeXmlAbsPath=$(find -H ${DATAPATH//:/ } -mindepth 1 -maxdepth 1 -name $dcubeXml -print -quit 2>/dev/null)
@@ -43,7 +43,7 @@ run "Reconstruction-acts" \
     Reco_tf.py --CA \
     --steering doRAWtoALL \
     --preInclude "InDetConfig.ConfigurationHelpers.OnlyTrackingPreInclude,ActsConfig.ActsCIFlags.actsValidateTracksFlags" \
-    --preExec "flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
+    --preExec "flags.Common.MsgSuppression=False;flags.Tracking.doStoreSiSPSeededTracks=True;flags.Tracking.doTruth=True;flags.Tracking.ITkActsValidateTracksPass.storeSiSPSeededTracks=True;flags.Tracking.writeExtendedSi_PRDInfo=True" \
     --postExec "cfg.getEventAlgo('ActsValidateTracksTrackFindingAlg').OutputLevel=1" \
     --inputRDOFile ${rdo_23p0} \
     --outputAODFile AOD.acts.root \
