@@ -11,10 +11,12 @@ from acts.examples.simulation import (
     ParticleConfig,
     addParticleGun,
     addPythia8,
+    addGenParticleSelection,
     ParticleSelectorConfig,
     addFatras,
     addGeant4,
     addDigitization,
+    addDigiParticleSelection,
 )
 from acts.examples.reconstruction import (
     SeedFinderConfigArg,
@@ -56,8 +58,8 @@ events = 20
 runs = 50
 
 if args.ttbar:
-    events = 3
-    runs = 30
+    events = 5
+    runs = 50
 
 
 def create_sequencer():
@@ -103,20 +105,19 @@ def create_sequencer():
             # outputDirCsv=outputDir,
         )
 
+    addGenParticleSelection(
+        s,
+        ParticleSelectorConfig(
+            rho=(0.0, 24 * u.mm),
+            absZ=(0.0, 1.0 * u.m),
+        ),
+    )
+
     if not args.geant4:
         addFatras(
             s,
             trackingGeometry,
             field,
-            preSelectParticles=ParticleSelectorConfig(
-                rho=(0.0, 24 * u.mm),
-                absZ=(0.0, 1.0 * u.m),
-            ),
-            postSelectParticles=ParticleSelectorConfig(
-                eta=(-3.0, 3.0),
-                pt=(0.9 * u.GeV, None),
-                removeNeutral=True,
-            ),
             enableInteractions=True,
             # outputDirRoot=outputDir,
             # outputDirCsv=outputDir,
@@ -128,15 +129,6 @@ def create_sequencer():
             detector,
             trackingGeometry,
             field,
-            preSelectParticles=ParticleSelectorConfig(
-                rho=(0.0, 24 * u.mm),
-                absZ=(0.0, 1.0 * u.m),
-            ),
-            postSelectParticles=ParticleSelectorConfig(
-                eta=(-3.0, 3.0),
-                pt=(0.9 * u.GeV, None),
-                removeNeutral=True,
-            ),
             # outputDirRoot=outputDir,
             # outputDirCsv=outputDir,
             rnd=rnd,
@@ -152,6 +144,15 @@ def create_sequencer():
         # outputDirRoot=outputDir,
         # outputDirCsv=outputDir,
         rnd=rnd,
+    )
+
+    addDigiParticleSelection(
+        s,
+        ParticleSelectorConfig(
+            eta=(-3.0, 3.0),
+            pt=(0.9 * u.GeV, None),
+            removeNeutral=True,
+        ),
     )
 
     addSeeding(
