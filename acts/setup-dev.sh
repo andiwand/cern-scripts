@@ -47,12 +47,12 @@ if [[ ! -d "$build" ]]; then
     export CMAKE_PREFIX_PATH="${install_base}/json/3.11.3:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/tbb/2021.11.0:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/eigen/3.4.0:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/root/6.32.06:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/geant4/11.2.1:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/pythia/8312:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/podio/00-17-02:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-10-01:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/dd4hep/01-29:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/root/6.34.08:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/geant4/11.3.1:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/pythia/8314:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/podio/01-02:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-99-01:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/dd4hep/01-31:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${install_base}/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${venv}:$CMAKE_PREFIX_PATH"
@@ -69,6 +69,7 @@ if [[ ! -d "$build" ]]; then
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         -DPython_ROOT_DIR="${venv}" \
         -DPython_FIND_VIRTUALENV=ONLY \
+        -DACTS_USE_SYSTEM_NLOHMANN_JSON=ON \
         -DACTS_FORCE_ASSERTIONS=ON \
         -DACTS_ENABLE_LOG_FAILURE_THRESHOLD=ON \
         -DACTS_BUILD_EXAMPLES_DD4HEP=ON \
@@ -84,8 +85,7 @@ if [[ ! -d "$build" ]]; then
         -DACTS_BUILD_BENCHMARKS=ON \
         -DACTS_BUILD_UNITTESTS=ON \
         -DACTS_BUILD_INTEGRATIONTESTS=ON \
-        -DACTS_BUILD_EXAMPLES_UNITTESTS=ON \
-        -DACTS_BUILD_NONCOMPILE_TESTS=ON
+        -DACTS_BUILD_EXAMPLES_UNITTESTS=ON
 else
     echo "build directory already exists: $build"
 fi
