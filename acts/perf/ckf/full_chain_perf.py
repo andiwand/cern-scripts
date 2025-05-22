@@ -194,7 +194,7 @@ def create_sequencer():
             maxSeedsPerSpM=3,
             sigmaScattering=5,
             radLengthPerSeed=0.1,
-            minPt=0.5 * u.GeV,
+            minPt=0.8 * u.GeV,
             impactMax=3 * u.mm,
         ),
         # outputDirRoot=outputDir,
