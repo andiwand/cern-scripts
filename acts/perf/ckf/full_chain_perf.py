@@ -14,7 +14,6 @@ from acts.examples.simulation import (
     addGenParticleSelection,
     ParticleSelectorConfig,
     addFatras,
-    addGeant4,
     addDigitization,
     addDigiParticleSelection,
 )
@@ -32,7 +31,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("outputDir", help="Output directory", type=Path)
 parser.add_argument("--ttbar", help="Use ttbar events", action="store_true")
-parser.add_argument("--geant4", help="Use geant4 simulation", action="store_true")
+parser.add_argument("--geant4", help="Use geant4 simulation files", type=Path)
 args = parser.parse_args()
 
 u = acts.UnitConstants
@@ -61,6 +60,10 @@ if args.ttbar:
     events = 5
     runs = 50
 
+if args.geant4 is not None:
+    events = 1
+    runs = 50
+
 
 def create_sequencer():
     s = acts.examples.Sequencer(
@@ -71,49 +74,49 @@ def create_sequencer():
         # logLevel=acts.logging.WARNING,
     )
 
-    if not args.ttbar:
-        addParticleGun(
-            s,
-            MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
-            EtaConfig(-3.0, 3.0, uniform=True),
-            PhiConfig(0.0, 360.0 * u.degree),
-            ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
-            vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0),
-                stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
+    if args.geant4 is None:
+        if not args.ttbar:
+            addParticleGun(
+                s,
+                MomentumConfig(1.0 * u.GeV, 10.0 * u.GeV, transverse=True),
+                EtaConfig(-3.0, 3.0, uniform=True),
+                PhiConfig(0.0, 360.0 * u.degree),
+                ParticleConfig(4, acts.PdgParticle.eMuon, randomizeCharge=True),
+                vtxGen=acts.examples.GaussianVertexGenerator(
+                    mean=acts.Vector4(0, 0, 0, 0),
+                    stddev=acts.Vector4(
+                        0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 1.0 * u.ns
+                    ),
                 ),
-            ),
-            multiplicity=50,
-            rnd=rnd,
-            # outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
-        )
-    else:
-        addPythia8(
-            s,
-            hardProcess=["Top:qqbar2ttbar=on"],
-            npileup=200,
-            vtxGen=acts.examples.GaussianVertexGenerator(
-                mean=acts.Vector4(0, 0, 0, 0),
-                stddev=acts.Vector4(
-                    0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
+                multiplicity=50,
+                rnd=rnd,
+                # outputDirRoot=outputDir,
+                # outputDirCsv=outputDir,
+            )
+        else:
+            addPythia8(
+                s,
+                hardProcess=["Top:qqbar2ttbar=on"],
+                npileup=200,
+                vtxGen=acts.examples.GaussianVertexGenerator(
+                    mean=acts.Vector4(0, 0, 0, 0),
+                    stddev=acts.Vector4(
+                        0.0125 * u.mm, 0.0125 * u.mm, 55.5 * u.mm, 5.0 * u.ns
+                    ),
                 ),
+                rnd=rnd,
+                # outputDirRoot=outputDir,
+                # outputDirCsv=outputDir,
+            )
+
+        addGenParticleSelection(
+            s,
+            ParticleSelectorConfig(
+                rho=(0.0, 24 * u.mm),
+                absZ=(0.0, 1.0 * u.m),
             ),
-            rnd=rnd,
-            # outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
         )
 
-    addGenParticleSelection(
-        s,
-        ParticleSelectorConfig(
-            rho=(0.0, 24 * u.mm),
-            absZ=(0.0, 1.0 * u.m),
-        ),
-    )
-
-    if not args.geant4:
         addFatras(
             s,
             trackingGeometry,
@@ -124,16 +127,39 @@ def create_sequencer():
             rnd=rnd,
         )
     else:
-        addGeant4(
-            s,
-            detector,
-            trackingGeometry,
-            field,
-            # outputDirRoot=outputDir,
-            # outputDirCsv=outputDir,
-            rnd=rnd,
-            killVolume=trackingGeometry.highestTrackingVolume,
-            killAfterTime=25 * u.ns,
+        s.addReader(
+            acts.examples.RootParticleReader(
+                level=acts.logging.WARNING,
+                outputParticles="particles_generated_selected",
+                filePath=args.geant4 / "particles.root",
+            )
+        )
+        s.addReader(
+            acts.examples.RootVertexReader(
+                level=acts.logging.WARNING,
+                outputVertices="vertices_generated",
+                filePath=args.geant4 / "vertices.root",
+            )
+        )
+        s.addReader(
+            acts.examples.RootParticleReader(
+                level=acts.logging.WARNING,
+                outputParticles="particles_simulated",
+                filePath=args.geant4 / "particles_simulation.root",
+            )
+        )
+        s.addReader(
+            acts.examples.RootSimHitReader(
+                level=acts.logging.WARNING,
+                outputSimHits="simhits",
+                treeName="hits",
+                filePath=args.geant4 / "hits.root",
+            )
+        )
+
+        s.addWhiteboardAlias("particles", "particles_simulated")
+        s.addWhiteboardAlias(
+            "particles_simulated_selected", "particles_simulated"
         )
 
     addDigitization(
@@ -162,13 +188,13 @@ def create_sequencer():
         geoSelectionConfigFile=oddSeedingSel,
         seedFinderConfigArg=SeedFinderConfigArg(
             r=(33 * u.mm, 200 * u.mm),
-            deltaR=(1 * u.mm, 60 * u.mm),
+            deltaR=(1 * u.mm, 300 * u.mm),
             collisionRegion=(-250 * u.mm, 250 * u.mm),
             z=(-2000 * u.mm, 2000 * u.mm),
-            maxSeedsPerSpM=1,
+            maxSeedsPerSpM=3,
             sigmaScattering=5,
             radLengthPerSeed=0.1,
-            minPt=0.9 * u.GeV,
+            minPt=0.5 * u.GeV,
             impactMax=3 * u.mm,
         ),
         # outputDirRoot=outputDir,
@@ -214,12 +240,8 @@ for i in range(runs):
     s.run()
     d = pd.read_csv(outputDir / "timing.csv")
     t = {}
-    if not args.geant4:
+    if args.geant4 is None:
         t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
-            "time_perevent_s"
-        ].values[0]
-    else:
-        t["geant4"] = d[d["identifier"] == "Algorithm:Geant4Simulation"][
             "time_perevent_s"
         ].values[0]
     t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm"][
