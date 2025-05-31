@@ -22,9 +22,6 @@ from acts.examples.reconstruction import (
     SeedFinderConfigArg,
     SeedFilterConfigArg,
     addSeeding,
-    TrackSelectorConfig,
-    CkfConfig,
-    addCKFTracks,
 )
 from acts.examples.odd import getOpenDataDetector, getOpenDataDetectorDirectory
 
@@ -63,8 +60,8 @@ if args.ttbar:
     runs = 50
 
 if args.geant4 is not None:
-    events = 1
-    runs = 50
+    events = 10
+    runs = 1
 
 
 def create_sequencer():
@@ -187,7 +184,7 @@ def create_sequencer():
         s,
         trackingGeometry,
         field,
-        seedingAlgorithm=SeedingAlgorithm.Default,
+        seedingAlgorithm=SeedingAlgorithm.Default2,
         geoSelectionConfigFile=oddSeedingSel,
         seedFinderConfigArg=SeedFinderConfigArg(
             r=(33 * u.mm, 200 * u.mm),
@@ -197,40 +194,14 @@ def create_sequencer():
             maxSeedsPerSpM=3,
             sigmaScattering=5,
             radLengthPerSeed=0.1,
-            minPt=0.8 * u.GeV,
+            minPt=0.5 * u.GeV,
             impactMax=3 * u.mm,
         ),
         seedFilterConfigArg=SeedFilterConfigArg(
-            seedConfirmation=True,
+            #seedConfirmation=True,
         ),
         # outputDirRoot=outputDir,
         # outputDirCsv=outputDir,
-    )
-
-    addCKFTracks(
-        s,
-        trackingGeometry,
-        field,
-        TrackSelectorConfig(
-            pt=(1.0 * u.GeV, None),
-            absEta=(None, 3.0),
-            loc0=(-4.0 * u.mm, 4.0 * u.mm),
-            nMeasurementsMin=7,
-            maxHoles=2,
-            maxOutliers=2,
-            maxHolesAndOutliers=4,
-        ),
-        CkfConfig(
-            chi2CutOffMeasurement=9,
-            chi2CutOffOutlier=15,
-            numMeasurementsCutOff=1,
-            seedDeduplication=True,
-            stayOnSeed=True,
-        ),
-        # writeCovMat=True,
-        # outputDirCsv=outputDir,
-        # outputDirRoot=outputDir,
-        # logLevel=acts.logging.VERBOSE,
     )
 
     return s
@@ -246,14 +217,7 @@ for i in range(runs):
     s.run()
     d = pd.read_csv(outputDir / "timing.csv")
     t = {}
-    if args.geant4 is None:
-        t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
-            "time_perevent_s"
-        ].values[0]
-    t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm"][
-        "time_perevent_s"
-    ].values[0]
-    t["ckf"] = d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
+    t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm2"][
         "time_perevent_s"
     ].values[0]
     print(f"finished and got times {t}")

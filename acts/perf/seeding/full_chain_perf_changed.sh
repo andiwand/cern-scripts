@@ -3,7 +3,7 @@
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 SCRIPTS_DIR=$SCRIPT_DIR/../../..
 
-FULL_CHAIN=$SCRIPT_DIR/full_chain_perf.py
+FULL_CHAIN=$SCRIPT_DIR/full_chain_perf_changed.py
 
 ACTS_ACTIVATE_2=~/cern/source/acts/acts/perf2/activate.sh
 
