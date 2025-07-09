@@ -19,8 +19,8 @@ export DD4HEP_LIBRARY_PATH="${acts_build}/lib:${acts_build}/thirdparty/OpenDataD
 export PYTHONPATH="${acts_source}/Examples/Scripts/Python:${PYTHONPATH}"
 
 # root include path
-export ROOT_INCLUDE_PATH="${ROOT_INCLUDE_PATH}":~/cern/install/podio/01-02/include
-export ROOT_INCLUDE_PATH="${ROOT_INCLUDE_PATH}":~/cern/install/edm4hep/00-99-01/include
+export ROOT_INCLUDE_PATH="${ROOT_INCLUDE_PATH}":~/cern/install/podio/01-03/include
+export ROOT_INCLUDE_PATH="${ROOT_INCLUDE_PATH}":~/cern/install/edm4hep/00-99-02/include
 
 # cmake
 export CMAKE_PREFIX_PATH="~/cern/install/json/3.11.3:${CMAKE_PREFIX_PATH}"
@@ -29,8 +29,8 @@ export CMAKE_PREFIX_PATH="~/cern/install/eigen/3.4.0:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/root/6.34.08:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.3.1:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/pythia/8312:${CMAKE_PREFIX_PATH}"
-export CMAKE_PREFIX_PATH="~/cern/install/podio/01-02:${CMAKE_PREFIX_PATH}"
-export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-01:${CMAKE_PREFIX_PATH}"
+export CMAKE_PREFIX_PATH="~/cern/install/podio/01-03:${CMAKE_PREFIX_PATH}"
+export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-02:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-31:${CMAKE_PREFIX_PATH}"
 export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
 

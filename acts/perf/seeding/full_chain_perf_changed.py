@@ -20,7 +20,9 @@ from acts.examples.simulation import (
 from acts.examples.reconstruction import (
     SeedingAlgorithm,
     SeedFinderConfigArg,
+    SeedFinderOptionsArg,
     SeedFilterConfigArg,
+    SpacePointGridConfigArg,
     addSeeding,
 )
 from acts.examples.odd import getOpenDataDetector, getOpenDataDetectorDirectory
@@ -60,8 +62,8 @@ if args.ttbar:
     runs = 50
 
 if args.geant4 is not None:
-    events = 10
-    runs = 1
+    events = 3
+    runs = 3
 
 
 def create_sequencer():
@@ -184,7 +186,7 @@ def create_sequencer():
         s,
         trackingGeometry,
         field,
-        seedingAlgorithm=SeedingAlgorithm.Default2,
+        seedingAlgorithm=SeedingAlgorithm.GridTriplet,
         geoSelectionConfigFile=oddSeedingSel,
         seedFinderConfigArg=SeedFinderConfigArg(
             r=(33 * u.mm, 200 * u.mm),
@@ -197,8 +199,15 @@ def create_sequencer():
             minPt=0.5 * u.GeV,
             impactMax=3 * u.mm,
         ),
+        seedFinderOptionsArg=SeedFinderOptionsArg(
+            bFieldInZ=2.0 * u.T,
+        ),
         seedFilterConfigArg=SeedFilterConfigArg(
             #seedConfirmation=True,
+        ),
+        spacePointGridConfigArg=SpacePointGridConfigArg(
+            impactMax=0 * u.mm,
+            rMax=200 * u.mm,
         ),
         # outputDirRoot=outputDir,
         # outputDirCsv=outputDir,
@@ -217,7 +226,7 @@ for i in range(runs):
     s.run()
     d = pd.read_csv(outputDir / "timing.csv")
     t = {}
-    t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm2"][
+    t["seeding"] = d[d["identifier"] == "Algorithm:GridTripletSeedingAlgorithm"][
         "time_perevent_s"
     ].values[0]
     print(f"finished and got times {t}")

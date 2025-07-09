@@ -50,10 +50,10 @@ if [[ ! -d "$build" ]]; then
     export CMAKE_PREFIX_PATH="${install_base}/root/6.34.08:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/geant4/11.3.1:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/pythia/8314:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/podio/01-02:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-99-01:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/podio/01-03:${CMAKE_PREFIX_PATH}"
+    export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-99-02:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/dd4hep/01-31:${CMAKE_PREFIX_PATH}"
-    export CMAKE_PREFIX_PATH="${install_base}/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
+    export CMAKE_PREFIX_PATH="${install_base}/hepmc3/3.3.1:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${install_base}/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${venv}:$CMAKE_PREFIX_PATH"
 
@@ -76,6 +76,7 @@ if [[ ! -d "$build" ]]; then
         -DACTS_BUILD_EXAMPLES_GEANT4=ON \
         -DACTS_BUILD_EXAMPLES_PYTHIA8=ON \
         -DACTS_BUILD_EXAMPLES_PYTHON_BINDINGS=ON \
+        -DACTS_BUILD_EXAMPLES_PODIO=ON \
         -DACTS_BUILD_EXAMPLES_EDM4HEP=ON \
         -DACTS_BUILD_EXAMPLES_HEPMC3=ON \
         -DACTS_BUILD_PLUGIN_GEOMODEL=ON \

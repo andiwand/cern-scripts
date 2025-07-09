@@ -122,29 +122,29 @@ export CMAKE_PREFIX_PATH="~/cern/install/pythia/8314:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/podio/01-02 -B ~/cern/build/podio/01-02 \
+cmake -S ~/cern/source/podio/01-03 -B ~/cern/build/podio/01-03 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-02 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/podio/01-03 \
   -DBUILD_TESTING=OFF \
   -DUSE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/podio/01-02 --target install
+cmake --build ~/cern/build/podio/01-03 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/podio/01-02:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/podio/01-03:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/edm4hep/00-99-01 -B ~/cern/build/edm4hep/00-99-01 \
+cmake -S ~/cern/source/edm4hep/00-99-02 -B ~/cern/build/edm4hep/00-99-02 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-99-01 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/edm4hep/00-99-02 \
   -DBUILD_TESTING=OFF \
   -DUSE_EXTERNAL_CATCH2=OFF
-cmake --build ~/cern/build/edm4hep/00-99-01 --target install
+cmake --build ~/cern/build/edm4hep/00-99-02 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-01:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-02:$CMAKE_PREFIX_PATH"
 
 ###
 
@@ -167,15 +167,15 @@ export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-31:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/hepmc3/3.2.7 -B ~/cern/build/hepmc3/3.2.7 \
+cmake -S ~/cern/source/hepmc3/3.3.1 -B ~/cern/build/hepmc3/3.3.1 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/hepmc3/3.2.7 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/hepmc3/3.3.1 \
   -DHEPMC3_BUILD_STATIC_LIBS=OFF \
   -DHEPMC3_ENABLE_PYTHON=OFF \
-  -DHEPMC3_ENABLE_ROOTIO=OFF \
+  -DHEPMC3_ENABLE_ROOTIO=ON \
   -DHEPMC3_ENABLE_SEARCH=OFF
-cmake --build ~/cern/build/hepmc3/3.2.7 --target install
+cmake --build ~/cern/build/hepmc3/3.3.1 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.2.7:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/hepmc3/3.3.1:$CMAKE_PREFIX_PATH"
