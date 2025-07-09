@@ -98,15 +98,15 @@ export CMAKE_PREFIX_PATH="~/cern/install/geant4/11.3.1:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/geomodel -B ~/cern/build/geomodel/6.3.0 \
+cmake -S ~/cern/source/geomodel/6.15.0 -B ~/cern/build/geomodel/6.15.0 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/geomodel/6.3.0 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/geomodel/6.15.0 \
   -DGEOMODEL_BUILD_GEOMODELG4=ON
-cmake --build ~/cern/build/geomodel/6.3.0 --target install
+cmake --build ~/cern/build/geomodel/6.15.0 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/geomodel/6.15.0:$CMAKE_PREFIX_PATH"
 
 ###
 

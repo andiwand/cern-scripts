@@ -54,7 +54,7 @@ if [[ ! -d "$build" ]]; then
     export CMAKE_PREFIX_PATH="${install_base}/edm4hep/00-99-02:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/dd4hep/01-31:${CMAKE_PREFIX_PATH}"
     export CMAKE_PREFIX_PATH="${install_base}/hepmc3/3.3.1:$CMAKE_PREFIX_PATH"
-    export CMAKE_PREFIX_PATH="${install_base}/geomodel/6.3.0:$CMAKE_PREFIX_PATH"
+    export CMAKE_PREFIX_PATH="${install_base}/geomodel/6.15.0:$CMAKE_PREFIX_PATH"
     export CMAKE_PREFIX_PATH="${venv}:$CMAKE_PREFIX_PATH"
 
     source "${venv}/bin/activate"
