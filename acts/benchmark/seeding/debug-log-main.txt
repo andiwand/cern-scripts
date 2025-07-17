@@ -1,0 +1,162 @@
+INFO:    Found OpenDataDetector and set it up
+INFO:    Acts Python 3.12 bindings setup complete.
+DD4hep           WARN  ++ STD conditions NOT defined by client. NTP defaults taken.
+Detector         WARN  +++ Object 'compact_checksum' is already defined. New value will be ignored
+11:03:46    DD4hepConver   INFO      Translating DD4hep geometry into Acts geometry
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: BeamPipe
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: Pixels
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: PST
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: ShortStrips
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: LongStrips
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: Solenoid
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: ECal
+11:03:46    DD4hepConver   INFO      Translating DD4hep sub detector: HCal
+11:03:46    D2A_V:ECal     INFO      No layers present, returning nullptr
+11:03:46    TrackingGeom   INFO      Received nullptr volume from builder, keeping previous highest volume
+11:03:46    D2A_V:HCal     INFO      No layers present, returning nullptr
+11:03:46    TrackingGeom   INFO      Received nullptr volume from builder, keeping previous highest volume
+11:03:47    Sequencer      INFO      Create Sequencer (single-threaded)
+11:03:47    Sequencer      INFO      Add Reader 'RootParticleReader'
+11:03:47    Sequencer      INFO      -> OutputParticles 'particles_generated_selected':
+11:03:47    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+11:03:47    Sequencer      INFO      Add Reader 'RootVertexReader'
+11:03:47    Sequencer      INFO      -> OutputParticles 'vertices_generated':
+11:03:47    Sequencer      INFO         flat_set<SimVertex, detail::CompareVertexId, void>
+11:03:47    Sequencer      INFO      Add Reader 'RootParticleReader'
+11:03:47    Sequencer      INFO      -> OutputParticles 'particles_simulated':
+11:03:47    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+11:03:57    Sequencer      INFO      Add Reader 'RootSimHitReader'
+11:03:57    Sequencer      INFO      -> OutputSimHits 'simhits':
+11:03:57    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+11:03:57    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles'
+11:03:57    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles_simulated_selected'
+11:03:57    Sequencer      INFO      Add Algorithm 'DigitizationAlgorithm'
+11:03:57    Sequencer      INFO      <- InputHits 'simhits':
+11:03:57    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+11:03:57    Sequencer      INFO      -> OutputMeasurements 'measurements':
+11:03:57    Sequencer      INFO         MeasurementContainer
+11:03:57    Sequencer      INFO      -> OutputClusters 'clusters':
+11:03:57    Sequencer      INFO         __1::vector<Cluster, __1::allocator<Cluster>>
+11:03:57    Sequencer      INFO      -> OutputMeasurementParticlesMap 'measurement_particles_map':
+11:03:57    Sequencer      INFO         flat_multimap<unsigned int, Barcode, __1::less<unsigned int>, void>
+11:03:57    Sequencer      INFO      -> OutputMeasurementSimHitsMap 'measurement_simhits_map':
+11:03:57    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, __1::less<unsigned int>, void>
+11:03:57    Sequencer      INFO      -> OutputParticleMeasurementsMap 'particle_measurements_map':
+11:03:57    Sequencer      INFO         flat_multimap<Barcode, unsigned int, __1::less<Barcode>, void>
+11:03:57    Sequencer      INFO      -> OutputSimHitMeasurementsMap 'simhit_measurements_map':
+11:03:57    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, __1::less<unsigned int>, void>
+11:03:57    Sequencer      INFO      Add Algorithm 'ParticleSelector'
+11:03:57    Sequencer      INFO      <- InputParticles 'particles_simulated_selected':
+11:03:57    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+11:03:57    Sequencer      INFO      <- InputParticleMeasurementsMap 'particle_measurements_map':
+11:03:57    Sequencer      INFO         flat_multimap<Barcode, unsigned int, __1::less<Barcode>, void>
+11:03:57    Sequencer      INFO      <- InputMeasurements 'measurements':
+11:03:57    Sequencer      INFO         MeasurementContainer
+11:03:57    Sequencer      INFO      -> OutputParticles 'tmp_particles_digitized_selected':
+11:03:57    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+11:03:57    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_selected'
+11:03:57    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_digitized_selected'
+11:03:57    SpacePointMa   INFO      Space point geometry selection:
+11:03:57    SpacePointMa   INFO        vol=16|lay=10
+11:03:57    SpacePointMa   INFO        vol=16|lay=12
+11:03:57    SpacePointMa   INFO        vol=16|lay=14
+11:03:57    SpacePointMa   INFO        vol=16|lay=16
+11:03:57    SpacePointMa   INFO        vol=17|lay=2
+11:03:57    SpacePointMa   INFO        vol=17|lay=4
+11:03:57    SpacePointMa   INFO        vol=17|lay=6
+11:03:57    SpacePointMa   INFO        vol=17|lay=8
+11:03:57    SpacePointMa   INFO        vol=18|lay=2
+11:03:57    SpacePointMa   INFO        vol=18|lay=4
+11:03:57    SpacePointMa   INFO        vol=18|lay=6
+11:03:57    SpacePointMa   INFO        vol=18|lay=8
+11:03:57    Sequencer      INFO      Add Algorithm 'SpacePointMaker'
+11:03:57    Sequencer      INFO      <- InputMeasurements 'measurements':
+11:03:57    Sequencer      INFO         MeasurementContainer
+11:03:57    Sequencer      INFO      -> OutputSpacePoints 'spacepoints':
+11:03:57    Sequencer      INFO         __1::vector<SimSpacePoint, __1::allocator<SimSpacePoint>>
+11:03:57    addSeeding     INFO      Using default seeding
+11:03:57    Sequencer      INFO      Add Algorithm 'SeedingAlgorithm'
+11:03:57    Sequencer      INFO      <- InputSpacePoints#0 'spacepoints':
+11:03:57    Sequencer      INFO         __1::vector<SimSpacePoint, __1::allocator<SimSpacePoint>>
+11:03:57    Sequencer      INFO      -> OutputSeeds 'seeds':
+11:03:57    Sequencer      INFO         __1::vector<Seed<SimSpacePoint, 3ul>, __1::allocator<Seed<SimSpacePoint, 3ul>>>
+11:03:57    Sequencer      INFO      Add Algorithm 'TrackParamsEstimationAlgorithm'
+11:03:57    Sequencer      INFO      <- InputSeeds 'seeds':
+11:03:57    Sequencer      INFO         __1::vector<Seed<SimSpacePoint, 3ul>, __1::allocator<Seed<SimSpacePoint, 3ul>>>
+11:03:57    Sequencer      INFO      -> OutputTrackParameters 'estimatedparameters':
+11:03:57    Sequencer      INFO            __1::vector<GenericBoundTrackParameters<ParticleHypothesis>, __1::allocator<GenericBoundTrackParameters<ParticleHypothesis>>>
+11:03:57    Sequencer      INFO      -> OutputSeeds 'estimatedseeds':
+11:03:57    Sequencer      INFO         __1::vector<Seed<SimSpacePoint, 3ul>, __1::allocator<Seed<SimSpacePoint, 3ul>>>
+11:03:57    Sequencer      INFO      Add Algorithm 'SeedsToPrototracks'
+11:03:57    Sequencer      INFO      <- InputSeeds 'seeds':
+11:03:57    Sequencer      INFO         __1::vector<Seed<SimSpacePoint, 3ul>, __1::allocator<Seed<SimSpacePoint, 3ul>>>
+11:03:57    Sequencer      INFO      -> OutputProtoTracks 'seed-prototracks':
+11:03:57    Sequencer      INFO            __1::vector<small_vector<unsigned int, 3ul, void, void>, __1::allocator<small_vector<unsigned int, 3ul, void, void>>>
+11:03:57    Sequencer      INFO      Add Algorithm 'PrototracksToTracks'
+11:03:57    Sequencer      INFO      <- InputMeasurements 'measurements':
+11:03:57    Sequencer      INFO         MeasurementContainer
+11:03:57    Sequencer      INFO      <- InputTrackParameters 'estimatedparameters':
+11:03:57    Sequencer      INFO            __1::vector<GenericBoundTrackParameters<ParticleHypothesis>, __1::allocator<GenericBoundTrackParameters<ParticleHypothesis>>>
+11:03:57    Sequencer      INFO      <- InputProtoTracks 'seed-prototracks':
+11:03:57    Sequencer      INFO            __1::vector<small_vector<unsigned int, 3ul, void, void>, __1::allocator<small_vector<unsigned int, 3ul, void, void>>>
+11:03:57    Sequencer      INFO      -> OutputTracks 'seed-tracks':
+11:03:57    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, __1::shared_ptr>
+11:03:57    Sequencer      INFO      Add Algorithm 'TrackTruthMatcher'
+11:03:57    Sequencer      INFO      <- InputTracks 'seed-tracks':
+11:03:57    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, __1::shared_ptr>
+11:03:57    Sequencer      INFO      <- InputParticles 'particles_selected':
+11:03:57    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+11:03:57    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+11:03:57    Sequencer      INFO         flat_multimap<unsigned int, Barcode, __1::less<unsigned int>, void>
+11:03:57    Sequencer      INFO      -> OutputTrackParticleMatching 'seed_particle_matching':
+11:03:57    Sequencer      INFO            __1::map<unsigned int, TrackMatchEntry, __1::less<unsigned int>, __1::allocator<__1::pair<unsigned int const, TrackMatchEntry>>>
+11:03:57    Sequencer      INFO      -> OutputParticleTrackMatching 'particle_seed_matching':
+11:03:57    Sequencer      INFO            __1::map<Barcode, ParticleMatchEntry, __1::less<Barcode>, __1::allocator<__1::pair<Barcode const, ParticleMatchEntry>>>
+start round 0
+11:03:57    Sequencer      INFO      Processing events [0, 3)
+11:03:57    Sequencer      INFO      Starting event loop with 1 threads
+11:03:57    Sequencer      INFO        0 context decorators
+11:03:57    Sequencer      INFO        12 sequence elements
+11:03:57    Sequencer      INFO        4 readers
+11:03:57    Sequencer      INFO        8 algorithms
+11:03:57    Sequencer      INFO        0 writers
+11:03:58    Digitization   WARNING   1 skipped in Digitization. Enable DEBUG mode to see more details.
+11:03:59    Sequencer      INFO      finished event 0
+11:04:01    Sequencer      INFO      finished event 1
+11:04:01    Digitization   WARNING   3 skipped in Digitization. Enable DEBUG mode to see more details.
+11:04:03    Sequencer      INFO      finished event 2
+11:04:03    Sequencer      INFO      Processed 3 events in 5.039958 s (wall clock)
+11:04:03    Sequencer      INFO      Average time per event: 1.671017 s/event
+finished and got times {'seeding': 1.25687}
+start round 1
+11:04:03    Sequencer      INFO      Processing events [0, 3)
+11:04:03    Sequencer      INFO      Starting event loop with 1 threads
+11:04:03    Sequencer      INFO        0 context decorators
+11:04:03    Sequencer      INFO        12 sequence elements
+11:04:03    Sequencer      INFO        4 readers
+11:04:03    Sequencer      INFO        8 algorithms
+11:04:03    Sequencer      INFO        0 writers
+11:04:03    Digitization   WARNING   1 skipped in Digitization. Enable DEBUG mode to see more details.
+11:04:04    Sequencer      INFO      finished event 0
+11:04:06    Sequencer      INFO      finished event 1
+11:04:06    Digitization   WARNING   3 skipped in Digitization. Enable DEBUG mode to see more details.
+11:04:08    Sequencer      INFO      finished event 2
+11:04:08    Sequencer      INFO      Processed 3 events in 4.976488 s (wall clock)
+11:04:08    Sequencer      INFO      Average time per event: 1.650650 s/event
+finished and got times {'seeding': 1.26498}
+start round 2
+11:04:08    Sequencer      INFO      Processing events [0, 3)
+11:04:08    Sequencer      INFO      Starting event loop with 1 threads
+11:04:08    Sequencer      INFO        0 context decorators
+11:04:08    Sequencer      INFO        12 sequence elements
+11:04:08    Sequencer      INFO        4 readers
+11:04:08    Sequencer      INFO        8 algorithms
+11:04:08    Sequencer      INFO        0 writers
+11:04:08    Digitization   WARNING   1 skipped in Digitization. Enable DEBUG mode to see more details.
+11:04:09    Sequencer      INFO      finished event 0
+11:04:11    Sequencer      INFO      finished event 1
+11:04:11    Digitization   WARNING   3 skipped in Digitization. Enable DEBUG mode to see more details.
+11:04:12    Sequencer      INFO      finished event 2
+11:04:12    Sequencer      INFO      Processed 3 events in 4.945166 s (wall clock)
+11:04:12    Sequencer      INFO      Average time per event: 1.640097 s/event
+finished and got times {'seeding': 1.25543}
