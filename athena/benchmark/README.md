@@ -14,6 +14,15 @@ Reco_tf.py \
     --maxEvents 10 \
     --perfmon fullmonmt \
     --multithreaded False
+
+runIDPVM.py \
+    --filesInput AOD.acts.root \
+    --outputFile idpvm.acts.root \
+    --OnlyTrackingPreInclude \
+    --doTightPrimary \
+    --doHitLevelPlots \
+    --HSFlag All \
+    --doExpertPlots
 ```
 
 Legacy
@@ -31,4 +40,13 @@ Reco_tf.py \
     --maxEvents 10 \
     --perfmon fullmonmt \
     --multithreaded False
+
+runIDPVM.py \
+    --filesInput AOD.legacy.root \
+    --outputFile idpvm.legacy.root \
+    --OnlyTrackingPreInclude \
+    --doTightPrimary \
+    --doHitLevelPlots \
+    --HSFlag All \
+    --doExpertPlots
 ```

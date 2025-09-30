@@ -40,11 +40,11 @@ export CMAKE_PREFIX_PATH="~/cern/install/eigen/3.4.0:$CMAKE_PREFIX_PATH"
 
 ###
 
-cmake -S ~/cern/source/root/6.34.08 -B ~/cern/build/root/6.34.08 \
+cmake -S ~/cern/source/root/6.36.04 -B ~/cern/build/root/6.36.04 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/root/6.34.08 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/root/6.36.04 \
   -Dfail-on-missing=ON \
   -Dgdml=ON \
   -Dx11=ON \
@@ -74,9 +74,9 @@ cmake -S ~/cern/source/root/6.34.08 -B ~/cern/build/root/6.34.08 \
   -Dbuiltin_vdt=ON \
   -Dxrootd=OFF \
   -Dtmva=OFF
-cmake --build ~/cern/build/root/6.34.08 --target install
+cmake --build ~/cern/build/root/6.36.04 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/root/6.34.08:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/root/6.36.04:$CMAKE_PREFIX_PATH"
 
 ###
 
@@ -111,11 +111,13 @@ export CMAKE_PREFIX_PATH="~/cern/install/geomodel/6.15.0:$CMAKE_PREFIX_PATH"
 ###
 
 cd ~/cern/source/pythia/8314
+rm -rf tmp
+make clean
 CXX=clang++ \
 ./configure \
   --prefix=~/cern/install/pythia/8314 \
   --cxx=clang++ \
-  --cxx-common="-O2 -std=c++20 -fPIC -pthread" # -pedantic -W -Wall -Wshadow 
+  --cxx-common="-O2 -std=c++20 -fPIC -pthread" # -pedantic -W -Wall -Wshadow
 make -j12 install
 
 export CMAKE_PREFIX_PATH="~/cern/install/pythia/8314:$CMAKE_PREFIX_PATH"
@@ -150,20 +152,20 @@ export CMAKE_PREFIX_PATH="~/cern/install/edm4hep/00-99-02:$CMAKE_PREFIX_PATH"
 
 brew install boost
 
-cmake -S ~/cern/source/dd4hep/01-31 -B ~/cern/build/dd4hep/01-31 \
+cmake -S ~/cern/source/dd4hep/01-32-01 -B ~/cern/build/dd4hep/01-32-01 \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CXX_STANDARD=20 \
-  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-31 \
+  -DCMAKE_INSTALL_PREFIX=~/cern/install/dd4hep/01-32-01 \
   -DBUILD_DOCS=OFF \
   -DBUILD_TESTING=OFF \
   -DDD4HEP_BUILD_PACKAGES="DDG4 DDDetectors DDRec UtilityApps" \
   -DDD4HEP_USE_GEANT4=ON \
   -DDD4HEP_USE_XERCESC=ON \
   -DDD4HEP_USE_EDM4HEP=ON
-cmake --build ~/cern/build/dd4hep/01-31 --target install
+cmake --build ~/cern/build/dd4hep/01-32-01 --target install
 
-export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-31:$CMAKE_PREFIX_PATH"
+export CMAKE_PREFIX_PATH="~/cern/install/dd4hep/01-32-01:$CMAKE_PREFIX_PATH"
 
 ###
 

@@ -61,7 +61,7 @@ if args.ttbar:
 
 if args.geant4 is not None:
     events = 10
-    runs = 5
+    runs = 10
 
 
 def create_sequencer():
