@@ -1,0 +1,94 @@
+rule all:
+    input:
+        "data/reco/mu_pt1-100/performance_seeding.root",
+
+        "plots/seeding_efficiency_mu.pdf",
+        "plots/finding_efficiency_mu.pdf",
+        "plots/fitting_resolution_d0_vs_eta.pdf",
+        "plots/fitting_pullwidth_vs_eta.pdf",
+
+rule download_data_mu_pt1:
+    output:
+        "data/sim/mu_pt1.edm4hep.root",
+    shell:
+        """
+        mkdir -p data/sim
+        curl https://portal.nersc.gov/cfs/m4958/ColliderML/single_particle_pilot/single_muon_1GeV/v1/runs/0/edm4hep.root -o data/sim/mu_pt1.edm4hep.root
+        """
+
+rule download_data_mu_pt10:
+    output:
+        "data/sim/mu_pt10.edm4hep.root",
+    shell:
+        """
+        mkdir -p data/sim
+        curl https://portal.nersc.gov/cfs/m4958/ColliderML/single_particle_pilot/single_muon_10GeV/v1/runs/0/edm4hep.root -o data/sim/mu_pt10.edm4hep.root
+        """
+
+rule download_data_mu_pt100:
+    output:
+        "data/sim/mu_pt100.edm4hep.root",
+    shell:
+        """
+        mkdir -p data/sim
+        curl https://portal.nersc.gov/cfs/m4958/ColliderML/single_particle_pilot/single_muon_100GeV/v1/runs/0/edm4hep.root -o data/sim/mu_pt100.edm4hep.root
+        """
+
+rule download_data_mu_pt1_100:
+    output:
+        "data/sim/mu_pt1-100.edm4hep.root",
+    shell:
+        """
+        mkdir -p data/sim
+        curl https://portal.nersc.gov/cfs/m4958/ColliderML/single_particle_pilot/single_muon_uniform/v1/runs/0/edm4hep.root -o data/sim/mu_pt1-100.edm4hep.root
+        """
+
+rule reconstruction:
+    input:
+        data = "data/sim/{label}.edm4hep.root",
+        script = "scripts/reco.py",
+    output:
+        "data/reco/{label}/performance_seeding.root",
+        "data/reco/{label}/performance_finding_ambi.root",
+        "data/reco/{label}/performance_fitting_ambi.root",
+    threads: 8
+    params:
+        events = 100000,
+    shell:
+        "scripts/activate_and_run.sh python {input.script} --input-file {input.data} --output-dir data/reco/{wildcards.label} --events {params.events} --threads {threads}"
+
+rule plot_seeding_efficiency_mu:
+    input:
+        data = ["data/reco/mu_pt1/performance_seeding.root", "data/reco/mu_pt10/performance_seeding.root", "data/reco/mu_pt100/performance_seeding.root"],
+        script = "scripts/plot_seeding_efficiency_mu.py",
+    output:
+        "plots/seeding_efficiency_mu.pdf",
+    shell:
+        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+
+rule plot_finding_efficiency_mu:
+    input:
+        data = ["data/reco/mu_pt1/performance_finding_ambi.root", "data/reco/mu_pt10/performance_finding_ambi.root", "data/reco/mu_pt100/performance_finding_ambi.root"],
+        script = "scripts/plot_finding_efficiency_mu.py",
+    output:
+        "plots/finding_efficiency_mu.pdf",
+    shell:
+        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+
+rule plot_fitting_resolution_d0_vs_eta_mu:
+    input:
+        data = ["data/reco/mu_pt1/performance_fitting_ambi.root", "data/reco/mu_pt10/performance_fitting_ambi.root", "data/reco/mu_pt100/performance_fitting_ambi.root"],
+        script = "scripts/plot_fitting_resolution_d0_vs_eta_mu.py",
+    output:
+        "plots/fitting_resolution_d0_vs_eta.pdf",
+    shell:
+        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+
+rule plot_fitting_pullwidth_vs_eta_mu:
+    input:
+        data = ["data/reco/mu_pt1/performance_fitting_ambi.root", "data/reco/mu_pt10/performance_fitting_ambi.root", "data/reco/mu_pt100/performance_fitting_ambi.root"],
+        script = "scripts/plot_fitting_pullwidth_vs_eta_mu.py",
+    output:
+        "plots/fitting_pullwidth_vs_eta.pdf",
+    shell:
+        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
