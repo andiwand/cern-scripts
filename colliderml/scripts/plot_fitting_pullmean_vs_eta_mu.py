@@ -69,7 +69,7 @@ for i, ax, param, ylabel in zip(range(6), axs, params, ylabels):
             outside=True,
             brand="ODD",
             atlas="Simulation",
-            subtext="ACTS v40.0.0\nsingle muons, <$\\mu$> = 0",
+            subtext="ACTS v44.0.1\nsingle muons, <$\\mu$> = 0",
             offset=18,
         )
     else:
