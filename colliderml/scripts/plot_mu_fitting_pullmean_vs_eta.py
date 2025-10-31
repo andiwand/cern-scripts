@@ -51,7 +51,7 @@ for i, ax, param, ylabel in zip(range(6), axs, params, ylabels):
 
         pull_mean.errorbar(
             ax,
-            label=f"{pt} GeV",
+            label=f"$p_T={pt}$ GeV",
             marker=get_marker(j),
             linestyle="",
             color=get_color(j),

@@ -162,6 +162,7 @@ measurementCounter.addCounter(
         make_geoid(18),
     ],
     3,
+    1,
 )
 
 addDigiParticleSelection(
@@ -169,7 +170,7 @@ addDigiParticleSelection(
     ParticleSelectorConfig(
         # we are only interested in the hard scatter vertex
         #primaryVertexId=(1, 2),
-        rho=(0.0, 24 * u.mm),
+        rho=(0.0, 23 * u.mm),
         absZ=(0.0, 1.0 * u.m),
         eta=(-3.0, 3.0),
         # using something close to 1 to include for sure
