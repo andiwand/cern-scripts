@@ -173,8 +173,7 @@ addDigiParticleSelection(
         rho=(0.0, 23 * u.mm),
         absZ=(0.0, 1.0 * u.m),
         eta=(-3.0, 3.0),
-        # using something close to 1 to include for sure
-        pt=(0.999 * u.GeV, None),
+        pt=(0.4 * u.GeV, None),
         measurements=(6, None),
         removeNeutral=True,
         removeSecondaries=False,

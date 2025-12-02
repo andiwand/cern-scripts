@@ -10,7 +10,7 @@ rule all:
 
         "plots/e_finding_efficiency_vs_eta.pdf",
 
-        expand("plots/ttbar_finding_efficiency_vs_{y}.pdf", y=["eta", "d0", "z0", "pt", "lowpt", "prodr"]),
+        expand("plots/ttbar_finding_efficiency_vs_{y}.pdf", y=["eta", "d0", "z0", "pt", "lowpt", "logpt", "prodr"]),
 
 rule download_data_ttbar200:
     output:
@@ -97,12 +97,3 @@ rule plot_ttbar_finding_efficiency:
         "plots/ttbar_finding_efficiency_vs_{y}.pdf",
     shell:
         "scripts/activate_and_run.sh python {input.script} {input.data} {wildcards.y} --output {output}"
-
-rule plot_ttbar_finding_efficiency_lowpt:
-    input:
-        data = ["data/reco/ttbar200/performance_finding_ambi_lowpt.root"],
-        script = "scripts/plot_ttbar_finding_efficiency.py",
-    output:
-        "plots/ttbar_finding_efficiency_vs_lowpt.pdf",
-    shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} lowpt --output {output}"

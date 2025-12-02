@@ -14,7 +14,7 @@ base_dir = Path(__file__).parent.parent.parent
 
 parser = argparse.ArgumentParser()
 parser.add_argument("finding_perf", type=Path)
-parser.add_argument("x", choices=["eta", "d0", "z0", "pt", "lowpt", "prodr"], help="Variable to plot against")
+parser.add_argument("x", choices=["eta", "d0", "z0", "pt", "lowpt", "logpt", "prodr"], help="Variable to plot against")
 parser.add_argument(
     "--output",
     type=Path,
@@ -29,6 +29,7 @@ xlabel = {
     "z0": r"true $z_0$ [mm]",
     "pt": r"true $p_{T}$ [GeV]",
     "lowpt": r"true $p_{T}$ [GeV]",
+    "logpt": r"true $p_{T}$ [GeV]",
     "prodr": r"true production radius [mm]",
 }[args.x]
 xrange = {
@@ -37,6 +38,7 @@ xrange = {
     "z0": (-100, 100),
     "pt": (0, 40),
     "lowpt": (0.5, 2),
+    "logpt": (0, 100),
     "prodr": (0, 24),
 }[args.x]
 histname = {
@@ -45,6 +47,7 @@ histname = {
     "z0": "trackeff_vs_z0",
     "pt": "trackeff_vs_pT",
     "lowpt": "trackeff_vs_LowPt",
+    "logpt": "trackeff_vs_LogPt",
     "prodr": "trackeff_vs_prodR",
 }[args.x]
 

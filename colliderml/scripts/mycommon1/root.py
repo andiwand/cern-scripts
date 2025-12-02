@@ -33,7 +33,18 @@ class TH1:
             self.y_err_hi = np.array(
                 [th1_tefficiency.GetEfficiencyErrorUp(i) for i in bins]
             )
-        except Exception as e:
+
+            self.mask = ~((self.y == 0) & (self.y_err_lo == 0) & (self.y_err_hi == 1))
+            self.x = self.x[self.mask].copy()
+            self.x_lo = self.x_lo[self.mask].copy()
+            self.x_width = self.x_width[self.mask].copy()
+            self.x_hi = self.x_hi[self.mask].copy()
+            self.x_err_lo = self.x_err_lo[self.mask].copy()
+            self.x_err_hi = self.x_err_hi[self.mask].copy()
+            self.y = self.y[self.mask].copy()
+            self.y_err_lo = self.y_err_lo[self.mask].copy()
+            self.y_err_hi = self.y_err_hi[self.mask].copy()
+        except Exception:
             self.y = np.array([th1_tefficiency.GetBinContent(i) for i in bins])
             self.y_err_lo = np.array([th1_tefficiency.GetBinError(i) for i in bins])
             self.y_err_hi = np.array([th1_tefficiency.GetBinError(i) for i in bins])
