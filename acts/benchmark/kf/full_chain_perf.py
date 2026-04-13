@@ -56,8 +56,8 @@ events = 20
 runs = 50
 
 if args.ttbar:
-    events = 5
-    runs = 50
+    events = 3
+    runs = 30
 
 if args.geant4 is not None:
     events = 10

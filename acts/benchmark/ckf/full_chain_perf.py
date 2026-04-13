@@ -59,8 +59,8 @@ events = 20
 runs = 50
 
 if args.ttbar:
-    events = 5
-    runs = 50
+    events = 3
+    runs = 30
 
 if args.geant4 is not None:
     events = 1
@@ -130,28 +130,28 @@ def create_sequencer():
         )
     else:
         s.addReader(
-            acts.examples.RootParticleReader(
+            acts.examples.root.RootParticleReader(
                 level=acts.logging.WARNING,
                 outputParticles="particles_generated_selected",
                 filePath=args.geant4 / "particles.root",
             )
         )
         s.addReader(
-            acts.examples.RootVertexReader(
+            acts.examples.root.RootVertexReader(
                 level=acts.logging.WARNING,
                 outputVertices="vertices_generated",
                 filePath=args.geant4 / "vertices.root",
             )
         )
         s.addReader(
-            acts.examples.RootParticleReader(
+            acts.examples.root.RootParticleReader(
                 level=acts.logging.WARNING,
                 outputParticles="particles_simulated",
                 filePath=args.geant4 / "particles_simulation.root",
             )
         )
         s.addReader(
-            acts.examples.RootSimHitReader(
+            acts.examples.root.RootSimHitReader(
                 level=acts.logging.WARNING,
                 outputSimHits="simhits",
                 treeName="hits",
