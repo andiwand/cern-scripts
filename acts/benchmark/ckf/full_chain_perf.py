@@ -187,7 +187,7 @@ def create_sequencer():
         s,
         trackingGeometry,
         field,
-        seedingAlgorithm=SeedingAlgorithm.Default,
+        seedingAlgorithm=SeedingAlgorithm.GridTriplet,
         geoSelectionConfigFile=oddSeedingSel,
         seedFinderConfigArg=SeedFinderConfigArg(
             r=(33 * u.mm, 200 * u.mm),
@@ -250,7 +250,7 @@ for i in range(runs):
         t["fatras"] = d[d["identifier"] == "Algorithm:FatrasSimulation"][
             "time_perevent_s"
         ].values[0]
-    t["seeding"] = d[d["identifier"] == "Algorithm:SeedingAlgorithm"][
+    t["seeding"] = d[d["identifier"] == "Algorithm:GridTripletSeedingAlgorithm"][
         "time_perevent_s"
     ].values[0]
     t["ckf"] = d[d["identifier"] == "Algorithm:TrackFindingAlgorithm"][
