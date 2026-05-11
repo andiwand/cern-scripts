@@ -45,18 +45,18 @@ def outer_vectors(separation, alpha):
     R = np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
     return outer_vectors @ R.T
 
-inner, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C0")
-outer, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C1")
-direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="k")
+inner, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C0", zorder=3)
+outer, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C1", zorder=4)
+direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="k", zorder=2)
 #direction_x, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
 #direction_y, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
 #direction_z, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
-direction_xy, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
-direction_xz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
-direction_yz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
-point_inner, = ax.plot([0], [0], [0], "o", lw=4, color="r")
-point_outer, = ax.plot([0], [0], [0], "o", lw=4, color="r")
-point_direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="r")
+direction_xy, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey", zorder=1)
+direction_xz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey", zorder=1)
+direction_yz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey", zorder=1)
+point_inner, = ax.plot([0], [0], [0], "o", lw=4, color="r", zorder=5)
+point_outer, = ax.plot([0], [0], [0], "o", lw=4, color="r", zorder=5)
+point_direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="r", zorder=6)
 
 def update(_):
     iv = inner_vectors()
