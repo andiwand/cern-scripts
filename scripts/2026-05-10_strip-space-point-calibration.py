@@ -50,7 +50,7 @@ outer, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C1")
 direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="k")
 point_inner, = ax.plot([0], [0], [0], "o", lw=4, color="r")
 point_outer, = ax.plot([0], [0], [0], "o", lw=4, color="r")
-point_direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="orange")
+point_direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="r")
 
 def update(_):
     iv = inner_vectors()
