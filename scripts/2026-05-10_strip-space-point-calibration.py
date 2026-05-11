@@ -48,6 +48,12 @@ def outer_vectors(separation, alpha):
 inner, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C0")
 outer, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="C1")
 direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="k")
+#direction_x, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
+#direction_y, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
+#direction_z, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
+direction_xy, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
+direction_xz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
+direction_yz, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="grey")
 point_inner, = ax.plot([0], [0], [0], "o", lw=4, color="r")
 point_outer, = ax.plot([0], [0], [0], "o", lw=4, color="r")
 point_direction, = ax.plot([0, 0], [0, 0], [0, 0], lw=2, color="r")
@@ -57,14 +63,21 @@ def update(_):
     ov = outer_vectors(separation.val, alpha.val)
     dv = np.array([np.cos(phi.val) * np.sin(theta.val), np.sin(phi.val) * np.sin(theta.val), np.cos(theta.val)])
 
-    inner.set_data(iv[:, :2].T)
-    inner.set_3d_properties(iv[:, 2])
+    def set_data(line, data):
+        line.set_data(data[:, :2].T)
+        line.set_3d_properties(data[:, 2])
 
-    outer.set_data(ov[:, :2].T)
-    outer.set_3d_properties(ov[:, 2])
+    set_data(inner, iv)
+    set_data(outer, ov)
 
-    direction.set_data([0.5, 0.5 + 0.5 * dv[0]], [0.5, 0.5 + 0.5 * dv[1]])
-    direction.set_3d_properties([0.5, 0.5 + 0.5 * dv[2]])
+    dir_center = np.array([-0.75, 0.75, -0.75])
+    set_data(direction, np.array([dir_center - 0.25 * dv, dir_center + 0.25 * dv]))
+    #set_data(direction_x, np.array([dir_center, dir_center]) + np.array([[-0.25 * dv[0], 0.25, -0.25], [0.25 * dv[0], 0.25, -0.25]]))
+    #set_data(direction_y, np.array([dir_center, dir_center]) + np.array([[-0.25, -0.25 * dv[1], -0.25], [-0.25, 0.25 * dv[1], -0.25]]))
+    #set_data(direction_z, np.array([dir_center, dir_center]) + np.array([[-0.25, 0.25, -0.25 * dv[2]], [-0.25, 0.25, 0.25 * dv[2]]]))
+    set_data(direction_xy, np.array([dir_center, dir_center]) + np.array([[-0.25 * dv[0], -0.25 * dv[1], -0.25], [0.25 * dv[0], 0.25 * dv[1], -0.25]]))
+    set_data(direction_xz, np.array([dir_center, dir_center]) + np.array([[-0.25 * dv[0], 0.25, -0.25 * dv[2]], [0.25 * dv[0], 0.25, 0.25 * dv[2]]]))
+    set_data(direction_yz, np.array([dir_center, dir_center]) + np.array([[-0.25, -0.25 * dv[1], -0.25 * dv[2]], [-0.25, 0.25 * dv[1], 0.25 * dv[2]]]))
 
     icv = 0.5 * (iv[0] + iv[1])
     ihv = 0.5 * (iv[1] - iv[0])
@@ -81,19 +94,14 @@ def update(_):
     cal_inner = icv + s_inner * ihv
     cal_outer = ocv + s_outer * ohv
 
-    point_inner.set_xdata([cal_inner[0]])
-    point_inner.set_ydata([cal_inner[1]])
-    point_inner.set_3d_properties([cal_inner[2]])
-    point_outer.set_xdata([cal_outer[0]])
-    point_outer.set_ydata([cal_outer[1]])
-    point_outer.set_3d_properties([cal_outer[2]])
+    set_data(point_inner, cal_inner[None])
+    set_data(point_outer, cal_outer[None])
 
     pdv = cal_outer - cal_inner
     pdv /= np.linalg.norm(pdv)
     pdvs = np.array([cal_inner - 0.5 * pdv, cal_outer + 0.5 * pdv])
 
-    point_direction.set_data(pdvs[:, 0], pdvs[:, 1])
-    point_direction.set_3d_properties(pdvs[:, 2])
+    set_data(point_direction, pdvs)
 
     fig.canvas.draw_idle()
 update(None)
