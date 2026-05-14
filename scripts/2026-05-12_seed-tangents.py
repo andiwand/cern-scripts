@@ -30,15 +30,9 @@ tangent0 = np.array(tangent0)
 tangent1 = np.array(tangent1)
 tangent2 = np.array(tangent2)
 
-ax.plot(
-    *np.array([sp0 - 0.25 * tangent0, sp0 + 0.25 * tangent0]).T, color="C0", zorder=3
-)
-ax.plot(
-    *np.array([sp1 - 0.25 * tangent1, sp1 + 0.25 * tangent1]).T, color="C1", zorder=3
-)
-ax.plot(
-    *np.array([sp2 - 0.25 * tangent2, sp2 + 0.25 * tangent2]).T, color="C2", zorder=3
-)
+ax.plot(*np.array([sp0 - 0.4 * tangent0, sp0 + 0.4 * tangent0]).T, color="C0", zorder=3)
+ax.plot(*np.array([sp1 - 0.4 * tangent1, sp1 + 0.4 * tangent1]).T, color="C1", zorder=3)
+ax.plot(*np.array([sp2 - 0.4 * tangent2, sp2 + 0.4 * tangent2]).T, color="C2", zorder=3)
 
 ax.set_xlim(-2, 2)
 ax.set_ylim(-2, 2)
