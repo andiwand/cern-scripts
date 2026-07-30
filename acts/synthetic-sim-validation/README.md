@@ -79,32 +79,30 @@ env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH ./validate.py odd ...
 This is the same breakage that makes `awkward` unusable there, which is why the
 ITk loader asks uproot for `library="np"`.
 
-## What the tuning fixed
+## What the fit is sensitive to
 
-The plots in `plots/` are of the tuned generator. Before it, the same comparison
-ran on one set of ITk-flavoured parameters for both detectors, and the following
-were wrong by more than the generator's own coarseness accounts for. Each entry is
-the ratio of fast to full simulation, before and after.
+Each observable is driven by essentially one parameter, which is why the fit
+converges at all. A configuration is per detector: running one detector's numbers
+on another's layout is wrong by more than the generator's own coarseness.
 
-| | before | after | what changed |
-| --- | --- | --- | --- |
-| space points / event, ODD | 1.26 | 1.00 | `chargedPerUnitEta`, `secondaryRate` |
-| primaries / event, both | 1.26, 1.29 | 1.00 | `chargedPerUnitEta` 6.6 -> 5.1 / 5.3 |
-| primaries above 10 GeV | 0.02 | 0.5 | `ptExponent` 11 -> 4.9 |
-| mean primary pT | 1.05 | 0.99 | `ptScale` 4.7 -> 1.34 |
-| d0 core width, ODD | 7.1 | 1.00 | `d0Sigma` 0.1 mm -> 0.014 mm |
-| z0 core width, ODD | 0.77 | 1.00 | `beamspotSigmaZ` 45 -> 59 mm |
-| mean secondary pT | 0.45 | 1.09 | `secondaryPtSlope` 0.15 -> 0.51 |
+| observable | parameter |
+| --- | --- |
+| space points / event | `secondaryRate` |
+| primaries / event | `chargedPerUnitEta` |
+| high-momentum tail | `ptExponent` |
+| mean primary pT | `ptScale` |
+| d0 core width | `d0Sigma` |
+| z0 core width | `beamspotSigmaZ` |
+| mean secondary pT | `secondaryPtSlope` |
 
-The single biggest one is the primary yield, and it is worth saying why it was
-wrong. `chargedPerUnitEta = 6.6` is a real minimum-bias number, but it is the
-density at *central* pseudorapidity, and the generator spreads it flat over
-|eta| < 4 where the real distribution falls off forward. Both references say the
-average over that range is 5.1 to 5.3: an ITk dump has 8.5k and ColliderML 8.5k
-long-lived charged primaries per event above 100 MeV inside |eta| < 4, against the
-10.6k a flat 6.6 produces.
+`chargedPerUnitEta` is worth a note. The familiar minimum-bias number, 6.6 per
+unit of pseudorapidity, is the density at *central* eta, while the generator
+spreads it flat over |eta| < 4 where the real distribution falls off forward. Both
+references say the average over that range is 5.1 to 5.3: an ITk dump has 8.5k and
+ColliderML 8.5k long-lived charged primaries per event above 100 MeV inside
+|eta| < 4, against the 10.6k a flat 6.6 produces.
 
-Getting there needed one trap avoided. ColliderML's particle table also contains
+One trap to avoid there. ColliderML's particle table also contains
 charged *resonances* - rho+-, K*+-, Delta - which decay before any sensor: 43 % of
 its charged primaries above 2 GeV leave no pixel cluster at all, and cutting on
 long-lived species is what makes the count agree with the ITk dump's.
@@ -137,8 +135,7 @@ Good:
 - **Hits per particle against eta**, now in magnitude and not only in shape. Both
   rise from 5 to 6 in the barrel to a peak near |eta| = 3 of 14 to 15, and the
   fast simulation tracks the reference to within a few percent everywhere forward
-  of |eta| = 1.5. This is what describing the endcap ring by ring bought: it was a
-  uniform 64 % of the reference when the endcap was nine full-width disks.
+  of |eta| = 1.5, which is what describing the endcap ring by ring buys.
 
 Not so good:
 
@@ -158,17 +155,13 @@ Not so good:
   makes the surplus larger, not smaller. It is a deliberate choice: the two cannot
   both be matched, and the space point density is what a seeder sees.
 
-### The ITk endcap is rings, and describing them is what fixed the z distribution
-
-The layout used to cover the endcap with nine full-width disks per side, and the
-`z` distribution showed it: the fast simulation piled its endcap hits onto nine
-positions while the full simulation was spread over the whole range. That was the
-layout, not the tuning.
+### The ITk endcap is rings
 
 The endcap is 75 disks per side carrying 95 rings, and each ring is one module
 deep — forty millimetres of radius out of the three hundred the detector covers.
-So a track crossing a disk usually crosses no silicon, which nine full-width disks
-cannot express. The nine sections, from `ITKLayouts/data/Pixel/*Defines.gmx`:
+So a track crossing a disk usually crosses no silicon, which an envelope around
+the rings cannot express, and the `z` distribution shows the difference directly.
+The nine sections, from `ITKLayouts/data/Pixel/*Defines.gmx`:
 
 | section | r [mm] | \|z\| [mm] | rings |
 | --- | --- | --- | --- |
@@ -244,12 +237,11 @@ that stagger is all the ring structure buys here, and it is visible in the
 occupancy plot as a small jog at r ~ 107 that both simulations now have.
 
 What it does *not* buy is a radial gap, because there is none: the two rings
-overlap by five millimetres, which is the module overlap of the real detector. So
-the layout's previous two uniform rings over 42.85-173.79 mm were already right
-about the radial coverage — they put the boundary at 108.3 mm where the geometry
-puts the overlap centre at 108.2 mm. That is worth recording because it is the
-opposite of the ITk, where the gaps carry most of the physics: a disk there is one
-module deep out of three hundred millimetres of radius.
+overlap by five millimetres, which is the module overlap of the real detector.
+That is the opposite of the ITk, where the gaps carry most of the physics — a disk
+there is one module deep out of three hundred millimetres of radius — and it is
+worth recording, because it means the ring structure is worth resolving here for
+the stagger alone.
 
 The overlap is also what makes resolving rings safe in general. Two z planes
 covering the *same* radii are one ring whose modules alternate in z, not two
@@ -347,35 +339,35 @@ convention has to be reproduced. Note that it means something narrower than the
 ITk dump's `Part_barcode < 200000`: heavy-flavour decay products are secondaries
 here, which is part of why the two d0 distributions look so different.
 
-## What describing the endcaps cost, and what is still to do
+## What the rings cost, and what is still to do
 
-Reading the layouts out of the geometry rather than approximating them took the
-ITk layout from 24 surfaces to 156 and the ODD's from 19 to 33. Measured on the
-same build at the same space point count, the ITk one costs **12 % more generation
-time**, 39.0 ms against 43.7 ms: the per-surface work is one intersection with an
-early exit, while producing a space point and its secondaries is not. What the
-12 % buys is 41 % more space points from primaries and 40 % fewer stand-in
-secondaries, and `secondaryRate` more than halved, 0.584 to 0.267.
+Describing the endcaps ring by ring puts the ITk layout at 156 surfaces and the
+ODD's at 33. Measured at a fixed space point count that costs **12 % more
+generation time**, 39.0 ms against 43.7 ms: the per-surface work is one
+intersection with an early exit, while producing a space point and its secondaries
+is not. It is cheap enough that there is no reason to offer the coarse layout as
+an option, and the resulting distributions follow the detector far more closely.
 
-It also moved every seeding benchmark, all measured on the ITk layout:
+The seeding benchmarks on the ITk layout:
 
-| | before | after |
+| | efficiency | time |
 | --- | --- | --- |
-| spherical grid | 89.6 % / 0.79 s | 99.8 % / 1.06 s |
-| cylindrical grid | 86.0 % / 1.04 s | 100 % / 1.31 s |
-| orthogonal k-d tree | 79.9 % / 3.6 s | 99.8 % / 5.4 s |
-| GBTS | 72.6 % / 0.272 s | 90.8 % / 0.106 s |
+| spherical grid | 99.8 % | 1.06 s |
+| cylindrical grid | 100 % | 1.31 s |
+| orthogonal k-d tree | 99.8 % | 5.4 s |
+| GBTS | 90.8 % | 0.106 s |
 
-Two things to take from that. **Efficiency has stopped discriminating**: a forward
-primary now leaves fourteen space points, and finding one true seed among those is
-easy for anything, so "at least one true seed" saturates. Compare the times and the
-candidate pair counts instead, and use a harder measure if efficiency is the
-question. And **a GBTS connection table belongs to a layout**: the table's original
-reach of one or two disks along z was written for nine disks per side, and against
-seventy-five it connected rings no track crosses in sequence while missing the ones
-it does — 41.6 %. Widening the reach to nine, one per ring set, gave 90.8 %.
+Two things to take from that. **Efficiency does not discriminate** on this event:
+a forward primary leaves fourteen space points, and finding one true seed among
+those is easy for anything, so "at least one true seed" saturates. Compare the
+times and the candidate pair counts instead, and use a harder measure if
+efficiency is the question. And **a GBTS connection table belongs to a layout**:
+its reach along z has to cover the ring sets of the endcap, since consecutive
+disks of a resolved endcap are not at consecutive radii. Too short a reach
+connects rings no track crosses in sequence while missing the ones it does, which
+costs half the efficiency.
 
-Still to do, both propagation rather than parameters, and both now the same single
+Still to do, both propagation rather than parameters, and both the same single
 mismatch — the barrel:
 
 - A **duplication probability per crossing** for module overlaps, which the ODD

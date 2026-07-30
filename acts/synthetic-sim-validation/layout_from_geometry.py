@@ -9,8 +9,8 @@ wants. This runs that reduction and prints a `BarrelEndcapDescription` ready to
 paste into `Fatras/src/Synthetic/DetectorLayout.cpp`, so that the presets stay
 usable without DD4hep while still being the geometry's own numbers.
 
-`Python/Examples/tests/test_fatras_synthetic_layout.py` is what keeps the pasted
-numbers honest: it runs the same reduction and compares.
+`Python/Examples/tests/test_fatras_synthetic_layout.py` runs the same reduction
+and compares, which is what keeps the pasted numbers honest.
 
 Run it as
 
@@ -64,9 +64,6 @@ def main() -> None:
                              "one disk")
     parser.add_argument("--ring-r-tolerance", type=float, default=None,
                         help="radial gap below which two rings count as one")
-    parser.add_argument("--no-resolve-rings", action="store_true",
-                        help="cover each endcap layer with one full-width disk, "
-                             "which is what the layouts used to do")
     args = parser.parse_args()
 
     setup = DETECTORS[args.detector]
@@ -79,8 +76,6 @@ def main() -> None:
     options.setSurfaceSelector(
         lambda s: s is not None and s.geometryId.volume in setup["volumes"])
     options.passiveBeamPipeRadius = setup["beamPipeRadius"]
-    if args.no_resolve_rings:
-        options.resolveDiskRings = False
     if args.disk_z_tolerance is not None:
         options.diskZTolerance = args.disk_z_tolerance
     if args.ring_r_tolerance is not None:
