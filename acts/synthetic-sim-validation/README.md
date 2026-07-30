@@ -350,22 +350,36 @@ an option, and the resulting distributions follow the detector far more closely.
 
 The seeding benchmarks on the ITk layout:
 
-| | efficiency | time |
-| --- | --- | --- |
-| spherical grid | 99.8 % | 1.06 s |
-| cylindrical grid | 100 % | 1.31 s |
-| orthogonal k-d tree | 99.8 % | 5.4 s |
-| GBTS | 90.8 % | 0.106 s |
+| | efficiency | seeds | time |
+| --- | --- | --- | --- |
+| spherical grid | 99.8 % | 34.0k | 1.06 s |
+| cylindrical grid | 100 % | 30.3k | 1.30 s |
+| orthogonal k-d tree | 99.8 % | 31.2k | 5.35 s |
+| GBTS | 94.8 % | 4.8k | 0.090 s |
 
-Two things to take from that. **Efficiency does not discriminate** on this event:
-a forward primary leaves fourteen space points, and finding one true seed among
-those is easy for anything, so "at least one true seed" saturates. Compare the
-times and the candidate pair counts instead, and use a harder measure if
-efficiency is the question. And **a GBTS connection table belongs to a layout**:
-its reach along z has to cover the ring sets of the endcap, since consecutive
-disks of a resolved endcap are not at consecutive radii. Too short a reach
-connects rings no track crosses in sequence while missing the ones it does, which
-costs half the efficiency.
+A seed counts as true when three of its space points come from one primary, not
+when all of them do. That distinction is invisible for the triplet seeders, whose
+seeds are always three space points, but GBTS returns four to eleven, and scoring
+it on every space point matching costs it four points of efficiency that say
+nothing about the seeder.
+
+Three things to take from the table. **Efficiency does not discriminate** on this
+event: a forward primary leaves fourteen space points, and finding one true seed
+among those is easy for anything. Compare the times and the candidate pair counts
+instead, and use a harder measure if efficiency is the question. **A GBTS
+connection table belongs to a layout**: its reach along z has to cover the ring
+sets of the endcap, since consecutive disks of a resolved endcap are not at
+consecutive radii. And what GBTS still loses is the table rather than the cuts —
+its remaining 5 % sits at the barrel-endcap transition, |eta| 1 to 1.5, which is
+where a hand-written table is weakest. The ATLAS one is trained.
+
+The GBTS cuts themselves are the ACTS defaults, which are what Athena runs on the
+ITk pixel detector: `ActsTrk::GbtsSeedingTool` overrides only the connector file,
+the ML lookup table and `minPt`, and its remaining defaults agree with the ACTS
+ones property by property, tracking filter included. Two do not — `matchBeforeCreate`
+and `nMaxEdges` — and one, `beamSpotCorrection`, is not read anywhere in
+`Acts::Experimental::GraphBasedTrackSeeder`. None of them changes efficiency here;
+`matchBeforeCreate` removes fakes and is worth 15 % of the run time.
 
 Still to do, both propagation rather than parameters, and both the same single
 mismatch — the barrel:
