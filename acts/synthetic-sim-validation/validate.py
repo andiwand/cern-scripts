@@ -96,21 +96,62 @@ ODD_BANDS = (
 D0_BINS = np.logspace(-3, 1, 60)
 
 
+def secondary_threshold(full) -> float:
+    """The lowest secondary momentum the reference is able to report.
+
+    A full simulation records a secondary only where its own truth machinery
+    kept one, and the GNN4ITk dump keeps them above a hard 300 MeV: its lowest
+    secondary sits at exactly 0.3000 GeV and nothing below it exists, which is
+    why the raw counts differ by a factor eight while the space points agree to
+    a percent. Comparing the model's secondaries down to `secondaryMinPt` -
+    50 MeV - against that is comparing two different populations.
+
+    So the threshold is read off the reference rather than assumed, and applied
+    to both sides. For ColliderML it comes out at the loader's own 100 MeV cut
+    and changes nothing, which is the point of measuring it.
+
+    Space points are left alone. They are what they are whatever made them, and
+    the dump's clusters carry the sub-threshold secondaries whether or not it
+    tells us which particle they belong to.
+
+    @param full the reference sample
+    @return the threshold in GeV
+    """
+    secondary = ~full.primary
+    return float(full.pt[secondary].min()) if secondary.any() else 0.0
+
+
+def _particles(sample, primary: bool, threshold: float) -> np.ndarray:
+    """The particle mask one of the two components is compared on."""
+    if primary:
+        return sample.primary
+    return (~sample.primary) & (sample.pt >= threshold)
+
+
 def _panel(ax, ax_ratio, full, fast, bins, xlabel, full_events, fast_events,
-           logy=False):
-    """One overlaid histogram with a ratio panel below it."""
+           logy=False, normalise=False):
+    """One overlaid histogram with a ratio panel below it.
+
+    `normalise` compares the shapes instead of the rates, by dividing each
+    histogram by its own total. It is for the distributions whose rate the
+    reference cannot report - see `secondary_threshold` - where leaving the
+    normalisation in pins every ratio panel at the top of its range and hides
+    the only thing the panel could have shown.
+    """
     hf, edges = np.histogram(full, bins=bins)
     hg, _ = np.histogram(fast, bins=bins)
     centres = 0.5 * (edges[:-1] + edges[1:])
     widths = np.diff(edges)
 
     # per event and per unit of the x axis, so bin widths do not matter
-    yf = hf / (full_events * widths)
-    yg = hg / (fast_events * widths)
+    scale_f = max(hf.sum(), 1) if normalise else full_events
+    scale_g = max(hg.sum(), 1) if normalise else fast_events
+    yf = hf / (scale_f * widths)
+    yg = hg / (scale_g * widths)
 
     ax.step(centres, yf, where="mid", **FULL_STYLE)
     ax.step(centres, yg, where="mid", **FAST_STYLE)
-    ax.set_ylabel("per event / bin")
+    ax.set_ylabel("fraction / bin" if normalise else "per event / bin")
     # an empty sample cannot be log-scaled, and an empty panel is worth seeing
     if logy and (yf > 0).any() and (yg > 0).any():
         ax.set_yscale("log")
@@ -230,11 +271,11 @@ def plot_components(full, fast, outdir: Path, extent: Extent, fmt: str) -> None:
 
 
 def plot_particles(full, fast, outdir: Path, extent: Extent, fmt: str,
-                   primary: bool) -> None:
+                   primary: bool, threshold: float) -> None:
     """Kinematics of the primaries or of the secondaries."""
     name = "primaries" if primary else "secondaries"
-    fmask = full.primary if primary else ~full.primary
-    gmask = fast.primary if primary else ~fast.primary
+    fmask = _particles(full, primary, threshold)
+    gmask = _particles(fast, primary, threshold)
 
     def value(sample, field, mask):
         # `abs_d0` is not a field of the sample, it is how d0 is plotted
@@ -264,12 +305,19 @@ def plot_particles(full, fast, outdir: Path, extent: Extent, fmt: str,
 
     ncols = 4
     nrows = (len(specs) + ncols - 1) // ncols
-    fig, axes = _figure(nrows, ncols, name.capitalize())
+    title = name.capitalize()
+    if not primary:
+        # both sides are cut at it, so the plot has to say where it is, and the
+        # rate is in the summary table rather than here
+        title += (" (pT > %.2f GeV, the reference's own threshold; shapes, "
+                  "normalised)" % threshold)
+    fig, axes = _figure(nrows, ncols, title)
     for i, (field, bins, label, logy) in enumerate(specs):
         row, col = divmod(i, ncols)
         ax, ax_ratio = _pair(axes, row, col)
         _panel(ax, ax_ratio, f(field), g(field), bins, label,
-               full.num_events, fast.num_events, logy=logy)
+               full.num_events, fast.num_events, logy=logy,
+               normalise=not primary)
         if field in ("pt", "abs_d0"):
             ax.set_xscale("log")
             ax_ratio.set_xscale("log")
@@ -281,7 +329,8 @@ def plot_particles(full, fast, outdir: Path, extent: Extent, fmt: str,
     _save(fig, outdir, name, fmt)
 
 
-def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str) -> None:
+def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str,
+                     threshold: float) -> None:
     """Mean number of pixel hits per particle against eta."""
     bins = np.linspace(-4, 4, 41)
     centres = 0.5 * (bins[:-1] + bins[1:])
@@ -289,7 +338,7 @@ def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
     for ax, primary in ((axes[0], True), (axes[1], False)):
         for sample, style in ((full, FULL_STYLE), (fast, FAST_STYLE)):
-            mask = sample.primary if primary else ~sample.primary
+            mask = _particles(sample, primary, threshold)
             eta = sample.eta[mask]
             hits = sample.num_hits[mask]
             total, _ = np.histogram(eta, bins=bins, weights=hits)
@@ -306,12 +355,12 @@ def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str) -> None:
     _save(fig, outdir, "hits_vs_eta", fmt)
 
 
-def summarise(full, fast) -> str:
-    lines = ["", "%-26s %14s %14s %8s" % ("", "full sim", "fast sim", "ratio")]
+def summarise(full, fast, threshold: float) -> str:
+    lines = ["", "%-30s %14s %14s %8s" % ("", "full sim", "fast sim", "ratio")]
 
     def row(label, a, b):
         ratio = b / a if a else float("nan")
-        lines.append("%-26s %14.1f %14.1f %8.2f" % (label, a, b, ratio))
+        lines.append("%-30s %14.1f %14.1f %8.2f" % (label, a, b, ratio))
 
     row("space points/event",
         len(full.sp_x) / full.num_events, len(fast.sp_x) / fast.num_events)
@@ -320,13 +369,25 @@ def summarise(full, fast) -> str:
     row("  non-primary", (~full.sp_primary).sum() / full.num_events,
         (~fast.sp_primary).sum() / fast.num_events)
     for label, mask_f, mask_g in (
-        ("primaries/event", full.primary, fast.primary),
-        ("secondaries/event", ~full.primary, ~fast.primary),
+        ("primaries/event", _particles(full, True, threshold),
+         _particles(fast, True, threshold)),
+        ("secondaries/event (>%.2f GeV)" % threshold,
+         _particles(full, False, threshold),
+         _particles(fast, False, threshold)),
     ):
         row(label, mask_f.sum() / full.num_events, mask_g.sum() / fast.num_events)
         row("  mean pt [GeV]", full.pt[mask_f].mean(), fast.pt[mask_g].mean())
         row("  mean hits", full.num_hits[mask_f].mean(),
             fast.num_hits[mask_g].mean())
+    # The secondary count is the one row here that is not like-for-like even
+    # after the threshold, because the reference's secondary *list* is
+    # incomplete where its clusters are not: half of the ITk dump's non-primary
+    # clusters carry no truth link at all, so the particles behind them are
+    # missing from this count while their clusters are in the non-primary row
+    # above. Dividing those clusters by the mean hit count recovers a secondary
+    # count the model can be held against; the raw ratio cannot.
+    lines.append("(the reference lists only the secondaries it kept truth for; "
+                 "compare non-primary space points, not the count)")
     return "\n".join(lines)
 
 
@@ -376,21 +437,25 @@ def main() -> None:
                                        num_events=args.events,
                                        local=args.fullsim)
         extent = ODD_EXTENT
-    print("  %d events, %d space points, %d particles"
-          % (full.num_events, len(full.sp_x), len(full.pt)))
+    threshold = secondary_threshold(full)
+    print("  %d events, %d space points, %d particles, secondaries above "
+          "%.3f GeV" % (full.num_events, len(full.sp_x), len(full.pt),
+                        threshold))
 
     print("reading %s_*.csv ..." % args.fastsim)
     fast = fastsim.load(args.fastsim)
     print("  %d events, %d space points, %d particles"
           % (fast.num_events, len(fast.sp_x), len(fast.pt)))
 
-    print(summarise(full, fast))
+    print(summarise(full, fast, threshold))
 
     plot_space_points(full, fast, outdir, extent, args.format)
     plot_components(full, fast, outdir, extent, args.format)
-    plot_particles(full, fast, outdir, extent, args.format, primary=True)
-    plot_particles(full, fast, outdir, extent, args.format, primary=False)
-    plot_hits_vs_eta(full, fast, outdir, args.format)
+    plot_particles(full, fast, outdir, extent, args.format, primary=True,
+                   threshold=threshold)
+    plot_particles(full, fast, outdir, extent, args.format, primary=False,
+                   threshold=threshold)
+    plot_hits_vs_eta(full, fast, outdir, args.format, threshold)
 
     print("\nwrote plots to %s/" % outdir)
 

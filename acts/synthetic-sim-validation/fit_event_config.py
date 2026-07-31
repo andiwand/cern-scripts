@@ -102,6 +102,12 @@ def fit_pt_spectrum(pt: np.ndarray, min_pt: float = 0.1):
 class Target:
     """What the fast simulation is being fitted to, all per event."""
 
+    #: Bumped whenever a field is added or its meaning changes, so that a cache
+    #: written by an older version is not silently reused. The reduction is what
+    #: the whole fit sees of the reference, and a stale one is a fit against the
+    #: wrong thing rather than a crash.
+    VERSION = 3
+
     #: How far inside the layout's beam pipe a production point has to be to
     #: count as a decay. The layout carries the beam pipe as one radius while
     #: the real one is a wall of finite thickness with its supports around it,
@@ -140,11 +146,34 @@ class Target:
         self.decay_fraction = (hits[inside].sum() / hits.sum() if hits.sum()
                                else 0.0)
 
+        # The momentum above which the reference knows its own secondaries at
+        # all, and therefore the only range it can be compared with over.
+        #
+        # A full simulation links a cluster to a truth particle only above some
+        # momentum, and for secondaries that threshold sits well inside the
+        # range the generator produces: the ITk dump's is a hard 300 MeV, sharp
+        # to the last digit, while its *primaries* reach down to the loader's
+        # own 100 MeV cut. The reference's non-primary particles are therefore a
+        # selection rather than a population, and the clusters of everything
+        # below the threshold are precisely the unlinked half of the dump.
+        #
+        # So every per-particle secondary observable has to be taken above this
+        # on both sides - see `reduce_event`. Comparing the generator's whole
+        # secondary spectrum, which starts at `secondaryMinPt`, against a
+        # 300 MeV selection is what used to drive the fitted secondary momentum
+        # far above anything physical.
+        #
+        # The per-*cluster* profiles are a different matter and must not be cut:
+        # they count the unlinked clusters too, which is exactly what makes them
+        # the whole of the non-primary component rather than a selection.
+        self.secondary_pt_threshold = (float(full.pt[~primary].min())
+                                       if (~primary).any() else 0.0)
+
         # The secondary momentum spectrum is not fitted: an exponential cannot
         # follow the full simulation, whose secondaries reach ten GeV where the
         # generator's run out below two, and putting it in the objective made it
         # the only term that mattered. Its one parameter is the mean instead,
-        # which is what an exponential above `secondaryMinPt` has to offer.
+        # which is what an exponential has to offer.
         self.secondary_mean_pt = full.pt[~primary].mean()
         self.primary_pt = full.pt[primary]
 
@@ -153,8 +182,10 @@ class Target:
         # than of the yield: a secondary emitted along its parent points back
         # at the beam line however far out it was made, and one emitted across
         # it does not. Only the reference's linked secondaries have a d0 at
-        # all, so the unlinked clusters are out of this one; that makes it the
-        # cleanest of the comparisons here rather than the muddiest.
+        # all, so the unlinked clusters are out of this one - which also means
+        # it carries the momentum threshold above, and d0 is strongly
+        # correlated with momentum, a soft secondary curling where a hard one
+        # does not. The model side is cut to match.
         self.d0_bands = np.array([0.0, 0.1, 1.0, 10.0, 100.0, np.inf])
         self.secondary_d0 = self._d0_profile(
             np.abs(full.d0[~primary]), full.num_hits[~primary].astype(float),
@@ -187,18 +218,24 @@ def reduce_event(event, target: Target) -> dict:
     of_particle = np.asarray(event.particleIds, dtype=np.int64)
     other = ~primary[of_particle]
 
+    # The reference cannot see a secondary below its truth-link threshold, so
+    # neither may the model when the two are compared per particle. This is the
+    # selection, not `~primary`; the space point profiles above stay on the
+    # whole non-primary component. See `Target.secondary_pt_threshold`.
+    pt = np.fromiter((p.pt for p in particles), np.float32, len(particles))
+    secondary = (~primary) & (pt >= target.secondary_pt_threshold)
+
     hits = np.fromiter((p.numHits for p in particles), np.int32,
-                       len(particles)).astype(float)[~primary]
+                       len(particles)).astype(float)[secondary]
     # A surface secondary is produced *on* a surface, the innermost of which is
     # the beam pipe, so anything inside it came from a decay and the split is
     # exact here. In the reference it is only nearly so.
     inside = (np.fromiter((p.productionRadius for p in particles), np.float32,
-                          len(particles))[~primary]
+                          len(particles))[secondary]
               < target.beam_pipe_radius)
     d0 = np.abs(np.fromiter((p.d0 for p in particles), np.float32,
-                            len(particles))[~primary])
-    sec_pt = np.fromiter((p.pt for p in particles), np.float32,
-                         len(particles))[~primary]
+                            len(particles))[secondary])
+    sec_pt = pt[secondary]
     return {
         "space_points": float(count),
         "primary_space_points": float((~other).sum()),
@@ -206,7 +243,6 @@ def reduce_event(event, target: Target) -> dict:
                                                       target.z_bands), 1),
         "decay_fraction": (hits[inside].sum() / hits.sum() if hits.sum()
                            else 0.0),
-        "secondary_hits": float(hits.sum()),
         "secondary_d0": Target._d0_profile(d0, hits, target.d0_bands),
         "secondary_mean_pt": float(sec_pt.mean()) if len(sec_pt) else 0.0,
     }
@@ -272,6 +308,46 @@ def cached_target(path: Path, build):
     return target
 
 
+def reference(detector: str, *, fullsim=None, events=None, cache_dir="."):
+    """The layout description and reduced reference of one detector.
+
+    The bands the reference is profiled in are the detector's own, so the two
+    belong together.
+
+    @param detector "itk" or "odd"
+    @param fullsim the ITk dump; the ODD downloads its own
+    @param events how many reference events to reduce, None for the default
+    @param cache_dir where the reduced reference is kept between runs
+    @return (description, target, provenance)
+    """
+    import validate  # for the per-detector bands
+
+    if detector == "itk":
+        description = syn.itkPixelDescription()
+        bands = validate.ITK_BANDS
+        provenance = "Fitted against five events of a GNN4ITk ttbar pu200 dump."
+        events = events or 5
+
+        def build():
+            import fullsim_itk
+            return _reduce(fullsim_itk.load(fullsim, num_events=events), bands,
+                           description.beamPipeRadius)
+    else:
+        description = syn.openDataDetectorPixelDescription()
+        bands = validate.ODD_BANDS
+        provenance = "Fitted against twenty events of ColliderML ttbar_pu200."
+        events = events or 20
+
+        def build():
+            import fullsim_colliderml
+            return _reduce(fullsim_colliderml.load(num_events=events), bands,
+                           description.beamPipeRadius)
+
+    cache = Path(cache_dir) / ("target-%s-%d-v%d.pkl"
+                               % (detector, events, Target.VERSION))
+    return description, cached_target(cache, build), provenance
+
+
 def _d0_mismatch(fast, target: Target) -> float:
     """Squared log-ratio of the hit-weighted secondary |d0| profiles.
 
@@ -287,64 +363,82 @@ def _d0_mismatch(fast, target: Target) -> float:
     return float(np.mean(np.log(b[both] / a[both]) ** 2))
 
 
-def fit_opening_angle(layout, config, target: Target):
-    """Fit the two-component opening angle to the secondary |d0| profile.
+#: Transverse kick scales to try in `solve_secondary_kick`, in GeV, spanning
+#: the measured 0.31 by a factor three either way.
+KICK_GRID = (0.10, 0.15, 0.21, 0.26, 0.31, 0.38, 0.48, 0.65, 0.90)
 
-    The opening angle is what sets |d0|: a secondary emitted along its parent
-    points back at the beam line however far out it was produced, and one
-    emitted across it does not. A single Gaussian cannot do both ends of the
-    reference at once, which is what the second component is for.
+
+def solve_secondary_kick(layout, config, target: Target, seeds: int = 3):
+    """Find the transverse kick that reproduces the secondary |d0| profile.
+
+    The kick reaches |d0| only through the opening angle it implies against the
+    longitudinal momentum, so it cannot put a hard secondary at a wide angle or
+    a soft one at a narrow one. It is measured on the ITk dump directly, so
+    this is a cross-check there and the only handle on the ODD.
+
+    A seed-averaged grid rather than a local search: one event's |d0| mismatch
+    varies by up to 0.04 between realisations at a fixed setting, as large as
+    the differences being resolved, and a simplex contracts on that.
+
+    @note The rate is re-solved at every grid point, as in
+          `fit_endcap_material` and for the same reason: a wider kick throws
+          secondaries off the layout and so changes the space point count,
+          while |d0| is scored as a *share* of the secondary space points.
 
     @param layout the detector to generate on
     @param config the configuration to start from
     @param target what to match
-    @return (secondaryOpeningAngle, secondaryWideAngle, secondaryWideFraction)
+    @param seeds events to average each grid point over
+    @return (secondaryKt, the mismatch at it)
     """
-    def objective(x):
-        narrow, wide, logit = x
-        narrow, wide = np.exp(narrow), np.exp(wide)
-        fraction = 1.0 / (1.0 + np.exp(-logit))
-        if not (1e-4 < narrow < wide < 3.0):
-            return 1e6
-        trial = _with(config, {"secondaryOpeningAngle": narrow,
-                               "secondaryWideAngle": wide,
-                               "secondaryWideFraction": fraction})
-        return _d0_mismatch(reduce_event(syn.generateEvent(layout, trial),
-                                         target), target)
-
-    result = minimize(objective, [np.log(0.01), np.log(0.5), 0.0],
-                      method="Nelder-Mead",
-                      options={"xatol": 5e-3, "fatol": 1e-5, "maxiter": 120})
-    narrow, wide, logit = result.x
-    return (float(np.exp(narrow)), float(np.exp(wide)),
-            float(1.0 / (1.0 + np.exp(-logit))))
+    best, best_score = config.secondaryKt, float("inf")
+    for kt in KICK_GRID:
+        trial = _with(config, {"secondaryKt": kt})
+        # re-solved once per grid point rather than per seed: the rate is what
+        # makes the count right, and it barely moves between realisations
+        trial = _with(trial, {"secondaryRate": solve_secondary_rate(
+            layout, trial, target)})
+        score = np.mean([
+            _d0_mismatch(reduce_event(
+                syn.generateEvent(layout, _with(trial, {"seed": 4000 + i})),
+                target), target)
+            for i in range(seeds)])
+        if score < best_score:
+            best, best_score = float(kt), float(score)
+    return best, best_score
 
 
-def solve_secondary_pt_fraction(layout, config, target: Target) -> float:
-    """Find the `secondaryPtFraction` that reproduces the mean secondary
+def solve_secondary_momentum_scale(layout, config, target: Target) -> float:
+    """Find the `secondaryMomentumScale` that reproduces the mean secondary
     momentum.
 
-    The spectrum is scaled by the parent, so the mean that comes out depends on
-    which parents interact rather than on the primary spectrum alone - harder
-    tracks cross more surfaces and get more chances. That cannot be inverted in
-    closed form, so it is iterated; the response is close enough to linear that
-    a few steps settle it.
+    The scale sets the median longitudinal momentum at a parent of one GeV, and
+    the mean that comes out of it depends on which parents interact rather than
+    on the primary spectrum alone - harder tracks cross more surfaces and get
+    more chances. It is also compared only above the reference's truth-link
+    threshold, so raising the scale both hardens the secondaries and moves more
+    of them across the threshold, and the mean of what is left responds by less
+    than the scale changes. Neither inverts in closed form, so it is iterated;
+    the compression means the plain step under-corrects and cannot oscillate, it
+    only wants more rounds than an exact inverse would.
+
+    Note the ITk value is measured off the dump outright, so on that reference
+    this is a cross-check rather than a fit.
 
     @param layout the detector to generate on
     @param config the configuration to start from
     @param target what to match
-    @return the fraction that lands on `target.secondary_mean_pt`
+    @return the scale that lands on `target.secondary_mean_pt`
     """
-    fraction = config.secondaryPtFraction
-    wanted = target.secondary_mean_pt - config.secondaryMinPt
-    for _ in range(5):
-        trial = _with(config, {"secondaryPtFraction": fraction})
+    scale = config.secondaryMomentumScale
+    for _ in range(10):
+        trial = _with(config, {"secondaryMomentumScale": scale})
         fast = reduce_event(syn.generateEvent(layout, trial), target)
-        have = fast["secondary_mean_pt"] - config.secondaryMinPt
+        have = fast["secondary_mean_pt"]
         if have <= 0:
             break
-        fraction *= wanted / have
-    return fraction
+        scale *= target.secondary_mean_pt / have
+    return scale
 
 
 def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
@@ -484,14 +578,177 @@ def _with(config, values: dict):
     for name in ("pileup", "chargedPerUnitEta", "minPt", "ptScale",
                  "ptExponent", "minEta", "maxEta", "beamspotSigmaZ", "d0Sigma",
                  "secondaryRate", "decayYield", "decayLength",
-                 "secondaryMinPt", "secondaryPtFraction",
-                 "secondaryOpeningAngle", "secondaryWideFraction",
-                 "secondaryWideAngle", "maxPathLength", "maxTurns",
+                 "secondaryMinPt", "secondaryMomentumScale",
+                 "secondaryMomentumExponent", "secondaryMomentumSpread",
+                 "secondaryKt",
+                 "maxPathLength", "maxTurns",
                  "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
         setattr(out, name, getattr(config, name))
     for name, value in values.items():
-        setattr(out, name, float(value))
+        # cast to whatever the field already is: `pileup` and `seed` are
+        # integers, and pybind11 refuses a float for them
+        setattr(out, name, type(getattr(out, name))(value))
     return out
+
+
+#: What a configuration is judged on, as ``key -> (heading, ideal)``. A
+#: mismatch is a squared log-ratio and wants to be zero; a ratio wants to be
+#: one. Ordered as they are printed.
+FIGURES = (("shape", "shape", 0.0),
+           ("d0", "|d0|", 0.0),
+           ("space_points", "sp", 1.0),
+           ("primary_sp", "prim sp", 1.0),
+           ("decay_fraction", "decays", 1.0),
+           ("secondary_pt", "sec pt", 1.0))
+
+
+def scorecard(config, layout, target: Target) -> dict:
+    """Every figure of merit of one configuration, in one pass.
+
+    The two mismatches are shapes and the rest are ratios to the reference. All
+    six together, because the terms trade against each other and no one figure
+    decides anything on its own.
+
+    @param config the configuration to score
+    @param layout the detector to generate on
+    @param target what to score against
+    @return the figures of merit, keyed as in `FIGURES`
+    """
+    fast = reduce_event(syn.generateEvent(layout, config), target)
+
+    def ratio(have, want):
+        return have / want if want else float("nan")
+
+    return {
+        "shape": _mismatch(fast, target),
+        "d0": _d0_mismatch(fast, target),
+        "space_points": ratio(fast["space_points"], target.space_points),
+        "primary_sp": ratio(fast["primary_space_points"],
+                            target.primary_space_points),
+        "decay_fraction": ratio(fast["decay_fraction"], target.decay_fraction),
+        "secondary_pt": ratio(fast["secondary_mean_pt"],
+                              target.secondary_mean_pt),
+    }
+
+
+def fit_config(description, target: Target, *, pileup=200, no_decays=False,
+               no_forward_material=False, path_length=1.0, turns=0.5,
+               fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
+               verbose=True):
+    """Fit a configuration to a reference, and return it with its layout.
+
+    Callable so that `ablate.py` can run the same fit with a term taken out.
+
+    @param description the layout description; modified in place, the endcap
+           material profile being part of the fit
+    @param target what to fit to
+    @param pileup number of interactions to generate
+    @param no_decays drop the decay component
+    @param no_forward_material leave the endcap material flat
+    @param path_length clamp on the incidence weighting; one disables it
+    @param turns turning angle to propagate through
+    @param fit_momentum solve the secondary momentum scale for the mean
+    @param fit_kick fit the transverse kick to |d0|
+    @param rounds passes over the alternating solves
+    @param overrides fields to force after every solve, as a dict. This is what
+           an ablation switches off with, and it is reapplied each round
+           because a solve returns a fresh configuration.
+    @param verbose print the value of every parameter as it settles
+    @return (config, layout, material), `material` being the fitted endcap
+            profile or None
+    """
+    overrides = dict(overrides or {})
+
+    config = syn.EventConfig()
+    config.pileup = pileup
+    config.beamspotSigmaZ = target.z0_sigma
+    config.d0Sigma = target.d0_sigma
+    scale, exponent = fit_pt_spectrum(target.primary_pt, config.minPt)
+    config.ptScale, config.ptExponent = scale, exponent
+    # Physics rather than a fit: K0S and Lambda are what decay at this distance,
+    # cTau being 27 and 79 mm and the typical boost of order two. It cannot be
+    # measured off the reference, whose sample of decays inside the beam pipe is
+    # truncated at the beam pipe.
+    config.decayLength = 60.0
+    if no_decays:
+        config.decayYield = 0.0
+    if no_forward_material:
+        syn.applyEndcapMaterialProfile(description, 1e9, 1.0)
+    config.maxPathLength = path_length
+    config.maxTurns = turns
+    config = _with(config, overrides)
+    # built after the description is final, the endcap material being part of it
+    layout = syn.makeLayout(description)
+    if verbose:
+        print("determined directly: beamspotSigmaZ=%.1f d0Sigma=%.4f "
+              "ptScale=%.3f ptExponent=%.3f"
+              % (config.beamspotSigmaZ, config.d0Sigma,
+                 config.ptScale, config.ptExponent))
+
+    # The yield and the secondary rate each shift the other's target - more
+    # primaries mean more secondaries, and both leave space points - so they are
+    # alternated. Each step is exact in its own parameter, so this settles at
+    # once and the later rounds are there to show that it has. The forward
+    # material term is fitted inside the loop because it moves the count too,
+    # and the decay yield after it because the shape it is a fraction of has to
+    # have settled first.
+    span = config.maxEta - config.minEta
+    config.chargedPerUnitEta = target.primaries / (pileup * span)
+    # the endcap material profile lives on the layout, not on the configuration,
+    # so it is carried out of the loop by hand to be reported with it
+    material = None
+    for round_ in range(rounds):
+        config = _with(config, {
+            "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
+                                                            target)})
+        if not no_forward_material:
+            material = fit_endcap_material(description, config, target)
+            layout = _layout_with(description, *material)
+        # Off by default, the scale being measured off the dump's own
+        # secondaries against their parents. Solving it instead trades the
+        # non-primary shape for the mean momentum -- on the ITk it moves the
+        # scale from the measured 0.632 to 0.369 and the shape mismatch from
+        # 0.057 to 0.097 to buy 0.06 of the |d0| one -- so what it really
+        # measures is that the model's spectrum above the reference's threshold
+        # is not the reference's shape, which no setting of a scale fixes.
+        if fit_momentum:
+            config = _with(config, {
+                "secondaryMomentumScale": solve_secondary_momentum_scale(
+                    layout, config, target)})
+        # Inside the loop and after the momentum scale, not once before it. The
+        # kick only reaches |d0| through the opening angle it makes against the
+        # longitudinal momentum, so the two cannot be fitted apart: at half the
+        # momentum the same kick is twice the angle. The old free opening angle
+        # could be, which is why it used to sit outside.
+        if fit_kick:
+            kt, _ = solve_secondary_kick(layout, config, target)
+            config = _with(config, {"secondaryKt": kt})
+        if not no_decays:
+            config = _with(config, {
+                "decayYield": solve_decay_yield(layout, config, target)})
+        config = _with(config, {
+            "secondaryRate": solve_secondary_rate(layout, config, target)})
+        # Once more, because the rate above moves the surface secondaries that
+        # the decay fraction is a fraction *of*, so solving the yield before it
+        # leaves the fraction stale by as much as 15 % on the ODD.
+        if not no_decays:
+            config = _with(config, {
+                "decayYield": solve_decay_yield(layout, config, target)})
+            config = _with(config, {
+                "secondaryRate": solve_secondary_rate(layout, config, target)})
+        # last, so that a term an ablation has switched off cannot be brought
+        # back by a solve above -- `decayYield` is the one that would be
+        config = _with(config, overrides)
+        if verbose:
+            print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f "
+                  "endcapMaterial=%.2f..%.2f "
+                  "decayYield=%.3f momentumScale=%.3f kt=%.3f"
+                  % (round_, config.chargedPerUnitEta, config.secondaryRate,
+                     min(d.materialWeight for d in description.discs),
+                     max(d.materialWeight for d in description.discs),
+                     config.decayYield, config.secondaryMomentumScale,
+                     config.secondaryKt))
+    return config, layout, material
 
 
 def report(config, layout, target: Target) -> None:
@@ -509,11 +766,15 @@ def report(config, layout, target: Target) -> None:
         ("d0 sigma [mm]", target.d0_sigma, config.d0Sigma),
         ("secondaries from a decay", target.decay_fraction,
          fast["decay_fraction"]),
+        # both sides taken above the reference's truth-link threshold, which is
+        # printed below because it is a property of the sample and not of the fit
         ("secondary mean pt [GeV]", target.secondary_mean_pt,
          fast["secondary_mean_pt"]),
     ):
         print("%-28s %12.4f %12.4f %8.2f" % (label, a, b, b / a if a else
                                              float("nan")))
+    print("%-28s %12.4f %12s" % ("  above a threshold of",
+                                 target.secondary_pt_threshold, "GeV"))
     print("%-28s %12s %12.4f" % ("non-primary shape mismatch", "",
                                  _mismatch(fast, target)))
     print("%-28s %12s %12.4f" % ("secondary |d0| mismatch", "",
@@ -549,11 +810,12 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("d0Sigma", "%.4ff"),
                        ("secondaryRate", "%.3ff"),
                        ("decayYield", "%.3ff"),
-                       ("secondaryPtFraction", "%.3ff"),
+                       ("secondaryMomentumScale", "%.3ff"),
+                       ("secondaryMomentumExponent", "%.3ff"),
+                       ("secondaryMomentumSpread", "%.3ff"),
+                       ("secondaryKt", "%.3ff"),
                        ("maxPathLength", "%.2ff"),
-                       ("maxTurns", "%.2ff"),
-                       ("secondaryWideFraction", "%.3ff"),
-                       ("secondaryWideAngle", "%.3ff")):
+                       ("maxTurns", "%.2ff")):
         lines.append(("  config.%s = " + fmt + ";") % (field,
                                                        getattr(config, field)))
     lines += ["  return config;", "}"]
@@ -586,136 +848,35 @@ def main() -> None:
     parser.add_argument("--turns", type=float, default=0.5,
                         help="turning angle to propagate through, in turns; "
                              "half stops a track at its outermost point")
-    parser.add_argument("--fit-opening-angle", action="store_true",
-                        help="fit the two-component opening angle to the "
-                             "secondary impact parameter distribution")
+    parser.add_argument("--fit-momentum", action="store_true",
+                        help="solve the secondary momentum scale for the mean "
+                             "secondary momentum, rather than keeping the "
+                             "value measured off the ITk dump")
+    parser.add_argument("--fit-kick", action="store_true",
+                        help="fit the transverse kick to the secondary "
+                             "impact parameter distribution, rather than "
+                             "keeping the value measured off the ITk dump")
     args = parser.parse_args()
 
-    import validate  # for the per-detector bands
+    description, target, provenance = reference(
+        args.detector, fullsim=args.fullsim, events=args.events,
+        cache_dir=args.cache_dir)
 
-    if args.detector == "itk":
-        description = syn.itkPixelDescription()
-        bands = validate.ITK_BANDS
-        beam_pipe = description.beamPipeRadius
-        provenance = "Fitted against five events of a GNN4ITk ttbar pu200 dump."
-        events = args.events or 5
-
-        def build():
-            import fullsim_itk
-            return _reduce(fullsim_itk.load(args.fullsim, num_events=events),
-                           bands, beam_pipe)
-    else:
-        description = syn.openDataDetectorPixelDescription()
-        bands = validate.ODD_BANDS
-        beam_pipe = description.beamPipeRadius
-        provenance = ("Fitted against twenty events of ColliderML "
-                      "ttbar_pu200.")
-        events = args.events or 20
-
-        def build():
-            import fullsim_colliderml
-            return _reduce(fullsim_colliderml.load(num_events=events), bands,
-                           beam_pipe)
-
-    cache = Path(args.cache_dir) / ("target-%s-%d.pkl" % (args.detector,
-                                                          events))
-    target = cached_target(cache, build)
-
-    # the parameters the reference distributions determine outright
-    config = syn.EventConfig()
-    config.pileup = args.pileup
-    config.beamspotSigmaZ = target.z0_sigma
-    config.d0Sigma = target.d0_sigma
-    scale, exponent = fit_pt_spectrum(target.primary_pt, config.minPt)
-    config.ptScale, config.ptExponent = scale, exponent
-    # Physics rather than a fit: K0S and Lambda are what decay at this distance,
-    # cTau being 27 and 79 mm and the typical boost of order two. It cannot be
-    # measured off the reference, whose sample of decays inside the beam pipe is
-    # truncated at the beam pipe.
-    config.decayLength = 60.0
-    if args.no_decays:
-        config.decayYield = 0.0
-    if args.no_forward_material:
-        syn.applyEndcapMaterialProfile(description, 1e9, 1.0)
-    config.maxPathLength = args.path_length
-    config.maxTurns = args.turns
-    # built after the description is final, the endcap material being part of it
-    layout = syn.makeLayout(description)
-    print("determined directly: beamspotSigmaZ=%.1f d0Sigma=%.4f "
-          "ptScale=%.3f ptExponent=%.3f"
-          % (config.beamspotSigmaZ, config.d0Sigma,
-             config.ptScale, config.ptExponent))
-
-    # The yield and the secondary rate each shift the other's target - more
-    # primaries mean more secondaries, and both leave space points - so they are
-    # alternated. Each step is exact in its own parameter, so this settles at
-    # once and the later rounds are there to show that it has. The forward
-    # material term is fitted inside the loop because it moves the count too,
-    # and the decay yield after it because the shape it is a fraction of has to
-    # have settled first.
-    span = config.maxEta - config.minEta
-    config.chargedPerUnitEta = target.primaries / (args.pileup * span)
-    # Fitted once rather than inside the loop below: the opening angle sets
-    # where a secondary goes, not how many there are, so it does not move with
-    # the yield terms the loop alternates.
-    if args.fit_opening_angle:
-        narrow, wide, fraction = fit_opening_angle(layout, config, target)
-        config = _with(config, {"secondaryOpeningAngle": narrow,
-                                "secondaryWideAngle": wide,
-                                "secondaryWideFraction": fraction})
-        print("opening angle: narrow=%.4f wide=%.3f wide fraction=%.3f"
-              % (narrow, wide, fraction))
-    for round_ in range(3):
-        config = _with(config, {
-            "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
-                                                            target)})
-        if not args.no_forward_material:
-            scale, power = fit_endcap_material(description, config, target)
-            layout = _layout_with(description, scale, power)
-        config = _with(config, {
-            "secondaryPtFraction": solve_secondary_pt_fraction(
-                layout, config, target)})
-        if not args.no_decays:
-            config = _with(config, {
-                "decayYield": solve_decay_yield(layout, config, target)})
-        config = _with(config, {
-            "secondaryRate": solve_secondary_rate(layout, config, target)})
-        print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f "
-              "endcapMaterial=%.2f..%.2f "
-              "decayYield=%.3f ptFraction=%.3f opening=%.4f/%.3f@%.2f"
-              % (round_, config.chargedPerUnitEta, config.secondaryRate,
-                 min(d.materialWeight for d in description.discs),
-                 max(d.materialWeight for d in description.discs),
-                 config.decayYield, config.secondaryPtFraction,
-                 config.secondaryOpeningAngle,
-                 config.secondaryWideAngle, config.secondaryWideFraction))
+    config, layout, material = fit_config(
+        description, target, pileup=args.pileup, no_decays=args.no_decays,
+        no_forward_material=args.no_forward_material,
+        path_length=args.path_length, turns=args.turns,
+        fit_momentum=args.fit_momentum, fit_kick=args.fit_kick)
 
     report(config, layout, target)
 
-    # What each term is worth, measured by taking it back out and re-solving
-    # the rate for the count it was carrying. The primary space points are
-    # printed alongside because the terms that touch the propagation move them
-    # too, and that is half of what they are for.
-    print("\nterm by term")
-    print("  %-34s %8s %10s" % ("", "mismatch", "primary sp"))
-    scan = [("fitted", {})]
-    if config.decayYield > 0:
-        scan.append(("without the decays", {"decayYield": 0.0}))
-    if config.maxPathLength > 1:
-        scan.append(("without the path length", {"maxPathLength": 1.0}))
-    if config.maxTurns > 0.5:
-        scan.append(("without the return branch", {"maxTurns": 0.5}))
-    if config.secondaryWideFraction > 0:
-        scan.append(("without the wide component",
-                     {"secondaryWideFraction": 0.0}))
-    for label, fields in scan:
-        trial = _with(config, fields)
-        trial = _with(trial, {"secondaryRate": solve_secondary_rate(
-            layout, trial, target)})
-        fast = reduce_event(syn.generateEvent(layout, trial), target)
-        print("  %-34s %8.4f %10.2f"
-              % (label, _mismatch(fast, target),
-                 fast["primary_space_points"] / target.primary_space_points))
+    if material is not None:
+        print("\nendcap material profile, for "
+              "`applyEndcapMaterialProfile` in DetectorLayout.cpp:")
+        print("  scale = %.0ff  power = %.2ff   (weights %.2f..%.2f)"
+              % (material[0], material[1],
+                 min(d.materialWeight for d in description.discs),
+                 max(d.materialWeight for d in description.discs)))
 
     name = ("itkPixelTtbarPu200" if args.detector == "itk"
             else "openDataDetectorTtbarPu200")

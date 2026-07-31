@@ -168,8 +168,11 @@ def _load_event(out: sample.Sample, particles, hits, min_pt_gev: float,
     # NaN for a fifth of the charged particles above 100 MeV, and their d0 has
     # the opposite sign to the one used here. Where they are finite they agree
     # with this in magnitude.
+    # the shard's momenta are already in GeV, which is what `perigee` needs to
+    # turn them into a radius of curvature
     phi, d0, z0 = sample.perigee(vx, vy, vz,
-                                 px[selected], py[selected], pz[selected])
+                                 px[selected], py[selected], pz[selected],
+                                 charge[selected])
 
     out.add_event(
         sp_x=sp_x, sp_y=sp_y, sp_z=sp_z, sp_primary=sp_primary,

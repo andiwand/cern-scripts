@@ -10,10 +10,8 @@ against: the ITk against a GNN4ITk Athena dump, and the ODD against ColliderML.
 
 ```sh
 # one fast-simulation event per layout, written as two CSV files
-ActsBenchmarkSyntheticEventGeneration --layout itk-pixel --runs 2 --warmup 0 \
-    --dump /tmp/fastsim-itk
-ActsBenchmarkSyntheticEventGeneration --layout odd-pixel --runs 2 --warmup 0 \
-    --dump /tmp/fastsim-odd
+python dump_fastsim.py itk -o /tmp/fastsim-itk
+python dump_fastsim.py odd -o /tmp/fastsim-odd
 
 # ITk, against a local GNN4ITk dump
 ./validate.py itk --fullsim ~/Downloads/user.avallier.*.DumpGNNITk_v9.root \
@@ -28,6 +26,10 @@ Plots land in `plots/<detector>/` as PDF, so the two comparisons do not overwrit
 each other; `--format png` if a raster is wanted instead. Everything is
 normalised per event, so the two samples are comparable whatever number of events
 each holds.
+
+`dump_fastsim.py` generates from the shipped preset through the Python bindings.
+`ActsBenchmarkSyntheticEventGeneration --layout itk-pixel --dump <prefix>` writes
+the same two files and is quicker, where the benchmark is built.
 
 `fit_event_config.py <detector>` fits `ActsFatras::Synthetic::EventConfig` to a
 reference and prints it as the C++ of a preset, which is where the numbers now in
@@ -93,10 +95,10 @@ on another's layout is wrong by more than the generator's own coarseness.
 | mean primary pT | `ptScale` |
 | d0 core width | `d0Sigma` |
 | z0 core width | `beamspotSigmaZ` |
-| mean secondary pT | `secondaryPtFraction` |
+| mean secondary pT | `secondaryMomentumScale`, `secondaryMomentumExponent` |
 | secondaries born inside the beam pipe | `decayYield` |
 | shape of the non-primary space points in \|z\| | the endcap material profile of the *layout* |
-| secondary \|d0\| by decade | `secondaryOpeningAngle`, `secondaryWideAngle`, `secondaryWideFraction` |
+| secondary \|d0\| by decade | `secondaryKt`, against the longitudinal momentum |
 
 ### The objective has to be banded, and split by component
 
@@ -425,43 +427,105 @@ and `nMaxEdges` — and one, `beamSpotCorrection`, is not read anywhere in
 `Acts::Experimental::GraphBasedTrackSeeder`. None of them changes efficiency here;
 `matchBeforeCreate` removes fakes and is worth 15 % of the run time.
 
-### What the two secondary terms are worth
+### What each term is worth
 
-Each measured by taking the term out and re-solving `secondaryRate` for the count
-it was carrying, i.e. the non-primary shape mismatch:
+`ablate.py` takes every term of the model out in turn and scores what is left, on
+all six figures at once - see `fit_event_config.FIGURES`. Judging on the spatial
+shape alone is what makes this exercise go wrong: the terms trade against each
+other, and dropping the transverse kick *improves* the shape threefold while
+taking the impact parameter distribution it exists for from 0.52 to 5.5.
 
-| | ITk | ODD |
+Two measurements per term, and the second is the one that decides. The **quick**
+scan removes the term and re-solves only the two normalisations, so it says what
+the term carries where the fit currently sits. The **refit** runs the whole fit
+again without it, so it says what survives once every other parameter has had the
+chance to absorb it - and a term the rest of the model can absorb is a
+reparametrisation rather than physics.
+
+    ./ablate.py itk --fullsim <dump>.root            # seconds
+    ./ablate.py itk --fullsim <dump>.root --refit    # ~7 min per term
+
+Refitted, against a refitted baseline of 0.067/0.520 (ITk) and 0.085/0.902 (ODD):
+
+| term removed | ITk shape | ITk \|d0\| | ODD shape | ODD \|d0\| | verdict |
+| --- | --- | --- | --- | --- | --- |
+| endcap material | **0.314** | 0.517 | **0.122** | 1.216 | keep, the largest term |
+| path length | 0.079 | 0.554 | **0.135** | 1.101 | keep, ODD only |
+| return branch | 0.058 | 0.631 | 0.085 | 1.144 | keep, for the primary hits |
+| transverse kick | 0.018 | **5.472** | 0.056 | **5.847** | keep, \|d0\| is made of it |
+| parent momentum | 0.084 | 0.529 | 0.102 | 0.972 | keep |
+| momentum spread | 0.073 | 0.402 | 0.101 | 0.748 | keep, but it trades |
+| decays | 0.059 | 0.658 | 0.083 | 0.945 | keep, weakly |
+| secondary min pt | **0.049** | 0.518 | 0.072 | 1.042 | a guard, now at 5 MeV |
+| *fixed fraction of parent* | 0.026 | 0.695 | 0.065 | 1.221 | the model this replaced |
+
+Read against an event-to-event spread, measured over eight seeds of the untouched
+preset, of 0.004 on the shape and 0.033 on |d0|. Nothing here is noise. The table
+was measured before the collinear fraction was dropped, so the baseline it is read
+against is the one with that term still in.
+
+The compensation the fit reaches for says as much as the score. Without the
+material term `secondaryRate` has to go from 0.180 to 0.301 and the shape still
+ends up 4.7 times worse - nothing in the model stands in for it. Without the path
+length term on the ITk the rate goes to 0.300 too and the shape only reaches
+0.079, because the endcap material profile absorbs most of it; on the ODD, with
+far less endcap to absorb into, the same removal costs 0.085 to 0.135. So those
+two are strongly degenerate on the ITk and clearly separate on the ODD, which is
+the argument for keeping both.
+
+None of this is a runtime question. A whole event is 89 ms on the ITk and 27 ms on
+the ODD, and no term is worth more than about a tenth of that; removing the
+secondary momentum floor makes generation 5 % *slower*, which is what that floor
+is for.
+
+#### Why there is no conversion component
+
+There was a `secondaryCollinearFraction`, a share of secondaries given no
+transverse kick, standing for photon conversions. It is gone.
+
+It had been set to 0.149, the share of the dump's secondaries born with kT below
+10 MeV. That is the wrong quantity for a model with no photons in it. A collinear
+daughter here stays exactly on its parent for ever and inherits its d0, whereas a
+real conversion electron is soft, curls, and acquires an impact parameter within a
+layer or two — and it would follow the wrong parent anyway, the charged primary
+that crossed the surface rather than the photon. At 0.149 the innermost decade of
+|d0| held 3.3 times the share of secondary space points the reference puts there.
+
+Fitted to the |d0| profile instead, seed-averaged with the rate re-solved, both
+detectors land independently on 0.02 — but zero fits as well:
+
+| collinear | ITk \|d0\| | ODD \|d0\| |
 | --- | --- | --- |
-| neither term | 0.039 | 0.212 |
-| forward material only | 0.023 | — |
-| decays only | 0.048 | 0.198 |
-| both | **0.016** | — |
+| 0.000 | 0.361 ± 0.009 | 0.364 ± 0.066 |
+| 0.020 | 0.353 ± 0.026 | 0.345 ± 0.014 |
+| 0.149 | 0.564 ± 0.042 | 1.026 ± 0.016 |
 
-Read the ITk column as: the forward material term is what matters, and it is what
-makes the decay component pay. The decay term on its own is *worse* than neither,
-its yield being solved against a forward profile that is still a third short.
+Since the profile only bounds it from above and the ordinary kicked secondaries
+already fill that decade through curvature alone, the parameter was removed rather
+than retuned. Refitted without it the presets give shape 0.075 / |d0| 0.377 on the
+ITk and 0.092 / 0.358 on the ODD, against 0.067 / 0.520 and 0.085 / 1.035 before.
 
-The ODD column is one term because its forward term is off. There the decays are
-worth 7 %, and are constrained by measurement rather than by the shape objective:
-`decayYield` is solved so that the share of secondaries born inside the beam pipe
-comes out, 2.3 % against the ITk's 8.6 %. Note the discriminator has to sit
-*inside* the beam pipe wall - `Target.INSIDE_BEAM_PIPE` is 0.85 of the layout's
-radius - because the layout carries the beam pipe as a single radius while the
-real one is a wall with supports around it, and interactions in that wall are a
-fifth of the ITk's secondaries. Cutting at the nominal radius counts all of them
-as decays and the fit runs away.
+Use `solve_secondary_kick` and not a local search for anything scored on |d0|: one
+event's mismatch varies by up to 0.04 between realisations at a fixed setting, so a
+simplex contracts on noise and returns its starting point.
 
-Still to do, both propagation rather than parameters, and both the same single
-mismatch — the barrel:
+#### Where the ODD's hard secondaries come from
+
+Removing the transverse kick drops the ODD's mean secondary momentum from 1.43 to
+**1.12**. So most of that long-standing excess is the kick itself, whose 0.31 GeV
+was measured on the ITk dump and carried over to a detector where it was never
+checked - a more specific diagnosis than "the spectrum is too hard", and it points
+at a per-detector kT rather than at the momentum scale `--fit-momentum` ran away
+on.
+
+Still to do, propagation rather than parameters, and the same single mismatch —
+the barrel:
 
 - A **duplication probability per crossing** for module overlaps, which the ODD
   reference measures at 1.26 clusters per barrel layer crossing, flat in momentum,
   and which accounts for the entire remaining hits-per-primary deficit. Two space
   points close together on one layer is also what a real seeder has to cope with,
   so this is worth having for its own sake.
-- **More than one turn** in the helix propagation, so that soft tracks re-cross the
-  layers they curl back through. Below 300 MeV the reference has two to three times
-  the clusters per particle that one crossing per surface can give.
 
-Both would raise the space point count, so `secondaryRate` has to be re-fitted
-after either - which is one command, `fit_event_config.py`.
+That would raise the space point count, so `secondaryRate` has to be re-fitted
+after it - which is one command, `fit_event_config.py`.

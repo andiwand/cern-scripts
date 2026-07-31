@@ -133,9 +133,12 @@ def _load_event(out: sample.Sample, ev, min_pt_mev: float,
         & (num_hits > 0)
     )
 
+    # the dump's momenta are in MeV, and `perigee` needs GeV to turn them into
+    # a radius of curvature
     phi, d0, z0 = sample.perigee(
         ev["Part_vx"][selected], ev["Part_vy"][selected], ev["Part_vz"][selected],
-        ev["Part_px"][selected], ev["Part_py"][selected], ev["Part_pz"][selected],
+        ev["Part_px"][selected] / 1000.0, ev["Part_py"][selected] / 1000.0,
+        ev["Part_pz"][selected] / 1000.0, charge[selected],
     )
 
     out.add_event(

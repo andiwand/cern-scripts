@@ -62,30 +62,58 @@ class Sample:
         return self
 
 
-def perigee(vx, vy, vz, px, py, pz):
-    """Transverse and longitudinal impact parameters of a straight line.
+def perigee(vx, vy, vz, px, py, pz, charge, b_field_t: float = 2.0):
+    """Transverse and longitudinal impact parameters of a helix.
 
-    The synthetic generator reports the perigee parameters of the helix. For a
-    production point this close to the beam line the curvature correction is far
-    below the width of the distributions being compared, so the straight-line
-    expressions are used. Both full-simulation loaders go through here, so the
-    two detectors are compared against the same definition.
+    This is the same perigee `ActsFatras::Synthetic` reports, so that the two
+    sides of the comparison mean the same thing, and both full-simulation
+    loaders go through here so the two detectors do too.
+
+    It used to be the straight-line expression, on the grounds that a production
+    point this close to the beam line makes the curvature correction negligible.
+    That is true of primaries, which are produced at a few tens of microns, and
+    false of secondaries, which are produced out at the layers - and the |d0|
+    comparison is entirely about secondaries. A daughter made at r = 100 mm with
+    400 MeV of pT curls with a radius of 670 mm, so the two definitions differ by
+    about r^2 / 2 rho = 7 mm, which is wider than the band structure being
+    compared. Against the generator's helix perigee that left the model looking
+    short of small-|d0| secondaries by a factor of ten, all of it definition.
 
     @param vx the production point x in mm
     @param vy the production point y in mm
     @param vz the production point z in mm
-    @param px the momentum x
-    @param py the momentum y
-    @param pz the momentum z
+    @param px the momentum x in GeV
+    @param py the momentum y in GeV
+    @param pz the momentum z in GeV
+    @param charge the charge sign
+    @param b_field_t the solenoid field in Tesla
     @return (phi, d0, z0), in rad and mm
     """
     phi = np.arctan2(py, px)
     pt = np.hypot(px, py)
-    # signed transverse distance of the production point from the beam axis,
-    # measured perpendicular to the momentum
-    d0 = vx * np.sin(phi) - vy * np.cos(phi)
-    # walk back along the track to the point of closest approach
-    longitudinal = vx * np.cos(phi) + vy * np.sin(phi)
+    charge = np.sign(np.asarray(charge, dtype=float))
     with np.errstate(divide="ignore", invalid="ignore"):
-        z0 = vz - longitudinal * pz / pt
+        # radius of curvature in mm for a pT in GeV, i.e. pT / (0.3 B)
+        rho = pt * 1000.0 / (0.3 * b_field_t)
+
+        # The centre of the circle sits one radius of curvature to the side of
+        # the momentum, on the side the charge bends towards; the impact
+        # parameter is how much closer to the beam axis than that the track
+        # comes. Same expressions as `makeHelixFromPoint`.
+        cx = vx + charge * rho * np.sin(phi)
+        cy = vy - charge * rho * np.cos(phi)
+        r_centre = np.hypot(cx, cy)
+        d0 = charge * (rho - r_centre)
+
+        # Walk back along the arc to the point of closest approach. The turning
+        # angle follows from sin^2(gamma/2) = (r^2 - d0^2) / (4 rCentre rho),
+        # signed by whether the production point is ahead of the perigee or
+        # behind it, which is what the straight-line form got from the sign of
+        # the longitudinal distance.
+        r = np.hypot(vx, vy)
+        half_sin_squared = np.clip(
+            (r * r - d0 * d0) / (4.0 * r_centre * rho), 0.0, 1.0)
+        gamma = 2.0 * np.arcsin(np.sqrt(half_sin_squared))
+        ahead = np.sign(vx * np.cos(phi) + vy * np.sin(phi))
+        z0 = vz - ahead * gamma * rho * pz / pt
     return phi, d0, z0
