@@ -93,9 +93,10 @@ on another's layout is wrong by more than the generator's own coarseness.
 | mean primary pT | `ptScale` |
 | d0 core width | `d0Sigma` |
 | z0 core width | `beamspotSigmaZ` |
-| mean secondary pT | `secondaryPtSlope` |
+| mean secondary pT | `secondaryPtFraction` |
 | secondaries born inside the beam pipe | `decayYield` |
-| shape of the non-primary space points in \|z\| | `forwardMaterialScale`, `forwardMaterialPower` |
+| shape of the non-primary space points in \|z\| | the endcap material profile of the *layout* |
+| secondary \|d0\| by decade | `secondaryOpeningAngle`, `secondaryWideAngle`, `secondaryWideFraction` |
 
 ### The objective has to be banded, and split by component
 
@@ -325,16 +326,21 @@ Not so good:
   dump, but 33% of them come from particles outside the generator's acceptance -
   below 100 MeV or beyond |eta| = 4. So the surplus secondaries stand in for a
   real component here too, just an identifiable one.
-- **The ODD wants no forward material term**, unlike the ITk. Its fit runs
-  `forwardMaterialScale` out past ten metres, so the preset switches the term off
-  and `--no-forward-material` is how it is fitted. That is not a contradiction: the
-  ODD endcap reaches |z| = 1.5 m where the ITk's reaches 3 m, and the ITk term only
-  becomes large in the last metre. What the ODD is short of is the *barrel* - the
-  reference has two and a half times as many non-primary space points on the
-  innermost layer as the generator makes, and its 300 to 600 mm band in |z| is at
-  0.35 - which is the module-overlap and curling deficit seen from the secondary
-  side, and no yield term reaches it. This is why the ODD's non-primary shape
-  mismatch is 0.198 against the ITk's 0.016.
+- **The ODD wants far less endcap material than the ITk**, 2.2 at its outermost
+  disc against 27. Both now have the term - it lives on the layout as a weight
+  per surface rather than in the configuration - and the ODD's is small because
+  it is built to be simple and carries little service material. It reads as a
+  measurement now; before the term existed for the ODD at all it read as an
+  assumption.
+
+  What the ODD is still short of is the *barrel*: 81 % of the reference's
+  primary space points against the ITk's 85 %, because its barrel is one flat
+  cylinder per radius where the ITk's is a barrel plus inclined rings, and no
+  layout here resolves a module overlap. Its `maxTurns` of 2 against the ITk's 1
+  is doing double duty because of that - modelling loopers and standing in for
+  the overlaps - so expect it to fall back if the layout ever gains overlapping
+  modules. This is why the ODD's non-primary shape mismatch is 0.072 against the
+  ITk's 0.017.
 - **d0 has a tail the generator does not.** 5.6 % of ColliderML's primaries have
   |d0| beyond 2 mm, and they are produced at a median radius of 28 mm: strange and
   heavy-flavour decay products that the dataset still labels primary. The generator
