@@ -289,14 +289,16 @@ Not so good:
   dump, but 33% of them come from particles outside the generator's acceptance -
   below 100 MeV or beyond |eta| = 4. So the surplus secondaries stand in for a
   real component here too, just an identifiable one.
-- **The two material scales are not constrained by either reference.** Fitting
-  `materialRScale` and `materialZScale` to the space point profiles walks them off
-  towards no dependence at all for a ten percent gain in an objective whose
-  residual is the barrel deficit above, and it does not land twice in the same
-  place, so `fit_event_config.py` leaves them alone unless asked with
-  `--fit-scales`. Scaling them down with the detector, which is the obvious guess -
-  the ODD pixel ends at 170 mm and 1520 mm against the ITk's 291 mm and 2800 mm -
-  makes the agreement *worse* than leaving them at the ITk values.
+- **The material scales were removed** (ACTS `e3906de51a`), the secondary yield
+  now being flat over the detector. Neither reference supported the linear term in
+  r and |z|: scanning it with `secondaryRate` re-solved at every setting, the
+  profile objective improves monotonically as the term is weakened and is best
+  with no term at all - 0.161 (half) to 0.149 (300/3000) to 0.141 (double) to
+  0.133 (off) on the ITk, and 0.434 to 0.388 to 0.345 to 0.323 on the ODD - with
+  no interior optimum on either. Scaling the term down with the detector, which
+  was the obvious guess, had made the agreement worse rather than better, which is
+  the same statement. `fit_event_config.py` therefore has nothing left to fit
+  numerically and `--fit-scales` is gone with it.
 - **d0 has a tail the generator does not.** 5.6 % of ColliderML's primaries have
   |d0| beyond 2 mm, and they are produced at a median radius of 28 mm: strange and
   heavy-flavour decay products that the dataset still labels primary. The generator

@@ -8,9 +8,9 @@ Usage:
 
 Some of the parameters follow from the full-simulation distributions directly -
 the primary yield is a count, the two beam-spot widths are widths - so those are
-computed rather than fitted. The three that describe the secondary component are
-coupled through `materialDepth` and are fitted numerically, against the space
-point profiles in r and |z| rather than against the truth-level secondary count.
+computed rather than fitted. What is left is the secondary yield, which is solved
+for so that the space point count comes out right rather than fitted to the
+truth-level secondary count.
 
 That choice is the point of the whole exercise, so it is worth spelling out. The
 generator's secondaries are not only the real secondaries: they also stand in for
@@ -33,24 +33,6 @@ from acts.fatras import synthetic as syn
 from scipy.optimize import minimize
 
 import fastsim  # noqa: F401  (kept importable alongside the loaders)
-
-#: The two parameters that are fitted numerically. Both are positive and are
-#: therefore fitted in the log. `secondaryRate` is not among them: it is solved
-#: for at every trial so that the space point count comes out right by
-#: construction, which leaves these two to choose the shape. Carrying it as a
-#: third free parameter instead lets the fit buy shape with normalisation, and it
-#: settles a few percent below the count it was asked to reproduce - the count
-#: term is one number against forty bins of profile, and it loses.
-FITTED = ("materialRScale", "materialZScale")
-
-#: Range the two scales are fitted in, in mm. The upper end is what makes this a
-#: fit rather than a runaway: `materialDepth` grows linearly, so a scale of ten
-#: metres is indistinguishable from no dependence at all over any detector in
-#: this set, and the ODD fit does run all the way into that bound. When a fitted
-#: scale comes back sitting on it, the data is saying that the term should not be
-#: there rather than naming a value for it.
-SCALE_BOUNDS = (100.0, 10000.0)
-
 
 def robust_sigma(values: np.ndarray) -> float:
     """Width of the core of a distribution, ignoring its tails.
@@ -236,49 +218,6 @@ def solve_secondary_rate(layout, config, target: Target) -> float:
     return config.secondaryRate * wanted / summary.secondaryHits
 
 
-def fit(layout, base_config, target: Target, verbose: bool = True):
-    """Fit `FITTED` against the space point profile shapes.
-
-    @param layout the detector to generate on
-    @param base_config the configuration to start from, with the directly
-           determined parameters already set
-    @param target what to fit to
-    @param verbose whether to report every improvement
-    @return the fitted configuration, `secondaryRate` included
-    """
-    start = np.log(np.array([getattr(base_config, name) for name in FITTED]))
-    best = [np.inf]
-
-    def at(logs):
-        """The configuration at a trial point, with the rate solved for."""
-        config = _with(base_config, dict(zip(FITTED, np.exp(logs))))
-        return _with(config,
-                     {"secondaryRate": solve_secondary_rate(layout, config,
-                                                            target)})
-
-    def objective(logs):
-        config = at(logs)
-        value = _mismatch(_fast_profiles(layout, config, target), target)
-        if verbose and value < best[0]:
-            best[0] = value
-            print("    %.5f  %s  secondaryRate=%.4f"
-                  % (value, "  ".join("%s=%.4g" % (n, v)
-                                      for n, v in zip(FITTED, np.exp(logs))),
-                     config.secondaryRate))
-        return value
-
-    print("    start: %.5f" % objective(start))
-    result = minimize(objective, start, method="Nelder-Mead",
-                      bounds=[np.log(SCALE_BOUNDS)] * len(FITTED),
-                      options={"xatol": 1e-3, "fatol": 1e-5, "maxiter": 400})
-    for name, value in zip(FITTED, np.exp(result.x)):
-        for edge in SCALE_BOUNDS:
-            if abs(value / edge - 1.0) < 0.01:
-                print("    note: %s sits on its bound of %.0f mm, so this data "
-                      "does not constrain it" % (name, edge))
-    return at(result.x)
-
-
 def _with(config, values: dict):
     """Copy a configuration with some fields replaced.
 
@@ -289,8 +228,8 @@ def _with(config, values: dict):
     out = syn.EventConfig()
     for name in ("pileup", "chargedPerUnitEta", "minPt", "ptScale",
                  "ptExponent", "minEta", "maxEta", "beamspotSigmaZ", "d0Sigma",
-                 "secondaryRate", "materialRScale", "materialZScale",
-                 "secondaryMinPt", "secondaryPtSlope", "secondaryOpeningAngle",
+                 "secondaryRate", "secondaryMinPt", "secondaryPtSlope",
+                 "secondaryOpeningAngle",
                  "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
         setattr(out, name, getattr(config, name))
     for name, value in values.items():
@@ -345,10 +284,6 @@ def main() -> None:
                         help="the ITk dump; unused for the ODD, which downloads")
     parser.add_argument("--events", type=int, default=None)
     parser.add_argument("--pileup", type=int, default=200)
-    parser.add_argument("--fit-scales", action="store_true",
-                        help="also fit materialRScale and materialZScale to the "
-                             "space point profiles; see the comment on why this "
-                             "is not the default")
     args = parser.parse_args()
 
     import validate  # for the per-detector axis extents
@@ -400,18 +335,6 @@ def main() -> None:
             "secondaryRate": solve_secondary_rate(layout, config, target)})
         print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f"
               % (round_, config.chargedPerUnitEta, config.secondaryRate))
-
-    # The two material scales are left alone unless asked for, because neither
-    # reference constrains them: the ODD fit walks all the way to the upper bound
-    # for a ten percent gain in an objective whose residual is structural, and it
-    # does not land on the same place twice. What it is trying and failing to fix
-    # is the barrel-to-endcap balance, and the reason that cannot be fixed here is
-    # measured in the README: the real barrel gives 1.26 clusters per layer
-    # crossing and its soft tracks cross the same layers repeatedly, neither of
-    # which is a parameter.
-    if args.fit_scales:
-        print("fitting %s ..." % ", ".join(FITTED))
-        config = fit(layout, config, target)
 
     report(config, layout, target)
 
