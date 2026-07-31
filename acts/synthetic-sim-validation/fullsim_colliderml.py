@@ -132,8 +132,18 @@ def _load_event(out: sample.Sample, particles, hits, min_pt_gev: float,
     sp_z = np.asarray(hits["z"], dtype=np.float32)[is_pixel]
 
     particle_id = np.asarray(particles["particle_id"])
-    num_hits = _hits_per_particle(
-        np.asarray(hits["particle_id"])[is_pixel], particle_id)
+    hit_particle = np.asarray(hits["particle_id"])[is_pixel]
+    num_hits = _hits_per_particle(hit_particle, particle_id)
+
+    # every ColliderML hit carries a particle link, so the split is a lookup;
+    # a link to a particle outside the table counts as not primary
+    is_generator = np.asarray(particles["primary"], dtype=bool)
+    order = np.argsort(particle_id)
+    where = np.searchsorted(particle_id[order], hit_particle)
+    inside = where < len(particle_id)
+    clamped = np.where(inside, where, 0)
+    found = inside & (particle_id[order][clamped] == hit_particle)
+    sp_primary = np.where(found, is_generator[order][clamped], False)
 
     charge = np.asarray(particles["charge"])
     px = np.asarray(particles["px"])
@@ -162,7 +172,7 @@ def _load_event(out: sample.Sample, particles, hits, min_pt_gev: float,
                                  px[selected], py[selected], pz[selected])
 
     out.add_event(
-        sp_x=sp_x, sp_y=sp_y, sp_z=sp_z,
+        sp_x=sp_x, sp_y=sp_y, sp_z=sp_z, sp_primary=sp_primary,
         pt=pt[selected],
         eta=eta[selected],
         phi=phi.astype(np.float32),

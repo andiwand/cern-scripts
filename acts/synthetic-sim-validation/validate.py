@@ -68,6 +68,26 @@ ITK_EXTENT = Extent(r_max=350.0, z_max=3000.0)
 #: ODD pixel: four barrel cylinders out to r = 170 mm, endcap disks to |z| = 1.5 m
 ODD_EXTENT = Extent(r_max=200.0, z_max=1600.0)
 
+#: Bands to compare the space point profiles on, one set per detector.
+#:
+#: Every band holds whole layers. A band narrower than that measures the
+#: half-millimetre between the model's layer radius and the reference's cluster
+#: positions instead of anything a model can change - the *primary* space points
+#: scatter from 0.5 to 1.8 bin to bin on forty bins, and no secondary model
+#: moves them. That noise is what made an earlier scan report the material term
+#: as unconstrained: on forty bins the objective sits at 0.13 whatever the model
+#: does, including for variants that differ by a factor two in the forward
+#: region.
+ITK_BANDS = (
+    np.array([25.0, 60.0, 110.0, 150.0, 200.0, 250.0, 320.0]),
+    np.array([0.0, 250.0, 500.0, 1000.0, 1500.0, 2000.0, 2500.0, 3000.0]),
+)
+ODD_BANDS = (
+    np.array([25.0, 50.0, 90.0, 140.0, 200.0]),
+    np.array([0.0, 300.0, 600.0, 700.0, 800.0, 900.0, 1050.0, 1200.0, 1400.0,
+              1600.0]),
+)
+
 #: The impact parameter spans four decades and has to be plotted logarithmically:
 #: the core of the luminous region is some 12 um wide while the displaced tail
 #: reaches past a millimetre, so on a linear axis wide enough for the tail the
@@ -180,6 +200,35 @@ def plot_space_points(full, fast, outdir: Path, extent: Extent, fmt: str) -> Non
     _save(fig, outdir, "occupancy_rz", fmt)
 
 
+def plot_components(full, fast, outdir: Path, extent: Extent, fmt: str) -> None:
+    """The space points split into the two components the generator models.
+
+    The total is what `secondaryRate` is fitted to, so it agrees by
+    construction and says nothing. This is where the model can be wrong and
+    still look right: the primaries are short of the module overlaps and the
+    curling tracks a helix cannot produce, and the non-primary component makes
+    up the difference. Whether it makes it up *in the right place* is what these
+    panels show.
+    """
+    fig, axes = _figure(2, 2, "Space points by component")
+    specs = [
+        (full.sp_primary, fast.sp_primary, "primary"),
+        (~full.sp_primary, ~fast.sp_primary, "non-primary"),
+    ]
+    for row, (fmask, gmask, name) in enumerate(specs):
+        for col, (values, bins, label, logy) in enumerate((
+            ((np.hypot(full.sp_x, full.sp_y), np.hypot(fast.sp_x, fast.sp_y)),
+             extent.r_bins(), "r [mm]", True),
+            ((np.abs(full.sp_z), np.abs(fast.sp_z)),
+             np.linspace(0, extent.z_max, 60), "|z| [mm]", False),
+        )):
+            ax, ax_ratio = _pair(axes, row, col)
+            _panel(ax, ax_ratio, values[0][fmask], values[1][gmask], bins,
+                   label, full.num_events, fast.num_events, logy=logy)
+            ax.set_title("%s space points" % name, fontsize=9)
+    _save(fig, outdir, "components", fmt)
+
+
 def plot_particles(full, fast, outdir: Path, extent: Extent, fmt: str,
                    primary: bool) -> None:
     """Kinematics of the primaries or of the secondaries."""
@@ -266,6 +315,10 @@ def summarise(full, fast) -> str:
 
     row("space points/event",
         len(full.sp_x) / full.num_events, len(fast.sp_x) / fast.num_events)
+    row("  primary", full.sp_primary.sum() / full.num_events,
+        fast.sp_primary.sum() / fast.num_events)
+    row("  non-primary", (~full.sp_primary).sum() / full.num_events,
+        (~fast.sp_primary).sum() / fast.num_events)
     for label, mask_f, mask_g in (
         ("primaries/event", full.primary, fast.primary),
         ("secondaries/event", ~full.primary, ~fast.primary),
@@ -334,6 +387,7 @@ def main() -> None:
     print(summarise(full, fast))
 
     plot_space_points(full, fast, outdir, extent, args.format)
+    plot_components(full, fast, outdir, extent, args.format)
     plot_particles(full, fast, outdir, extent, args.format, primary=True)
     plot_particles(full, fast, outdir, extent, args.format, primary=False)
     plot_hits_vs_eta(full, fast, outdir, args.format)

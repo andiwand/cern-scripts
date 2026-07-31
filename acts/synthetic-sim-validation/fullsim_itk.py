@@ -86,14 +86,22 @@ def _load_event(out: sample.Sample, ev, min_pt_mev: float,
     # alone merges particles across interactions and inflates the hit count by
     # more than an order of magnitude.
     hits: dict[tuple[int, int], int] = {}
+    # Whether each pixel cluster came from a generator particle. Half of them
+    # carry no truth link at all, and those are not primary: they follow the
+    # linked secondaries in r and |z| and are larger, so they are secondaries
+    # the dump did not record rather than noise.
+    sp_primary = []
     for keep, indices, barcodes in zip(is_pixel,
                                        ev["CLparticleLink_eventIndex"],
                                        ev["CLparticleLink_barcode"]):
         if not keep:
             continue
+        from_generator = False
         for index, barcode in zip(indices, barcodes):
             key = (int(index), int(barcode))
             hits[key] = hits.get(key, 0) + 1
+            from_generator = from_generator or barcode < PRIMARY_BARCODE_LIMIT
+        sp_primary.append(from_generator)
 
     barcode = ev["Part_barcode"]
     charge = ev["Part_charge"]
@@ -135,6 +143,7 @@ def _load_event(out: sample.Sample, ev, min_pt_mev: float,
         sp_x=ev["CLx"][is_pixel].astype(np.float32),
         sp_y=ev["CLy"][is_pixel].astype(np.float32),
         sp_z=ev["CLz"][is_pixel].astype(np.float32),
+        sp_primary=np.asarray(sp_primary, dtype=bool),
         pt=pt[selected] / 1000.0,  # MeV -> GeV
         eta=eta[selected],
         phi=phi.astype(np.float32),

@@ -36,6 +36,7 @@ def load(prefix: str, min_pt_gev: float = 0.1,
     out = sample.Sample()
     out.add_event(
         sp_x=sp["x"], sp_y=sp["y"], sp_z=sp["z"],
+        sp_primary=sp["primary"] > 0.5,
         pt=p["pt"][selected],
         eta=p["eta"][selected],
         phi=p["phi"][selected],

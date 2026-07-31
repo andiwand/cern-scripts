@@ -94,6 +94,34 @@ on another's layout is wrong by more than the generator's own coarseness.
 | d0 core width | `d0Sigma` |
 | z0 core width | `beamspotSigmaZ` |
 | mean secondary pT | `secondaryPtSlope` |
+| secondaries born inside the beam pipe | `decayYield` |
+| shape of the non-primary space points in \|z\| | `forwardMaterialScale`, `forwardMaterialPower` |
+
+### The objective has to be banded, and split by component
+
+Two things about the objective are the whole reason the last two rows are
+fittable at all.
+
+**Bands, not bins.** A radial bin narrow enough to fall inside one layer
+measures the half-millimetre between a layout's layer radius and the reference's
+cluster positions. That is not something a secondary model can move, and the
+*primary* space points show it just as strongly - they scatter from 0.5 to 1.8
+bin to bin on forty bins, and they have no secondary model at all. On forty bins
+the objective sits at 0.132 to 0.135 for every variant tried here, including
+ones that differ by a factor two in the forward region. `validate.ITK_BANDS` and
+`validate.ODD_BANDS` are coarse enough that no band splits a layer.
+
+**The non-primary component alone, not the total.** `secondaryRate` is solved
+for the total, so a model that puts its secondaries in the wrong place scores
+exactly like one that does not. Every loader therefore carries `sp_primary`, a
+per-space-point flag: for the ITk a cluster is primary when any linked barcode
+is below the Athena limit, for ColliderML when its particle link carries the
+`primary` flag, and for the fast simulation it is a column of the dump.
+
+This is what an earlier scan got wrong when it reported the material scales as
+unconstrained and had them removed. The numbers it produced - 0.161 / 0.149 /
+0.141 / 0.133 as the term was weakened - are all inside the noise floor of the
+objective it used.
 
 `chargedPerUnitEta` is worth a note. The familiar minimum-bias number, 6.6 per
 unit of pseudorapidity, is the density at *central* eta, while the generator
@@ -116,11 +144,15 @@ Five events of `DumpGNNITk_v9` against one generated event, after tuning.
 
 | | full sim | fast sim | ratio |
 | --- | --- | --- | --- |
-| pixel space points / event | 219600 | 221400 | 1.01 |
-| primaries / event | 8190 | 8192 | 1.00 |
-| secondaries / event | 4760 | 26900 | 5.6 |
+| pixel space points / event | 219648 | 219637 | 1.00 |
+| &nbsp;&nbsp;primary | 87529 | 71464 | 0.82 |
+| &nbsp;&nbsp;non-primary | 132119 | 148173 | 1.12 |
+| primaries / event | 8191 | 8192 | 1.00 |
+| secondaries / event | 4760 | 28500 | 6.0 |
 | mean primary pT | 0.60 GeV | 0.60 GeV | 0.99 |
 | mean pixel hits, primaries | 9.7 | 8.7 | 0.90 |
+| secondaries born inside the beam pipe | 8.6 % | 8.7 % | 1.00 |
+| non-primary shape mismatch | | 0.016 | |
 
 Good:
 
@@ -198,11 +230,15 @@ are read.
 
 | | full sim | fast sim | ratio |
 | --- | --- | --- | --- |
-| pixel space points / event | 101950 | 101640 | 1.00 |
-| primaries / event | 8410 | 8416 | 1.00 |
-| secondaries / event | 3970 | 15400 | 3.9 |
+| pixel space points / event | 101954 | 101015 | 0.99 |
+| &nbsp;&nbsp;primary | 56772 | 41786 | 0.74 |
+| &nbsp;&nbsp;non-primary | 45182 | 59229 | 1.31 |
+| primaries / event | 8413 | 8416 | 1.00 |
+| secondaries / event | 3970 | 14600 | 3.7 |
 | mean primary pT | 0.63 GeV | 0.63 GeV | 1.00 |
 | mean pixel hits, primaries | 6.2 | 5.0 | 0.80 |
+| secondaries born inside the beam pipe | 2.3 % | 2.5 % | 1.08 |
+| non-primary shape mismatch | | 0.198 | |
 
 The hits ratio is the one number the ODD refinement did *not* move, and that is
 the useful part: 1.26 x 5.0 = 6.3 against the reference's 6.2, so module overlap
@@ -289,16 +325,16 @@ Not so good:
   dump, but 33% of them come from particles outside the generator's acceptance -
   below 100 MeV or beyond |eta| = 4. So the surplus secondaries stand in for a
   real component here too, just an identifiable one.
-- **The material scales were removed** (ACTS `e3906de51a`), the secondary yield
-  now being flat over the detector. Neither reference supported the linear term in
-  r and |z|: scanning it with `secondaryRate` re-solved at every setting, the
-  profile objective improves monotonically as the term is weakened and is best
-  with no term at all - 0.161 (half) to 0.149 (300/3000) to 0.141 (double) to
-  0.133 (off) on the ITk, and 0.434 to 0.388 to 0.345 to 0.323 on the ODD - with
-  no interior optimum on either. Scaling the term down with the detector, which
-  was the obvious guess, had made the agreement worse rather than better, which is
-  the same statement. `fit_event_config.py` therefore has nothing left to fit
-  numerically and `--fit-scales` is gone with it.
+- **The ODD wants no forward material term**, unlike the ITk. Its fit runs
+  `forwardMaterialScale` out past ten metres, so the preset switches the term off
+  and `--no-forward-material` is how it is fitted. That is not a contradiction: the
+  ODD endcap reaches |z| = 1.5 m where the ITk's reaches 3 m, and the ITk term only
+  becomes large in the last metre. What the ODD is short of is the *barrel* - the
+  reference has two and a half times as many non-primary space points on the
+  innermost layer as the generator makes, and its 300 to 600 mm band in |z| is at
+  0.35 - which is the module-overlap and curling deficit seen from the secondary
+  side, and no yield term reaches it. This is why the ODD's non-primary shape
+  mismatch is 0.198 against the ITk's 0.016.
 - **d0 has a tail the generator does not.** 5.6 % of ColliderML's primaries have
   |d0| beyond 2 mm, and they are produced at a median radius of 28 mm: strange and
   heavy-flavour decay products that the dataset still labels primary. The generator
@@ -382,6 +418,32 @@ ones property by property, tracking filter included. Two do not — `matchBefore
 and `nMaxEdges` — and one, `beamSpotCorrection`, is not read anywhere in
 `Acts::Experimental::GraphBasedTrackSeeder`. None of them changes efficiency here;
 `matchBeforeCreate` removes fakes and is worth 15 % of the run time.
+
+### What the two secondary terms are worth
+
+Each measured by taking the term out and re-solving `secondaryRate` for the count
+it was carrying, i.e. the non-primary shape mismatch:
+
+| | ITk | ODD |
+| --- | --- | --- |
+| neither term | 0.039 | 0.212 |
+| forward material only | 0.023 | — |
+| decays only | 0.048 | 0.198 |
+| both | **0.016** | — |
+
+Read the ITk column as: the forward material term is what matters, and it is what
+makes the decay component pay. The decay term on its own is *worse* than neither,
+its yield being solved against a forward profile that is still a third short.
+
+The ODD column is one term because its forward term is off. There the decays are
+worth 7 %, and are constrained by measurement rather than by the shape objective:
+`decayYield` is solved so that the share of secondaries born inside the beam pipe
+comes out, 2.3 % against the ITk's 8.6 %. Note the discriminator has to sit
+*inside* the beam pipe wall - `Target.INSIDE_BEAM_PIPE` is 0.85 of the layout's
+radius - because the layout carries the beam pipe as a single radius while the
+real one is a wall with supports around it, and interactions in that wall are a
+fifth of the ITk's secondaries. Cutting at the nominal radius counts all of them
+as decays and the fit runs away.
 
 Still to do, both propagation rather than parameters, and both the same single
 mismatch — the barrel:

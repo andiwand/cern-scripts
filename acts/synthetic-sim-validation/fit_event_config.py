@@ -101,8 +101,17 @@ def fit_pt_spectrum(pt: np.ndarray, min_pt: float = 0.1):
 class Target:
     """What the fast simulation is being fitted to, all per event."""
 
-    def __init__(self, full, extent) -> None:
+    #: How far inside the layout's beam pipe a production point has to be to
+    #: count as a decay. The layout carries the beam pipe as one radius while
+    #: the real one is a wall of finite thickness with its supports around it,
+    #: and interactions in that wall are the largest single source of
+    #: secondaries there - a fifth of the ITk's. Cutting at the nominal radius
+    #: would count all of them as decays.
+    INSIDE_BEAM_PIPE = 0.85
+
+    def __init__(self, full, bands, beam_pipe_radius) -> None:
         primary = full.primary
+        self.beam_pipe_radius = self.INSIDE_BEAM_PIPE * beam_pipe_radius
         self.num_events = full.num_events
         # the population the generator's primary list corresponds to
         self.primaries = primary.sum() / full.num_events
@@ -110,12 +119,25 @@ class Target:
         self.d0_sigma = robust_sigma(full.d0[primary])
         self.space_points = len(full.sp_x) / full.num_events
 
-        self.r_bins = extent.r_bins(40)
-        self.z_bins = np.linspace(0, extent.z_max, 40)
+        # The non-primary space points on their own. Scoring the total instead
+        # would score nothing: `secondaryRate` is solved for the total, so a
+        # model that puts its secondaries in the wrong place looks exactly like
+        # one that does not.
+        self.r_bands, self.z_bands = bands
         r = np.hypot(full.sp_x, full.sp_y)
-        self.r_profile = self._profile(r, self.r_bins, full.num_events)
-        self.z_profile = self._profile(np.abs(full.sp_z), self.z_bins,
-                                       full.num_events)
+        z = np.abs(full.sp_z)
+        other = ~full.sp_primary
+        self.other = self._profile(r[other], z[other], bands, full.num_events)
+        self.primary_space_points = int(full.sp_primary.sum()) / full.num_events
+
+        # What fraction of the secondary space points come from a particle born
+        # away from any surface, i.e. from a decay in the beam pipe vacuum. Only
+        # the reference's *linked* secondaries carry a production point, so this
+        # is their fraction rather than the whole non-primary component's.
+        hits = full.num_hits[~primary].astype(float)
+        inside = full.prod_r[~primary] < self.beam_pipe_radius
+        self.decay_fraction = (hits[inside].sum() / hits.sum() if hits.sum()
+                               else 0.0)
 
         # The secondary momentum spectrum is not fitted: an exponential cannot
         # follow the full simulation, whose secondaries reach ten GeV where the
@@ -126,54 +148,69 @@ class Target:
         self.primary_pt = full.pt[primary]
 
     @staticmethod
-    def _profile(values, bins, num_events) -> np.ndarray:
-        h, _ = np.histogram(values, bins=bins)
-        return h / num_events
+    def _profile(r, z, bands, num_events) -> dict:
+        r_bands, z_bands = bands
+        return {"r": np.histogram(r, bins=r_bands)[0] / num_events,
+                "z": np.histogram(z, bins=z_bands)[0] / num_events}
 
 
-def _fast_profiles(layout, config, target: Target):
-    """Generate one event and reduce it the same way the target was reduced."""
-    event = syn.generateEvent(layout, config)
+def reduce_event(event, target: Target) -> dict:
+    """Reduce a generated event the same way the target was reduced."""
+    space_points = event.spacePoints
+    count = len(space_points)
+    x = np.fromiter((sp.x for sp in space_points), np.float32, count)
+    y = np.fromiter((sp.y for sp in space_points), np.float32, count)
+    z = np.abs(np.fromiter((sp.z for sp in space_points), np.float32, count))
+    r = np.hypot(x, y)
 
-    x = np.fromiter((sp.x for sp in event.spacePoints), dtype=np.float32,
-                    count=len(event.spacePoints))
-    y = np.fromiter((sp.y for sp in event.spacePoints), dtype=np.float32,
-                    count=len(event.spacePoints))
-    z = np.fromiter((sp.z for sp in event.spacePoints), dtype=np.float32,
-                    count=len(event.spacePoints))
+    particles = event.particles
+    primary = np.fromiter((p.primary for p in particles), bool, len(particles))
+    of_particle = np.asarray(event.particleIds, dtype=np.int64)
+    other = ~primary[of_particle]
 
-    # the same selection the loaders apply, so the pt spectrum compares
+    hits = np.fromiter((p.numHits for p in particles), np.int32,
+                       len(particles)).astype(float)[~primary]
+    # A surface secondary is produced *on* a surface, the innermost of which is
+    # the beam pipe, so anything inside it came from a decay and the split is
+    # exact here. In the reference it is only nearly so.
+    inside = (np.fromiter((p.productionRadius for p in particles), np.float32,
+                          len(particles))[~primary]
+              < target.beam_pipe_radius)
     return {
-        "space_points": float(len(x)),
-        "r_profile": Target._profile(np.hypot(x, y), target.r_bins, 1),
-        "z_profile": Target._profile(np.abs(z), target.z_bins, 1),
+        "space_points": float(count),
+        "primary_space_points": float((~other).sum()),
+        "other": Target._profile(r[other], z[other], (target.r_bands,
+                                                      target.z_bands), 1),
+        "decay_fraction": (hits[inside].sum() / hits.sum() if hits.sum()
+                           else 0.0),
+        "secondary_hits": float(hits.sum()),
     }
 
 
 def _mismatch(fast, target: Target) -> float:
-    """Squared log-ratio of the profiles, plus the total count.
+    """Squared log-ratio of the non-primary profiles, band by band.
 
     The log is what makes this a shape comparison: a plain difference would be
     dominated by the innermost barrel layer, which holds an order of magnitude
-    more space points than an endcap disk bin. Only bins both samples fill enter,
-    the layout being fixed - where one of them has no surface at all, no setting
-    of these three parameters can help.
+    more space points than an endcap disc band. Only bands both samples fill
+    enter, the layout being fixed - where one of them has no surface at all, no
+    setting of these parameters can help.
 
-    The two profiles are normalised to their own totals first, so that they carry
-    shape only; the count is matched by `solve_secondary_rate` rather than traded
-    against them here.
+    Each profile is normalised to its own total first, so it carries shape only;
+    the count is matched by `solve_secondary_rate` rather than traded against it
+    here.
     """
     total = 0.0
-    for name in ("r_profile", "z_profile"):
-        a = np.asarray(getattr(target, name), dtype=float)
-        b = np.asarray(fast[name], dtype=float)
+    for axis in ("r", "z"):
+        a = np.asarray(target.other[axis], dtype=float)
+        b = np.asarray(fast["other"][axis], dtype=float)
         both = (a > 0) & (b > 0)
         if not both.any():
             return 1e6
         a = a[both] / a[both].sum()
         b = b[both] / b[both].sum()
         total += np.mean(np.log(b / a) ** 2)
-    return total
+    return total / 2
 
 
 def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
@@ -200,10 +237,10 @@ def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
 def solve_secondary_rate(layout, config, target: Target) -> float:
     """Find the `secondaryRate` that reproduces the space point count.
 
-    The count is linear in the rate: the primary hits do not depend on it at all,
-    and only one generation of secondaries is produced, so their Poisson mean -
-    and with it their hit count - scales with it. One generation therefore
-    determines the answer outright, no iteration needed.
+    The primary hits do not depend on the rate at all and only one generation of
+    secondaries is produced, so the surface secondaries' hit count scales with
+    it exactly. The decay secondaries do not, which is what the iteration below
+    is for.
 
     @param layout the detector to generate on
     @param config the configuration, whose own `secondaryRate` is the reference
@@ -211,11 +248,75 @@ def solve_secondary_rate(layout, config, target: Target) -> float:
     @param target what to match
     @return the rate that lands on `target.space_points`
     """
-    summary = syn.summarize(syn.generateEvent(layout, config), 1.0)
-    if summary.secondaryHits == 0:
-        return config.secondaryRate
-    wanted = target.space_points - summary.primaryHits
-    return config.secondaryRate * wanted / summary.secondaryHits
+    rate = config.secondaryRate
+    # The decay secondaries are a fixed number that does not scale with the
+    # rate, so the count is affine in it rather than linear and one step
+    # overshoots. It still converges geometrically, the decays being the
+    # smaller part.
+    for _ in range(6):
+        trial = _with(config, {"secondaryRate": rate})
+        summary = syn.summarize(syn.generateEvent(layout, trial), 1.0)
+        if summary.secondaryHits == 0:
+            break
+        wanted = target.space_points - summary.primaryHits
+        rate *= wanted / summary.secondaryHits
+    return rate
+
+
+def solve_decay_yield(layout, config, target: Target) -> float:
+    """Find the `decayYield` that puts the right share of secondaries inside the
+    beam pipe.
+
+    Linear in the yield in the same way `secondaryRate` is, so one step. Note it
+    is a *share* rather than a count: the reference's own count of secondaries
+    is not something the generator reproduces, but the fraction of them born
+    away from a surface is a property of the physics rather than of the
+    bookkeeping.
+
+    @param layout the detector to generate on
+    @param config the configuration to start from
+    @param target what to match
+    @return the yield that lands on `target.decay_fraction`
+    """
+    fast = reduce_event(syn.generateEvent(layout, config), target)
+    if fast["decay_fraction"] <= 0 or target.decay_fraction <= 0:
+        return config.decayYield
+    # the surface secondaries are the rest of the sample, so matching a fraction
+    # rather than a count needs the ratio of the two odds
+    odds = target.decay_fraction / (1 - target.decay_fraction)
+    have = fast["decay_fraction"] / (1 - fast["decay_fraction"])
+    return config.decayYield * odds / have
+
+
+def fit_forward_material(layout, config, target: Target):
+    """Fit the forward material term to the non-primary profiles.
+
+    Two parameters against two banded profiles, with `secondaryRate` re-solved
+    at every setting so that the count is never traded against the shape.
+
+    @param layout the detector to generate on
+    @param config the configuration to start from
+    @param target what to match
+    @return (forwardMaterialScale, forwardMaterialPower)
+    """
+    def objective(logs):
+        scale, power = np.exp(logs)
+        # below one the term is a cusp at z = 0 rather than a plateau, which is
+        # not what a barrel looks like
+        if power < 1.0 or scale < 100.0:
+            return 1e6
+        trial = _with(config, {"forwardMaterialScale": scale,
+                               "forwardMaterialPower": power})
+        trial = _with(trial, {"secondaryRate": solve_secondary_rate(
+            layout, trial, target)})
+        return _mismatch(reduce_event(syn.generateEvent(layout, trial), target),
+                         target)
+
+    result = minimize(objective, np.log([config.forwardMaterialScale,
+                                         config.forwardMaterialPower]),
+                      method="Nelder-Mead",
+                      options={"xatol": 1e-3, "fatol": 1e-6, "maxiter": 200})
+    return tuple(np.exp(result.x))
 
 
 def _with(config, values: dict):
@@ -228,7 +329,9 @@ def _with(config, values: dict):
     out = syn.EventConfig()
     for name in ("pileup", "chargedPerUnitEta", "minPt", "ptScale",
                  "ptExponent", "minEta", "maxEta", "beamspotSigmaZ", "d0Sigma",
-                 "secondaryRate", "secondaryMinPt", "secondaryPtSlope",
+                 "secondaryRate", "forwardMaterialScale",
+                 "forwardMaterialPower", "decayYield", "decayLength",
+                 "secondaryMinPt", "secondaryPtSlope",
                  "secondaryOpeningAngle",
                  "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
         setattr(out, name, getattr(config, name))
@@ -239,19 +342,32 @@ def _with(config, values: dict):
 
 def report(config, layout, target: Target) -> None:
     """Print what the fitted configuration produces next to the target."""
-    fast = _fast_profiles(layout, config, target)
-    print("\n%-24s %12s %12s %8s" % ("", "full sim", "fast sim", "ratio"))
+    fast = reduce_event(syn.generateEvent(layout, config), target)
+    print("\n%-28s %12s %12s %8s" % ("", "full sim", "fast sim", "ratio"))
     for label, a, b in (
         ("space points/event", target.space_points, fast["space_points"]),
+        ("  primary", target.primary_space_points,
+         fast["primary_space_points"]),
+        ("  non-primary", target.space_points - target.primary_space_points,
+         fast["space_points"] - fast["primary_space_points"]),
         ("primaries/event", target.primaries, float(config.numPrimaries())),
+        ("z0 sigma [mm]", target.z0_sigma, config.beamspotSigmaZ),
+        ("d0 sigma [mm]", target.d0_sigma, config.d0Sigma),
+        ("secondaries from a decay", target.decay_fraction,
+         fast["decay_fraction"]),
     ):
-        print("%-24s %12.1f %12.1f %8.2f" % (label, a, b, b / a))
-    print("%-24s %12.4f %12.4f %8.2f" % ("z0 sigma [mm]", target.z0_sigma,
-                                         config.beamspotSigmaZ,
-                                         config.beamspotSigmaZ / target.z0_sigma))
-    print("%-24s %12.4f %12.4f %8.2f" % ("d0 sigma [mm]", target.d0_sigma,
-                                         config.d0Sigma,
-                                         config.d0Sigma / target.d0_sigma))
+        print("%-28s %12.4f %12.4f %8.2f" % (label, a, b, b / a if a else
+                                             float("nan")))
+    print("%-28s %12s %12.4f" % ("non-primary shape mismatch", "",
+                                 _mismatch(fast, target)))
+    for axis, bands in (("r", target.r_bands), ("z", target.z_bands)):
+        a = np.asarray(target.other[axis], float)
+        b = np.asarray(fast["other"][axis], float)
+        both = (a > 0) & (b > 0)
+        an, bn = a / a[both].sum(), b / b[both].sum()
+        print("  non-primary %s: %s" % (axis, "  ".join(
+            "%.0f-%.0f %.2f" % (bands[i], bands[i + 1], bn[i] / an[i])
+            for i in range(len(bands) - 1) if both[i])))
 
 
 def as_cpp(config, name: str, provenance: str) -> str:
@@ -268,6 +384,9 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("beamspotSigmaZ", "%.0f.f"),
                        ("d0Sigma", "%.4ff"),
                        ("secondaryRate", "%.3ff"),
+                       ("forwardMaterialScale", "%.0f.f"),
+                       ("forwardMaterialPower", "%.2ff"),
+                       ("decayYield", "%.3ff"),
                        ("secondaryPtSlope", "%.3ff")):
         lines.append(("  config.%s = " + fmt + ";") % (field,
                                                        getattr(config, field)))
@@ -284,29 +403,37 @@ def main() -> None:
                         help="the ITk dump; unused for the ODD, which downloads")
     parser.add_argument("--events", type=int, default=None)
     parser.add_argument("--pileup", type=int, default=200)
+    parser.add_argument("--no-decays", action="store_true",
+                        help="drop the decay component and fit without it, to "
+                             "see what it is worth")
+    parser.add_argument("--no-forward-material", action="store_true",
+                        help="drop the forward material term, for a reference "
+                             "that does not constrain it")
     args = parser.parse_args()
 
-    import validate  # for the per-detector axis extents
+    import validate  # for the per-detector bands
 
     if args.detector == "itk":
         import fullsim_itk
 
         full = fullsim_itk.load(args.fullsim, num_events=args.events or 5)
         layout = syn.makeItkPixelLayout()
-        extent = validate.ITK_EXTENT
+        bands = validate.ITK_BANDS
+        beam_pipe = syn.itkPixelDescription().beamPipeRadius
         provenance = "Fitted against five events of a GNN4ITk ttbar pu200 dump."
     else:
         import fullsim_colliderml
 
         full = fullsim_colliderml.load(num_events=args.events or 20)
         layout = syn.makeOpenDataDetectorPixelLayout()
-        extent = validate.ODD_EXTENT
+        bands = validate.ODD_BANDS
+        beam_pipe = syn.openDataDetectorPixelDescription().beamPipeRadius
         provenance = ("Fitted against twenty events of ColliderML "
                       "ttbar_pu200.")
 
-    print("full simulation: %d events, %d space points"
-          % (full.num_events, len(full.sp_x)))
-    target = Target(full, extent)
+    print("full simulation: %d events, %d space points, %.0f%% of them primary"
+          % (full.num_events, len(full.sp_x), 100 * full.sp_primary.mean()))
+    target = Target(full, bands, beam_pipe)
 
     # the parameters the reference distributions determine outright
     config = syn.EventConfig()
@@ -316,6 +443,15 @@ def main() -> None:
     config.secondaryPtSlope = target.secondary_mean_pt - config.secondaryMinPt
     scale, exponent = fit_pt_spectrum(target.primary_pt, config.minPt)
     config.ptScale, config.ptExponent = scale, exponent
+    # Physics rather than a fit: K0S and Lambda are what decay at this distance,
+    # cTau being 27 and 79 mm and the typical boost of order two. It cannot be
+    # measured off the reference, whose sample of decays inside the beam pipe is
+    # truncated at the beam pipe.
+    config.decayLength = 60.0
+    if args.no_decays:
+        config.decayYield = 0.0
+    if args.no_forward_material:
+        config.forwardMaterialScale = 0.0
     print("determined directly: beamspotSigmaZ=%.1f d0Sigma=%.4f "
           "secondaryPtSlope=%.3f ptScale=%.3f ptExponent=%.3f"
           % (config.beamspotSigmaZ, config.d0Sigma, config.secondaryPtSlope,
@@ -323,20 +459,50 @@ def main() -> None:
 
     # The yield and the secondary rate each shift the other's target - more
     # primaries mean more secondaries, and both leave space points - so they are
-    # alternated. Each step is exact in its own parameter, so this settles at once
-    # and the third round is only there to show that it has.
+    # alternated. Each step is exact in its own parameter, so this settles at
+    # once and the later rounds are there to show that it has. The forward
+    # material term is fitted inside the loop because it moves the count too,
+    # and the decay yield after it because the shape it is a fraction of has to
+    # have settled first.
     span = config.maxEta - config.minEta
     config.chargedPerUnitEta = target.primaries / (args.pileup * span)
     for round_ in range(3):
         config = _with(config, {
             "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
                                                             target)})
+        if not args.no_forward_material:
+            scale, power = fit_forward_material(layout, config, target)
+            config = _with(config, {"forwardMaterialScale": scale,
+                                    "forwardMaterialPower": power})
+        if not args.no_decays:
+            config = _with(config, {
+                "decayYield": solve_decay_yield(layout, config, target)})
         config = _with(config, {
             "secondaryRate": solve_secondary_rate(layout, config, target)})
-        print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f"
-              % (round_, config.chargedPerUnitEta, config.secondaryRate))
+        print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f "
+              "forwardMaterialScale=%.0f forwardMaterialPower=%.2f "
+              "decayYield=%.3f"
+              % (round_, config.chargedPerUnitEta, config.secondaryRate,
+                 config.forwardMaterialScale, config.forwardMaterialPower,
+                 config.decayYield))
 
     report(config, layout, target)
+
+    # what the two new terms are worth, each measured by taking it back out and
+    # re-solving the rate for the count it was carrying
+    print("\nnon-primary shape mismatch, term by term")
+    for label, fields in (("fitted", {}),
+                          ("without the decays", {"decayYield": 0.0}),
+                          ("without the forward material",
+                           {"forwardMaterialScale": 0.0}),
+                          ("without either", {"decayYield": 0.0,
+                                              "forwardMaterialScale": 0.0})):
+        trial = _with(config, fields)
+        trial = _with(trial, {"secondaryRate": solve_secondary_rate(
+            layout, trial, target)})
+        print("  %-30s %.4f"
+              % (label, _mismatch(reduce_event(syn.generateEvent(layout, trial),
+                                               target), target)))
 
     name = ("itkPixelTtbarPu200" if args.detector == "itk"
             else "openDataDetectorTtbarPu200")

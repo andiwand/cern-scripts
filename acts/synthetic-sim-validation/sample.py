@@ -10,12 +10,20 @@ from __future__ import annotations
 
 import numpy as np
 
-#: Space point positions in mm, then one entry per particle: transverse momentum
-#: in GeV, the perigee parameters in mm and rad, the production vertex in mm,
-#: whether the particle comes from the generator rather than from the detector
-#: simulation, and how many space points it left.
+#: Space point positions in mm and whether each came from a generator particle,
+#: then one entry per particle: transverse momentum in GeV, the perigee
+#: parameters in mm and rad, the production vertex in mm, whether the particle
+#: comes from the generator rather than from the detector simulation, and how
+#: many space points it left.
+#:
+#: `sp_primary` is what splits the space points into the two components the
+#: generator models separately. Note that it is not the same population as
+#: `primary`: a space point counts as primary when the particle behind it came
+#: from the generator, whether or not that particle is inside the acceptance the
+#: particle fields are selected on, and a space point with no truth link at all
+#: is not primary.
 FIELDS = (
-    "sp_x", "sp_y", "sp_z",
+    "sp_x", "sp_y", "sp_z", "sp_primary",
     "pt", "eta", "phi", "d0", "z0", "prod_r", "prod_z", "primary", "num_hits",
 )
 
