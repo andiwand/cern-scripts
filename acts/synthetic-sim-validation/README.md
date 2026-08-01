@@ -37,10 +37,19 @@ came from. The two shipped presets are
 
 ```sh
 ./fit_event_config.py itk --fullsim <dump>.root --events 5 \
-    --path-length 4 --turns 1 --fit-kick
+    --path-length 4 --turns 1 --endcap-material 250,1.20 \
+    --fit-kick --set secondaryKt=0.21
 ./fit_event_config.py odd --events 20 --path-length 4 --turns 2 \
-    --endcap-material 784,2.99 --fit-kick
+    --endcap-material 784,2.99 --fit-kick --set secondaryKt=0.21
 ```
+
+The kick is pinned because it is measured, and because `--fit-kick` scored on
+|d0| and |eta| alone runs it to the top of whatever grid it is given: a wider
+kick throws daughters further out, which is the end of the |d0| distribution the
+radial component does not fill, and it pays for that in a secondary momentum
+nothing in that objective sees. Left free on the ODD it lands on 0.48 and takes
+the mean secondary momentum from 1.05 to 1.69 times the reference's. With it
+pinned, `--fit-kick` fits `secondaryRadialFraction` alone.
 
 Three scripts measure rather than fit, and each answers a question the fit cannot:
 
@@ -116,8 +125,10 @@ on another's layout is wrong by more than the generator's own coarseness.
 | mean secondary pT | `secondaryMomentumScale`, `secondaryMomentumExponent` |
 | secondaries born inside the beam pipe | `decayYield` |
 | **where the secondaries are produced, in \|z\|** | the endcap material profile of the *layout* |
-| shape of the non-primary space points in \|z\| | the same, weakly -- see below |
-| secondary \|d0\| by decade **and \|eta\|** | `secondaryKt`, against the longitudinal momentum |
+| the same, in r | the *ring* weights of the layout, `applyRingMaterialWeights` |
+| shape of the non-primary space points in \|z\| | both of those, weakly -- see below |
+| **secondary \|d0\| in its innermost decades** | `secondaryRadialFraction` |
+| secondary \|d0\| in its outermost, and \|eta\| | `secondaryKt`, against the longitudinal momentum |
 
 ### The objective has to be banded, and split by component
 
@@ -168,26 +179,29 @@ long-lived species is what makes the count agree with the ITk dump's.
 ## ITk, on ttbar at a pile-up of 200
 
 Five events of `DumpGNNITk_v9` against one generated event, after tuning. The
-last column is the shipped preset before the sweep of 2026-08-01, on the same
-five reference events and averaged over five seeds.
+last column is the shipped preset before the sweep of 2026-08-01 (second pass),
+on the same five reference events; the mismatches are averaged over five seeds.
 
-| | full sim | fast sim | ratio | before the sweep |
+| | full sim | fast sim | ratio | before the second pass |
 | --- | --- | --- | --- | --- |
-| pixel space points / event | 219648 | 220328 | 1.00 | 1.00 |
-| &nbsp;&nbsp;primary | 87529 | 74064 | 0.85 | 0.82 |
-| &nbsp;&nbsp;non-primary | 132119 | 146264 | 1.11 | 1.12 |
+| pixel space points / event | 219648 | 219870 | 1.00 | 1.00 |
+| &nbsp;&nbsp;primary | 87529 | 74064 | 0.85 | 0.85 |
+| &nbsp;&nbsp;non-primary | 132119 | 145806 | 1.10 | 1.11 |
 | primaries / event | 8191 | 8192 | 1.00 | 1.00 |
-| secondaries / event | 4761 | 20902 | 4.4 | 6.0 |
+| **secondaries / event above 300 MeV** | 4761 | 10821 | **2.3** | 4.4 |
 | mean primary pT | 0.60 GeV | 0.60 GeV | 0.99 | 0.99 |
-| mean pixel hits, primaries | 9.7 | 9.0 | 0.93 | 0.90 |
-| **mean pixel hits, secondaries** | **4.2** | **3.7** | **0.88** | **0.74** |
-| secondaries born inside the beam pipe | 8.6 % | 8.5 % | 0.99 | 1.00 |
-| non-primary shape mismatch | | 0.035 | | 0.082 |
-| **secondary production \|z\| mismatch** | | **0.086** | | **0.324** |
-| secondary \|d0\| mismatch | | 0.201 | | 0.312 |
-| secondary \|eta\| mismatch | | 0.088 | | 0.033 |
+| mean pixel hits, primaries | 9.7 | 9.0 | 0.93 | 0.93 |
+| mean pixel hits, secondaries | 4.2 | 3.8 | 0.92 | 0.88 |
+| secondaries born inside the beam pipe | 8.6 % | 8.8 % | 1.02 | 0.99 |
+| **non-primary shape mismatch** | | **0.017** | | 0.035 |
+| **secondary production \|z\| mismatch** | | **0.024** | | 0.085 |
+| **secondary \|d0\| mismatch** | | **0.041** | | 0.219 |
+| **secondary \|eta\| mismatch** | | **0.038** | | 0.088 |
+| mean secondary pT | | | 0.88 | 1.04 |
 
-Everything moved the right way except the secondary pseudorapidity.
+Everything moved the right way except the mean secondary momentum, which is now
+12 % low where it used to be 4 % high. That one is a shape the model cannot
+make rather than a scale it has wrong -- see the second pass below.
 
 Good:
 
@@ -203,32 +217,33 @@ Good:
   rise from 5 to 6 in the barrel to a peak near |eta| = 3 of 14 to 15, agreeing to
   within a few percent forward of |eta| = 1.5, which is what describing the endcap
   ring by ring buys.
-- **Where the secondaries are made**, now within a third in every band of |z|
-  against a factor two before, and the number of space points each leaves, 3.7
-  against 4.2. Both come from the refitted endcap material profile.
+- **Where the secondaries are made**, now to within 8 % in every band of |z|
+  except the outermost, and the number of space points each leaves, 3.8 against
+  4.2. Both come from the endcap material profile, and from the ring weights
+  within it.
+- **The impact parameter of the secondaries**, whose mismatch fell by a factor
+  five once a share of them was emitted radially rather than off their parent.
+  The share of their space points below 1 mm is 0.11 against the reference's
+  0.14, having been 0.06.
 
 Not so good:
 
-- **The secondaries are 10 % too forward**, 0.088 folded into eight bands of
-  |eta| against 0.033 before, the one figure that went backwards. It is the cost
-  of a narrower opening angle: with the kick at the measured value a daughter
-  follows its parent more closely, and the parents are forward-weighted because a
-  forward primary crosses fourteen surfaces where a central one crosses five.
-  Widening the kick back to the old 0.310 recovers it and costs a quarter of the
-  |d0| agreement; the fit, scored on both, lands on the measured value. The *space
-  points* are unaffected - their profile in r and |z| is better by a factor two.
-- **Hits per particle are 7% low, and now only in the barrel.** The central
+- **The mean secondary momentum is 12 % low.** The corrected momentum law is
+  right in the population and wrong in the tail: the reference's log-normal
+  width *grows with the parent*, from half an e-fold at half a GeV to two at
+  forty, and `secondaryMomentumSpread` is one number. Above the reference's
+  300 MeV threshold the model therefore runs out of hard daughters. Making the
+  spread a function of the parent momentum, as the median already is, is the fix.
+- **Hits per particle are 7 % low, and only in the barrel.** The central
   plateau is 5.4 against 5.8; forward of |eta| = 1.5 the two agree. The residual
   is module overlap and nothing else, measured on the ODD shard below.
-- **The primary/secondary split is wrong even though the total is right.** Four
-  times too many secondaries, each with fewer hits, is what lands the total in the
-  right place. Part of it is bookkeeping rather than physics: only about half the
-  real pixel clusters carry a truth link at all, while every synthetic space point
-  belongs to a particle, so the real "unlinked" component has no counterpart and
-  the surplus secondaries stand in for it. That is what `secondaryRate` is
-  documented to absorb, and tuning it to the space point count makes the surplus
-  larger, not smaller. The two cannot both be matched, and the space point density
-  is what a seeder sees.
+- **Twice too many secondaries above the threshold**, down from four times.
+  What is left is bookkeeping rather than physics: only about half the real pixel
+  clusters carry a truth link at all, while every synthetic space point belongs
+  to a particle, so the real "unlinked" component has no counterpart and the
+  surplus secondaries stand in for it. The ODD settles this - see below, where
+  the reference links everything and the model has 1.26 times its secondaries
+  rather than three times.
 
 ### The ITk endcap is rings
 
@@ -269,32 +284,36 @@ is a cluster, which is what a space point generator produces. Twenty events of
 `ttbar_pu200` against one generated event; only pixel volumes 16, 17 and 18 are
 read.
 
-| | full sim | fast sim | ratio | before the sweep |
+| | full sim | fast sim | ratio | before the second pass |
 | --- | --- | --- | --- | --- |
-| pixel space points / event | 101954 | 102532 | 1.01 | 1.04 |
-| &nbsp;&nbsp;primary | 56772 | 45795 | 0.81 | 0.80 |
-| &nbsp;&nbsp;non-primary | 45182 | 56737 | 1.26 | 1.31 |
+| pixel space points / event | 101954 | 100962 | 0.99 | 1.01 |
+| &nbsp;&nbsp;primary | 56772 | 45795 | 0.81 | 0.81 |
+| &nbsp;&nbsp;non-primary | 45182 | 55167 | 1.22 | 1.26 |
 | primaries / event | 8413 | 8416 | 1.00 | 1.00 |
-| secondaries / event | 3970 | 14858 | 3.7 | 3.7 |
+| secondaries / event above 100 MeV | 3970 | 12027 | 3.0 | 3.7 |
+| &nbsp;&nbsp;**over the whole spectrum** | **12502** | **15690** | **1.26** | 1.29 |
 | mean primary pT | 0.63 GeV | 0.63 GeV | 1.00 | 1.00 |
-| mean pixel hits, primaries | 6.2 | 5.4 | 0.88 | 0.80 |
-| mean pixel hits, secondaries | 4.1 | 3.4 | 0.82 | 0.81 |
-| **mean secondary pT** | | | **1.40** | **1.42** |
-| secondaries born inside the beam pipe | 2.3 % | 2.2 % | 0.98 | 1.12 |
-| non-primary shape mismatch | | 0.079 | | 0.095 |
-| secondary production \|z\| mismatch | | 0.130 | | 0.125 |
-| secondary \|d0\| mismatch | | 0.260 | | 0.289 |
-| **secondary \|eta\| mismatch** | | **0.019** | | **0.034** |
+| mean pixel hits, primaries | 6.2 | 5.4 | 0.88 | 0.88 |
+| mean pixel hits, secondaries above 100 MeV | 4.1 | 3.3 | 0.81 | 0.82 |
+| &nbsp;&nbsp;over the whole spectrum | 3.6 | 3.5 | 0.97 | 0.97 |
+| **mean secondary pT** | | | **1.05** | 1.40 |
+| secondaries born inside the beam pipe | 2.3 % | 2.3 % | 1.01 | 0.98 |
+| **non-primary shape mismatch** | | **0.064** | | 0.077 |
+| secondary production \|z\| mismatch | | 0.128 | | 0.128 |
+| **secondary \|d0\| mismatch** | | **0.123** | | 0.270 |
+| secondary \|eta\| mismatch | | 0.016 | | 0.022 |
 
-The hits ratio is where the ODD moved most, 0.80 to 0.88, and the sweep did not
-set out to move it: with the endcap material profile no longer over-weighted the
-yields are lower everywhere, and the primaries formerly buried under surplus
-secondaries are the same primaries. At the 1.26 clusters per layer crossing
-measured below, 1.26 x 5.4 = 6.8 against the reference's 6.2, so module overlap
-now more than covers the residual.
+**The two rows measured over the whole spectrum are the ones to read**, and they
+are the reason this reference is worth more than the ITk dump: every ColliderML
+cluster carries a particle link, so the reference's *whole* secondary population
+can be counted rather than the selection above a truth-link threshold. Counted
+that way the model has 1.26 times the reference's secondaries and gets their
+cluster count right to 3 %. The 3.0 above it is the same population seen through
+a 100 MeV cut that two thirds of the reference's secondaries fall below - see
+the second pass.
 
-The mean secondary momentum is the one thing here the sweep did **not** fix, still
-1.4 times the reference's; see the end of the sweep for what is left of it.
+The mean secondary momentum was 1.40 before and is the thing the second pass
+moved most here.
 
 ### The layout is right to a millimetre
 
@@ -482,6 +501,187 @@ disjoint five-event subsamples the model sits at **chi2/ndf = 0.49**.
 The one real difference is a hard truncation: the dump has no primary beyond
 |z0| = 175 mm, the beamspot being generated within about 3.5 sigma, where the
 model's Gaussian has no cut. Worth 0.3 % of the primaries.
+
+## The second pass of 2026-08-01, on the secondaries alone
+
+Four things, and three of them are the same mistake as the first pass in a new
+place: **a quantity measured correctly through a selection, and then read as a
+property of the population.** The selection is the truth-link threshold - the
+momentum above which a full simulation records a secondary at all, a hard
+300 MeV on the ITk dump and the loader's own 100 MeV on ColliderML.
+
+### The secondary surplus was mostly the threshold, and the ODD proves it
+
+Every ColliderML cluster carries a particle link, so its *whole* secondary
+population can be counted rather than the part above a threshold. Per event, with
+no momentum and no acceptance cut:
+
+| | reference | model | ratio |
+| --- | --- | --- | --- |
+| non-primary particles with a cluster | 12502 | 16183 | **1.29** |
+| ... above 100 MeV, \|eta\| < 4 | 3970 | 14796 | 3.73 |
+| ... below 100 MeV | 7932 (63 %) | 1121 (6.9 %) | 0.14 |
+| mean clusters per secondary | 3.61 | 3.50 | **0.97** |
+
+So the model never had four times too many secondaries; it had 29 % too many,
+and their momentum spectrum in the wrong place. Two thirds of the reference's
+secondaries sit below the cut the fit compares over, against 7 % of the model's,
+and `sec hits` of 0.83 is the same artefact - above 100 MeV the reference reaches
+4.13 clusters per secondary because 20-50 MeV curlers pull it up, while over the
+whole population it is 3.61 against the model's 3.50.
+
+Its softest component is not modellable here and does not need to be: 5572
+secondaries per event below 5 MeV, leaving 2.15 clusters each essentially where
+they were made, 27 % of the non-primary cluster budget. That is the irreducible
+part of the surplus, and it is a quarter rather than a factor four.
+`secondaryMinPt` stays at 5 MeV: 1, 5 and 20 MeV are indistinguishable on all
+nine figures and 50 MeV is clearly worse.
+
+### The momentum law was measured through the threshold, and was a factor two out
+
+`measure_secondary_kinematics.py` equated the observed per-bin median of the
+daughter's longitudinal momentum with the underlying one. The dump's secondary
+spectrum has a factor-15 density step at exactly 0.300 GeV, and the cut removes
+45 to 50 % of daughters at *every* parent momentum - survival is 0.52 at a parent
+of 0.5 GeV and 0.50 at 45 GeV, because a hard parent is forward and its
+daughter's `sin(theta)` is small, cancelling the harder `pL`. There is therefore
+no region of parent momentum where the cut is negligible and the law can be read
+off directly.
+
+Two truncation-aware estimators agree: a maximum likelihood whose per-secondary
+likelihood is divided by its own survival probability, and a forward fold that
+pushes a proposed law through the cut and compares the *surviving* medians with
+the dump's. And ColliderML, which has parent links and no threshold, measures the
+same law directly and needs no correction at all:
+
+| | shipped | ITk, truncation-aware | ODD, measured directly |
+| --- | --- | --- | --- |
+| `secondaryMomentumScale` | 0.510 | **0.271 +- 0.006** | 0.220 |
+| `secondaryMomentumExponent` | 0.567 | 0.62 +- 0.04 | 0.558 |
+| `secondaryMomentumSpread` | 1.81 | 1.24 +- 0.09 | 1.60 |
+| `secondaryKt` | 0.267 | 0.21 +- 0.04 | ~0.20 |
+
+The forward fold is the proof: through the same cut, the shipped law predicts an
+observed median `pL` of 3.12 GeV at a 10 GeV parent where the dump has 1.57, and
+its objective is 0.639 against 0.166 for the corrected one. Both presets carry
+the ITk numbers, the ODD's being the cross-check - how an interaction shares
+momentum out is not a property of the detector watching it.
+
+What the correction cannot reach, and what is behind the ITk's mean secondary
+momentum of 0.88: **the spread grows with the parent**, the dump's observed
+half-spread in log `pL` running 0.56 at a parent of 0.5 GeV to 2.08 at 45 GeV.
+Truncation accounts for part of that rise and not its range, and one
+`secondaryMomentumSpread` folded through the cut only spans 0.95 to 1.35. Also
+inaccessible: **11 % of the dump's secondaries have negative `pL`**, i.e. are
+emitted backwards, which a log-normal drawn positive cannot produce.
+
+### Half the secondaries have a *neutral* parent, and that is what makes \|d0\| broad
+
+The |d0| mismatch was the worst figure on both detectors, 0.219 and 0.270, and no
+setting of any existing parameter moved it: scanning the kick, the momentum
+scale, the spread, `secondaryMinPt`, `maxTurns`, the path length and every
+material handle, the 0.1-1 mm decade never exceeded 0.072 against the reference's
+0.131.
+
+On the dump's parent links, 49.5 % of secondary space points come from a daughter
+whose parent is **neutral**, and half of those are emitted with a transverse kick
+below 30 MeV. The kick is Rayleigh(0.267) exactly above 0.2 GeV; what it is
+missing is a **delta at zero**, not a wider tail - P(kT < 10 MeV) is 23.6 % of
+the hit weight against 0.07 % for a Rayleigh.
+
+Those daughters are **radial**. Their neutral parent - a converted photon or a
+neutral hadron - is born at r = 0, does not bend, and leaves nothing on the way,
+so the daughter's |d0| is its own curvature alone. Median |d0| against `r^2/2R`,
+band by band in production radius, with no free parameter:
+
+| production r [mm] | median \|d0\| | `r^2/2R` |
+| --- | --- | --- |
+| 0-25 | 0.366 | 0.368 |
+| 25-50 | 0.775 | 0.751 |
+| 50-100 | 4.515 | 4.352 |
+| 100-200 | 11.464 | 11.087 |
+| 200-400 | 38.227 | 38.859 |
+
+The reference's charged-parent half alone is 0.004 / 0.033 / 0.203 / 0.651 /
+0.109 by decade, which is what the model already made (0.009 / 0.050 / 0.249 /
+0.627 / 0.065). It described the half it modelled and had no representation of
+the other half.
+
+`EventConfig::secondaryRadialFraction` is that share, fitted to **0.25** (ITk)
+and **0.20** (ODD). It is not the `secondaryCollinearFraction` that was removed,
+and the three arguments that removed it are each answered by measurement:
+
+- *"a collinear daughter stays exactly on its parent and inherits its d0"* - true
+  of the removed parameter, which followed the **charged** parent, whose bend
+  `r^2/2R_parent` cancels the daughter's whenever the charges agree, dumping
+  everything into the innermost decade. The real parent is neutral 98.4 % of the
+  time, so there is nothing to cancel.
+- *"it would follow the wrong parent anyway"* - exactly so, and that is what this
+  corrects. The right parent came straight from the beam line, so the daughter is
+  radial and the photon never has to be simulated; the charged primary's crossing
+  is only a proxy for where the material is.
+- *"at 0.149 the innermost decade held 3.3 times the reference's share"* -
+  reproduced if the radial direction is given to the decay branch as well, which
+  is why it is applied to surface secondaries only.
+
+A parent-link-free signature confirms the same component on the ODD, where no
+parent links were used: the share of secondary hit weight with |d0| within a
+factor 1.6 of `r^2/2R` is 25.6 % (ITk reference) and 34.2 % (ODD reference)
+against 4 % in the model, and 4 % is the accidental floor - the ITk's
+collinear-neutral-parent set sits at 91.7 % and both other populations at 4-5 %.
+
+**The kick has to be pinned once this exists.** Free, and scored on |d0| and
+|eta|, it runs to the top of any grid: with the radial component filling the
+small-|d0| end, the only thing left for the kick to fix is the far end, and it
+buys that with a secondary momentum the objective does not see. On the ODD it
+lands on 0.480 and takes the mean secondary momentum to 1.69.
+
+### An endcap disc's material is spread across it, not just along z
+
+`materialWeight` was a property of a `DetectorSurface`, i.e. of a whole disc,
+while `implied_material.py` shows the outermost ring set of the ITk endcap asking
+for about three times the weight of the ones inboard of it, at every |z|. It is
+not a gradient and no power of r stands in for it - fitted, the ITk asks for
+`(r/150)^+0.25` and the ODD for `^-0.25`, both indistinguishable from zero.
+
+`RingBounds` and `DetectorLayer` now carry a `materialWeight` of their own, which
+`applyRingMaterialWeights` fills from radial bands. The ITk's six ring families
+take **1.50 / 0.70 / 0.50 / 1.50 / 0.50 / 1.50**. Against a **held-out reference**
+- five events of a different dump file, which the fit never saw - that is worth
+
+| | shipped, flat | with ring weights |
+| --- | --- | --- |
+| shape + prod z | 0.1058 | **0.0495** |
+| secondary production \|z\| | 0.0721 | **0.0186** |
+| secondary \|d0\| | 0.2020 | 0.1727 |
+| mean secondary hits | 0.880 | 0.933 |
+
+and it costs no CPU: the ITk layout still has 156 surfaces and generation still
+takes 77 ms an event. `(250, 1.20)` is still the endcap optimum with the ring
+weights in place, over the full 36-point grid.
+
+**The ODD asks for no radial term** - fitted freely, all its bands land on 1.00 -
+and instead wants **barrel** weights, `{0.70, 0.70, 1.00, 2.20}`, worth 0.196 to
+0.184 on the joint objective and 0.223 to 0.160 on |d0| against its own held-out
+reference. The ITk's barrel weights are worth nothing once the rings are free
+(held out, 0.1058 to 0.1067) and were standing in for endcap radial structure.
+The two detectors are opposite: the ITk's residual material is endcap-radial, the
+ODD's is barrel.
+
+Two things this still cannot express: the **beam pipe** is a passive cylinder
+pinned at weight 1, and the ITk reference makes 8.8 % of its secondary hit weight
+in the beam pipe wall at r = 20-24 mm against the model's 0.4 %; and the ODD's
+implied table wants structure in |z| *within* a barrel cylinder, 0.57 below
+|z| = 250 against 1.75 from 250 to 507, which one weight per cylinder cannot say.
+
+### `sec eta` is not a material problem
+
+The ITk's secondary pseudorapidity, the figure the first pass moved backwards, is
+0.038 now, and the corrected momentum law rather than any material term is what
+recovered it. A radial material term does move it the predicted way - more weight
+at large r puts the parents at lower |eta| - but the radial profile the
+production figure asks for is not monotonic in r and leaves it where it was, and
+every |z| profile that recovers the old 0.033 costs the objective a factor five.
 
 ## Two traps in the GNN4ITk dump
 
@@ -676,11 +876,16 @@ Still to do:
   together on one layer is also what a real seeder has to cope with. Propagation
   rather than parameters, and it raises the space point count, so `secondaryRate`
   has to be re-fitted after it - one command, `fit_event_config.py`.
-- A **material weight per ring** rather than per disc, for the factor 2.5 between
-  the innermost and outermost radial band that nothing in `DetectorSurface` can
-  express.
-- **Re-measure `ablate.py`**, whose table predates this sweep in both the presets
-  and the figures it scores.
-- The **secondary pseudorapidity on the ITk**, 0.088 against 0.033 before, the one
-  figure the sweep moved backwards and the only one where the ITk is now worse
-  than the ODD.
+- **A secondary momentum spread that grows with the parent**, as its median
+  already does. One number cannot span the reference's 0.56 to 2.08, and that is
+  the whole of the ITk's mean secondary momentum of 0.88.
+- **A backward branch for the secondary momentum**: 11 % of the dump's daughters
+  are emitted with negative longitudinal momentum and a log-normal cannot be.
+- **Material on the beam pipe and along a barrel cylinder.** The ITk reference
+  makes 8.8 % of its secondary hit weight in the beam pipe wall against the
+  model's 0.4 %, and the ODD wants a barrel cylinder weighted differently at
+  |z| < 250 than beyond it. `barrelModules` already splits a cylinder into eta
+  modules, so the layer weight added here would reach the second.
+- **Re-measure `ablate.py`**, whose table predates both passes in the presets, the
+  figures it scores and the terms it can remove - there is now a radial share and
+  a ring weight to ablate.
