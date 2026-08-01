@@ -726,7 +726,10 @@ def _with(config, values: dict):
                  "secondaryMinPt", "secondaryMomentumScale",
                  "secondaryMomentumExponent", "secondaryMomentumSpread",
                  "secondaryKt", "secondaryRadialFraction",
-                 "maxPathLength", "maxTurns",
+                 "secondaryElectronFraction", "secondaryElectronScale",
+                 "secondaryElectronExponent", "secondaryElectronSpread",
+                 "maxPathLength", "scatteringX0", "maxTurns",
+                 "stubRate", "stubClusters", "stubReach",
                  "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
         setattr(out, name, getattr(config, name))
     for name, value in values.items():
@@ -826,6 +829,10 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # measured off the reference, whose sample of decays inside the beam pipe is
     # truncated at the beam pipe.
     config.decayLength = 60.0
+    # Physics rather than a fit as well: a pixel module and its local support are
+    # a percent and a half of a radiation length, and that is what turns a
+    # surface's material weight into a scattering angle.
+    config.scatteringX0 = 0.015
     if no_decays:
         config.decayYield = 0.0
     if no_forward_material:
@@ -991,12 +998,18 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("d0Sigma", "%.4ff"),
                        ("secondaryRate", "%.3ff"),
                        ("decayYield", "%.3ff"),
+                       ("secondaryElectronFraction", "%.3ff"),
+                       ("secondaryElectronScale", "%.3ff"),
+                       ("secondaryElectronExponent", "%.3ff"),
+                       ("secondaryElectronSpread", "%.3ff"),
                        ("secondaryMomentumScale", "%.3ff"),
                        ("secondaryMomentumExponent", "%.3ff"),
                        ("secondaryMomentumSpread", "%.3ff"),
                        ("secondaryKt", "%.3ff"),
                        ("secondaryRadialFraction", "%.3ff"),
                        ("maxPathLength", "%.2ff"),
+                       ("scatteringX0", "%.3ff"),
+                       ("stubRate", "%.3ff"),
                        ("maxTurns", "%.2ff")):
         lines.append(("  config.%s = " + fmt + ";") % (field,
                                                        getattr(config, field)))
