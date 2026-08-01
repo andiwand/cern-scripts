@@ -4,36 +4,25 @@
     ./measure_secondary_kinematics.py ~/Downloads/*DumpGNNITk_v9.root --events 5
 
 This is where `secondaryKt`, `secondaryMomentumScale`, `secondaryMomentumExponent`
-and `secondaryMomentumSpread` come from. They are measured rather than fitted:
-how an interaction shares momentum out is a property of the material and of the
-energies, not of the detector watching, which is also why the ODD preset carries
-the numbers this prints.
-
-The dump is the only reference with the parent link this needs -- ColliderML's
-record does not carry one -- so there is one script and it is ITk-only.
+and `secondaryMomentumSpread` come from, measured rather than fitted. The ODD
+preset carries the same numbers: the dump is the only reference with the parent
+link this needs, ColliderML's record having none.
 
 ## The trap
 
-`secondaryKt` is the *scale* of a Rayleigh distribution, not its median and not
-its mean, and the three differ by a fifth:
-
-    median = sigma * sqrt(2 ln 2) = 1.177 sigma
-    mean   = sigma * sqrt(pi / 2) = 1.253 sigma
-
-Reading a median off the dump as if it were a scale makes the opening angle too
-wide. So the scale is reported three ways below -- from the median, from the
-mean, and as the maximum likelihood sqrt(<kT^2>/2). They agree to a few percent
-where the distribution really is Rayleigh, and that agreement is the check.
+`secondaryKt` is the Rayleigh *scale*, not its median (1.177 sigma) and not its
+mean (1.253 sigma). Reading a median off the dump as a scale makes the opening
+angle a fifth too wide. The scale is therefore reported three ways -- from the
+median, from the mean, and as the maximum likelihood sqrt(<kT^2>/2) -- and their
+agreement is the check that the distribution really is Rayleigh.
 
 ## Weighting
 
-One scale has to stand for parents running from 100 MeV to tens of GeV, and the
-measured scale grows with the parent. The unweighted average over the dump's
-secondaries would be weighted towards hard parents, a hard parent being likelier
-to make a daughter above the dump's 300 MeV truth-link threshold. The
-generator's yield per crossing does not depend on the parent at all, so what it
-wants is the average over *crossings*, and the primary spectrum is soft. Hence
-the crossing-weighted row, which is the one to take.
+The measured scale grows with the parent, so one number for parents from 100 MeV
+to tens of GeV depends on the weighting. An unweighted average over the dump's
+secondaries leans towards hard parents, which are likelier to make a daughter
+above its 300 MeV truth-link threshold. The generator's yield per crossing does
+not depend on the parent, so take the crossing-weighted row.
 """
 
 from __future__ import annotations

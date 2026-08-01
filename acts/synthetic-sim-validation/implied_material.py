@@ -16,19 +16,14 @@ weight is wrong by, cell by cell.
 the shape it fits is the right shape at all, and what the residual looks like
 where it is not.
 
-## Why the fast simulation's primaries are the flux for both
+Both yields use the fast simulation's primaries as the flux, so the denominator
+cancels out of the ratio and only its binning matters. Using the reference's
+would put the model's primary hit deficit into a table about the secondary yield.
 
-Both yields are divided by the same denominator, so it cancels out of the ratio
-and only its *binning* matters. Using the reference's primaries instead would
-put the model's primary hit deficit, it being short of the module overlaps, into
-a table that is about the secondary yield.
-
-## What it cannot separate
-
-The path length weighting is inside the measured yield, not divided out, so a
-cell whose crossings are all at a shallow angle reads high. Hence the first
-column is not to be read at large |z|: at r < 60 and |z| > 1500 there are almost
-no crossings at all, and the few there are come in at the tangent.
+The path length weighting is inside the measured yield rather than divided out,
+so a cell whose crossings are all at a shallow angle reads high. Do not read the
+first column at large |z|: at r < 60 and |z| > 1500 there are almost no
+crossings, and the few there are come in at the tangent.
 """
 
 from __future__ import annotations
