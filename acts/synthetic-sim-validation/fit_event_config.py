@@ -106,7 +106,7 @@ class Target:
     #: written by an older version is not silently reused. The reduction is what
     #: the whole fit sees of the reference, and a stale one is a fit against the
     #: wrong thing rather than a crash.
-    VERSION = 3
+    VERSION = 5
 
     #: How far inside the layout's beam pipe a production point has to be to
     #: count as a decay. The layout carries the beam pipe as one radius while
@@ -191,6 +191,40 @@ class Target:
             np.abs(full.d0[~primary]), full.num_hits[~primary].astype(float),
             self.d0_bands)
 
+        # Where the secondaries are *made*, and how much each of them leaves.
+        # Everything above is a space point profile, and a secondary made on the
+        # outermost disc leaves one hit, so a large surplus of them barely moves
+        # the clusters. The production profile counts them where they are born,
+        # which is exactly where the material term acts, and the hit count says
+        # whether they are the reference's secondaries or a swarm of stubs
+        # standing in for them.
+        #
+        # Both carry the momentum threshold, being per-particle, and both are
+        # shapes: the secondary *count* cannot be matched and is not meant to
+        # be - see the module docstring.
+        secondary = (~primary) & (full.pt >= self.secondary_pt_threshold)
+        self.secondary_prod_z = self._shape(np.abs(full.prod_z[secondary]),
+                                            self.z_bands)
+        self.secondary_hits = (float(full.num_hits[secondary].mean())
+                               if secondary.any() else 0.0)
+
+        # Which way the secondaries came off, as against where they were made.
+        # The difference between the two is the opening angle, so this is the
+        # figure the transverse kick answers to together with |d0|. The parents
+        # are forward-weighted, a forward primary crossing more surfaces than a
+        # central one.
+        #
+        # Folded, the reference being symmetric, which halves the noise.
+        self.eta_bands = np.linspace(0.0, 4.0, 9)
+        self.secondary_eta = self._shape(np.abs(full.eta[secondary]),
+                                         self.eta_bands)
+
+    @staticmethod
+    def _shape(values, bands) -> np.ndarray:
+        counts = np.histogram(values, bins=bands)[0].astype(float)
+        total = counts.sum()
+        return counts / total if total else counts
+
     @staticmethod
     def _d0_profile(d0, weights, bands) -> np.ndarray:
         counts = np.histogram(d0, bins=bands, weights=weights)[0]
@@ -236,6 +270,16 @@ def reduce_event(event, target: Target) -> dict:
     d0 = np.abs(np.fromiter((p.d0 for p in particles), np.float32,
                             len(particles))[secondary])
     sec_pt = pt[secondary]
+
+    # Every loader keeps only particles that leave a space point, so the
+    # reference's secondaries all have at least one hit and the model's are cut
+    # the same way. It matters for the mean hit count below; the profiles above
+    # are weighted by the hit count and drop a hitless secondary anyway.
+    prod_z = np.abs(np.fromiter((p.productionZ for p in particles), np.float32,
+                                len(particles))[secondary])
+    eta = np.abs(np.fromiter((p.eta for p in particles), np.float32,
+                             len(particles))[secondary])
+    visible = hits > 0
     return {
         "space_points": float(count),
         "primary_space_points": float((~other).sum()),
@@ -245,6 +289,9 @@ def reduce_event(event, target: Target) -> dict:
                            else 0.0),
         "secondary_d0": Target._d0_profile(d0, hits, target.d0_bands),
         "secondary_mean_pt": float(sec_pt.mean()) if len(sec_pt) else 0.0,
+        "secondary_prod_z": Target._shape(prod_z[visible], target.z_bands),
+        "secondary_eta": Target._shape(eta[visible], target.eta_bands),
+        "secondary_hits": float(hits[visible].mean()) if visible.any() else 0.0,
     }
 
 
@@ -272,6 +319,39 @@ def _mismatch(fast, target: Target) -> float:
         b = b[both] / b[both].sum()
         total += np.mean(np.log(b / a) ** 2)
     return total / 2
+
+
+def _production_mismatch(fast, target: Target) -> float:
+    """Squared log-ratio of the secondary production profiles in |z|.
+
+    Scored like the space point profiles, and the companion to them: they say
+    where the secondary clusters end up and this says where the secondaries were
+    made. The endcap material term acts on the second, and only the second tells
+    a model that makes the reference's secondaries from one that makes many
+    times as many one-hit stubs in the same place.
+    """
+    return _shape_mismatch(target.secondary_prod_z, fast["secondary_prod_z"])
+
+
+def _eta_mismatch(fast, target: Target) -> float:
+    """Squared log-ratio of the secondary |eta| profiles.
+
+    The companion to `_production_mismatch`: that one says where the secondaries
+    were made and this one which way they left. Only the opening angle separates
+    the two, so this is what the transverse kick is fitted against.
+    """
+    return _shape_mismatch(target.secondary_eta, fast["secondary_eta"])
+
+
+def _shape_mismatch(reference, model) -> float:
+    """Squared log-ratio of two normalised profiles, band by band."""
+    a = np.asarray(reference, dtype=float)
+    b = np.asarray(model, dtype=float)
+    both = (a > 0) & (b > 0)
+    if not both.any():
+        return 1e6
+    a, b = a[both] / a[both].sum(), b[both] / b[both].sum()
+    return float(np.mean(np.log(b / a) ** 2))
 
 
 def _reduce(full, bands, beam_pipe) -> Target:
@@ -364,17 +444,22 @@ def _d0_mismatch(fast, target: Target) -> float:
 
 
 #: Transverse kick scales to try in `solve_secondary_kick`, in GeV, spanning
-#: the measured 0.31 by a factor three either way.
-KICK_GRID = (0.10, 0.15, 0.21, 0.26, 0.31, 0.38, 0.48, 0.65, 0.90)
+#: the measured 0.267 by a factor three either way.
+KICK_GRID = (0.09, 0.13, 0.16, 0.20, 0.24, 0.267, 0.33, 0.41, 0.55, 0.80)
 
 
 def solve_secondary_kick(layout, config, target: Target, seeds: int = 3):
-    """Find the transverse kick that reproduces the secondary |d0| profile.
+    """Find the transverse kick that reproduces the secondary |d0| and |eta|.
 
-    The kick reaches |d0| only through the opening angle it implies against the
+    The kick reaches both only through the opening angle it implies against the
     longitudinal momentum, so it cannot put a hard secondary at a wide angle or
     a soft one at a narrow one. It is measured on the ITk dump directly, so
     this is a cross-check there and the only handle on the ODD.
+
+    Both and not |d0| alone, the two pulling opposite ways: a narrow kick leaves
+    every daughter on its parent, and the parents are forward-weighted because a
+    forward primary crosses more surfaces than a central one. Scored on |d0|
+    alone the fit lands below the value the dump measures.
 
     A seed-averaged grid rather than a local search: one event's |d0| mismatch
     varies by up to 0.04 between realisations at a fixed setting, as large as
@@ -398,11 +483,14 @@ def solve_secondary_kick(layout, config, target: Target, seeds: int = 3):
         # makes the count right, and it barely moves between realisations
         trial = _with(trial, {"secondaryRate": solve_secondary_rate(
             layout, trial, target)})
-        score = np.mean([
-            _d0_mismatch(reduce_event(
+        scores = []
+        for i in range(seeds):
+            fast = reduce_event(
                 syn.generateEvent(layout, _with(trial, {"seed": 4000 + i})),
-                target), target)
-            for i in range(seeds)])
+                target)
+            scores.append(_d0_mismatch(fast, target)
+                          + _eta_mismatch(fast, target))
+        score = float(np.mean(scores))
         if score < best_score:
             best, best_score = float(kt), float(score)
     return best, best_score
@@ -524,36 +612,74 @@ def solve_decay_yield(layout, config, target: Target) -> float:
     return config.decayYield * odds / have
 
 
-def fit_endcap_material(description, config, target: Target):
+#: Scales and powers of the endcap profile to try, in mm and dimensionless.
+#: Coarse and wide rather than fine: the objective is noisy at the level of the
+#: differences being resolved, so what a grid buys is the right basin and not
+#: precision.
+MATERIAL_GRID = ((250.0, 350.0, 500.0, 700.0, 900.0, 1200.0),
+                 (1.0, 1.2, 1.5, 2.0, 2.5, 3.0))
+
+
+def fit_endcap_material(description, config, target: Target, seeds: int = 5,
+                        around=None):
     """Fit the endcap material profile of the *layout*.
 
     The profile fills `DetectorSurface::materialWeight`, so a trial rebuilds
-    the layout rather than changing the event configuration. Two parameters
-    against two banded profiles, with `secondaryRate` re-solved at every
-    setting so that the count is never traded against the shape.
+    the layout rather than changing the event configuration. Two parameters,
+    with `secondaryRate` re-solved at every setting so that the count is never
+    traded against the shape.
+
+    A seed-averaged grid and not a simplex: the objective is noisy at the level
+    of the differences being resolved and has a long flat valley, so a simplex
+    contracts along the ridge it starts on. What a grid buys is the right basin
+    rather than the last digit.
+
+    Scored on the space point shape *and* the production profile. The first
+    alone cannot tell the two apart: a secondary made on the outermost disc
+    leaves one hit, so a large surplus there hardly moves the clusters. See
+    `_production_mismatch`.
 
     @param description the layout description to vary
     @param config the configuration to generate with
     @param target what to match
+    @param seeds events to average each grid point over
+    @param around a previous result to search the neighbourhood of, rather than
+           the whole grid; the profile does not move far once the yields have
+           settled and the whole grid costs a hundred events
     @return (endcapMaterialScale, endcapMaterialPower)
     """
-    def objective(logs):
-        scale, power = np.exp(logs)
-        # below one the profile is a cusp at z = 0 rather than a plateau, which
-        # is not what an endcap looks like
-        if power < 1.0 or scale < 100.0:
-            return 1e6
+    def objective(scale, power):
         trial_layout = _layout_with(description, scale, power)
+        # once per grid point rather than per seed: the rate is what makes the
+        # count right and it barely moves between realisations
         trial = _with(config, {"secondaryRate": solve_secondary_rate(
             trial_layout, config, target)})
-        return _mismatch(
-            reduce_event(syn.generateEvent(trial_layout, trial), target),
-            target)
+        scores = []
+        for i in range(seeds):
+            fast = reduce_event(
+                syn.generateEvent(trial_layout, _with(trial,
+                                                      {"seed": 5000 + i})),
+                target)
+            scores.append(_mismatch(fast, target)
+                          + _production_mismatch(fast, target))
+        return float(np.mean(scores))
 
-    start = [1500.0, 3.0]
-    result = minimize(objective, np.log(start), method="Nelder-Mead",
-                      options={"xatol": 1e-3, "fatol": 1e-6, "maxiter": 200})
-    return tuple(np.exp(result.x))
+    scales, powers = MATERIAL_GRID
+    if around is None:
+        trials = [(s, p) for s in scales for p in powers]
+    else:
+        i = int(np.argmin(np.abs(np.log(np.asarray(scales) / around[0]))))
+        j = int(np.argmin(np.abs(np.asarray(powers) - around[1])))
+        trials = [(scales[a], powers[b])
+                  for a in range(max(0, i - 1), min(len(scales), i + 2))
+                  for b in range(max(0, j - 1), min(len(powers), j + 2))]
+
+    best, best_score = trials[0], float("inf")
+    for scale, power in trials:
+        score = objective(scale, power)
+        if score < best_score:
+            best, best_score = (scale, power), score
+    return best
 
 
 def _layout_with(description, scale, power):
@@ -595,18 +721,21 @@ def _with(config, values: dict):
 #: mismatch is a squared log-ratio and wants to be zero; a ratio wants to be
 #: one. Ordered as they are printed.
 FIGURES = (("shape", "shape", 0.0),
+           ("prod_z", "prod z", 0.0),
+           ("sec_eta", "sec eta", 0.0),
            ("d0", "|d0|", 0.0),
            ("space_points", "sp", 1.0),
            ("primary_sp", "prim sp", 1.0),
            ("decay_fraction", "decays", 1.0),
-           ("secondary_pt", "sec pt", 1.0))
+           ("secondary_pt", "sec pt", 1.0),
+           ("secondary_hits", "sec hits", 1.0))
 
 
 def scorecard(config, layout, target: Target) -> dict:
     """Every figure of merit of one configuration, in one pass.
 
-    The two mismatches are shapes and the rest are ratios to the reference. All
-    six together, because the terms trade against each other and no one figure
+    The four mismatches are shapes and the rest are ratios to the reference. All
+    nine together, because the terms trade against each other and no one figure
     decides anything on its own.
 
     @param config the configuration to score
@@ -621,6 +750,8 @@ def scorecard(config, layout, target: Target) -> dict:
 
     return {
         "shape": _mismatch(fast, target),
+        "prod_z": _production_mismatch(fast, target),
+        "sec_eta": _eta_mismatch(fast, target),
         "d0": _d0_mismatch(fast, target),
         "space_points": ratio(fast["space_points"], target.space_points),
         "primary_sp": ratio(fast["primary_space_points"],
@@ -628,11 +759,13 @@ def scorecard(config, layout, target: Target) -> dict:
         "decay_fraction": ratio(fast["decay_fraction"], target.decay_fraction),
         "secondary_pt": ratio(fast["secondary_mean_pt"],
                               target.secondary_mean_pt),
+        "secondary_hits": ratio(fast["secondary_hits"], target.secondary_hits),
     }
 
 
 def fit_config(description, target: Target, *, pileup=200, no_decays=False,
-               no_forward_material=False, path_length=1.0, turns=0.5,
+               no_forward_material=False, endcap_material=None,
+               path_length=1.0, turns=0.5,
                fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
                verbose=True):
     """Fit a configuration to a reference, and return it with its layout.
@@ -645,10 +778,14 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     @param pileup number of interactions to generate
     @param no_decays drop the decay component
     @param no_forward_material leave the endcap material flat
+    @param endcap_material pin the endcap profile to (scale, power) and fit the
+           yields around it, rather than fitting it too. For a layout whose
+           profile is already settled: the objective has a long flat valley, so
+           re-running the grid only walks about inside it.
     @param path_length clamp on the incidence weighting; one disables it
     @param turns turning angle to propagate through
     @param fit_momentum solve the secondary momentum scale for the mean
-    @param fit_kick fit the transverse kick to |d0|
+    @param fit_kick fit the transverse kick to |d0| and |eta|
     @param rounds passes over the alternating solves
     @param overrides fields to force after every solve, as a dict. This is what
            an ablation switches off with, and it is reapplied each round
@@ -674,6 +811,8 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         config.decayYield = 0.0
     if no_forward_material:
         syn.applyEndcapMaterialProfile(description, 1e9, 1.0)
+    elif endcap_material is not None:
+        syn.applyEndcapMaterialProfile(description, *endcap_material)
     config.maxPathLength = path_length
     config.maxTurns = turns
     config = _with(config, overrides)
@@ -701,8 +840,13 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         config = _with(config, {
             "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
                                                             target)})
-        if not no_forward_material:
-            material = fit_endcap_material(description, config, target)
+        if endcap_material is not None:
+            material = endcap_material
+        elif not no_forward_material:
+            # the whole grid once, its neighbourhood thereafter
+            material = fit_endcap_material(description, config, target,
+                                           around=material)
+        if material is not None:
             layout = _layout_with(description, *material)
         # Off by default, the scale being measured off the dump's own
         # secondaries against their parents. Solving it instead trades the
@@ -770,6 +914,8 @@ def report(config, layout, target: Target) -> None:
         # printed below because it is a property of the sample and not of the fit
         ("secondary mean pt [GeV]", target.secondary_mean_pt,
          fast["secondary_mean_pt"]),
+        ("secondary mean hits", target.secondary_hits,
+         fast["secondary_hits"]),
     ):
         print("%-28s %12.4f %12.4f %8.2f" % (label, a, b, b / a if a else
                                              float("nan")))
@@ -777,8 +923,18 @@ def report(config, layout, target: Target) -> None:
                                  target.secondary_pt_threshold, "GeV"))
     print("%-28s %12s %12.4f" % ("non-primary shape mismatch", "",
                                  _mismatch(fast, target)))
+    print("%-28s %12s %12.4f" % ("secondary production |z|", "",
+                                 _production_mismatch(fast, target)))
+    print("%-28s %12s %12.4f" % ("secondary |eta| mismatch", "",
+                                 _eta_mismatch(fast, target)))
     print("%-28s %12s %12.4f" % ("secondary |d0| mismatch", "",
                                  _d0_mismatch(fast, target)))
+    a = np.asarray(target.secondary_prod_z, float)
+    b = np.asarray(fast["secondary_prod_z"], float)
+    print("  secondary production |z|: %s" % "  ".join(
+        "%.0f-%.0f %.2f" % (target.z_bands[i], target.z_bands[i + 1],
+                            b[i] / a[i])
+        for i in range(len(a)) if a[i] > 0 and b[i] > 0))
     names = ["<0.1", "0.1-1", "1-10", "10-100", ">100"]
     print("  secondary |d0| [mm], share of their space points")
     print("    %-10s %s" % ("full sim", "  ".join(
@@ -840,6 +996,9 @@ def main() -> None:
     parser.add_argument("--no-forward-material", action="store_true",
                         help="drop the forward material term, for a reference "
                              "that does not constrain it")
+    parser.add_argument("--endcap-material", default=None, metavar="SCALE,POWER",
+                        help="pin the endcap material profile and fit the "
+                             "yields around it, instead of fitting it")
     parser.add_argument("--path-length", type=float, default=1.0,
                         metavar="MAX",
                         help="weight the yield of a crossing by its path "
@@ -856,17 +1015,35 @@ def main() -> None:
                         help="fit the transverse kick to the secondary "
                              "impact parameter distribution, rather than "
                              "keeping the value measured off the ITk dump")
+    parser.add_argument("--set", action="append", default=[], metavar="NAME=X",
+                        dest="overrides",
+                        help="pin an `EventConfig` field and fit the rest "
+                             "around it; repeatable. Pinning what `--fit-kick` "
+                             "lands on and refitting is how the yields end up "
+                             "consistent with it")
     args = parser.parse_args()
+
+    overrides = {}
+    for item in args.overrides:
+        name, _, value = item.partition("=")
+        overrides[name] = float(value)
 
     description, target, provenance = reference(
         args.detector, fullsim=args.fullsim, events=args.events,
         cache_dir=args.cache_dir)
 
+    endcap_material = None
+    if args.endcap_material is not None:
+        scale, _, power = args.endcap_material.partition(",")
+        endcap_material = (float(scale), float(power))
+
     config, layout, material = fit_config(
         description, target, pileup=args.pileup, no_decays=args.no_decays,
         no_forward_material=args.no_forward_material,
+        endcap_material=endcap_material,
         path_length=args.path_length, turns=args.turns,
-        fit_momentum=args.fit_momentum, fit_kick=args.fit_kick)
+        fit_momentum=args.fit_momentum, fit_kick=args.fit_kick,
+        overrides=overrides)
 
     report(config, layout, target)
 
