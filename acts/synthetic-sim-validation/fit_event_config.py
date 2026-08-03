@@ -295,6 +295,43 @@ def reduce_event(event, target: Target) -> dict:
     }
 
 
+def reduce_events(layout, config, target: Target, events: int = 1,
+                  seed: int | None = None) -> dict:
+    """Average the reduction over several generated events.
+
+    One event is not enough to tell two candidate configurations apart: the
+    mismatch numbers below carry a couple of percent of noise at that, which is
+    more than the differences being resolved.
+
+    @param layout the detector to generate on
+    @param config the configuration to generate with
+    @param target the reference, which fixes the binning
+    @param events how many events to average over
+    @param seed the seed to generate from, the configuration's own if None
+    @return the averaged reduction
+    """
+    def add(into, value):
+        # the reduction nests: the non-primary profile is keyed by axis
+        if isinstance(value, dict):
+            return {k: add(None if into is None else into[k], v)
+                    for k, v in value.items()}
+        value = np.asarray(value, float)
+        return value if into is None else into + value
+
+    def scale(value, factor):
+        if isinstance(value, dict):
+            return {k: scale(v, factor) for k, v in value.items()}
+        return value / factor
+
+    if seed is not None:
+        config = _with(config, {"seed": seed})
+    generator = syn.EventGenerator(layout, config)
+    total = None
+    for _ in range(max(1, events)):
+        total = add(total, reduce_event(generator.generate(), target))
+    return scale(total, float(max(1, events)))
+
+
 def _mismatch(fast, target: Target) -> float:
     """Squared log-ratio of the non-primary profiles, band by band.
 
@@ -388,7 +425,8 @@ def cached_target(path: Path, build):
     return target
 
 
-def reference(detector: str, *, fullsim=None, events=None, cache_dir="."):
+def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
+              skip_events=0):
     """The layout description and reduced reference of one detector.
 
     The bands the reference is profiled in are the detector's own, so the two
@@ -397,6 +435,8 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir="."):
     @param detector "itk" or "odd"
     @param fullsim the ITk dump; the ODD downloads its own
     @param events how many reference events to reduce, None for the default
+    @param skip_events how many to pass over first, so that a fit and the
+           validation of it see different events
     @param cache_dir where the reduced reference is kept between runs
     @return (description, target, provenance)
     """
@@ -410,7 +450,8 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir="."):
 
         def build():
             import fullsim_itk
-            return _reduce(fullsim_itk.load(fullsim, num_events=events), bands,
+            return _reduce(fullsim_itk.load(fullsim, num_events=events,
+                                            skip_events=skip_events), bands,
                            description.beamPipeRadius)
     else:
         description = syn.openDataDetectorPixelDescription()
@@ -420,11 +461,14 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir="."):
 
         def build():
             import fullsim_colliderml
-            return _reduce(fullsim_colliderml.load(num_events=events), bands,
-                           description.beamPipeRadius)
+            return _reduce(fullsim_colliderml.load(num_events=events,
+                                                  skip_events=skip_events),
+                           bands, description.beamPipeRadius)
 
-    cache = Path(cache_dir) / ("target-%s-%d-v%d.pkl"
-                               % (detector, events, Target.VERSION))
+    cache = Path(cache_dir) / ("target-%s-%d%s-v%d.pkl"
+                               % (detector, events,
+                                  "" if not skip_events else "+%d" % skip_events,
+                                  Target.VERSION))
     return description, cached_target(cache, build), provenance
 
 
@@ -643,7 +687,7 @@ def fit_endcap_material(description, config, target: Target, seeds: int = 5,
                         around=None):
     """Fit the endcap material profile of the *layout*.
 
-    The profile fills `DetectorSurface::materialWeight`, so a trial rebuilds
+    The profile fills `DetectorSurface::materialX0`, so a trial rebuilds
     the layout rather than changing the event configuration. Two parameters,
     with `secondaryRate` re-solved at every setting so that the count is never
     traded against the shape.
@@ -708,7 +752,7 @@ def _layout_with(description, scale, power):
     to them and the layout rebuilt; there is no material term in the event
     configuration to vary instead.
     """
-    syn.applyEndcapMaterialProfile(description, float(scale), float(power))
+    syn.applyEndcapYieldProfile(description, float(scale), float(power))
     return syn.makeLayout(description)
 
 
@@ -728,7 +772,9 @@ def _with(config, values: dict):
                  "secondaryKt", "secondaryRadialFraction",
                  "secondaryElectronFraction", "secondaryElectronScale",
                  "secondaryElectronExponent", "secondaryElectronSpread",
-                 "maxPathLength", "scatteringX0", "maxTurns",
+                 "maxPathLength", "materialScale", "multipleScattering",
+                 "energyLoss", "energyLossModel", "particlePdg",
+                 "maxEnergyLossFraction", "maxTurns",
                  "stubRate", "stubClusters", "stubReach",
                  "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
         setattr(out, name, getattr(config, name))
@@ -787,6 +833,7 @@ def scorecard(config, layout, target: Target) -> dict:
 
 def fit_config(description, target: Target, *, pileup=200, no_decays=False,
                no_forward_material=False, endcap_material=None,
+               keep_material=False,
                path_length=1.0, turns=0.5,
                fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
                verbose=True):
@@ -799,6 +846,8 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     @param target what to fit to
     @param pileup number of interactions to generate
     @param no_decays drop the decay component
+    @param keep_material leave the material the description already carries
+           alone, neither fitting a profile nor applying one
     @param no_forward_material leave the endcap material flat
     @param endcap_material pin the endcap profile to (scale, power) and fit the
            yields around it, rather than fitting it too. For a layout whose
@@ -829,16 +878,20 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # measured off the reference, whose sample of decays inside the beam pipe is
     # truncated at the beam pipe.
     config.decayLength = 60.0
-    # Physics rather than a fit as well: a pixel module and its local support are
-    # a percent and a half of a radiation length, and that is what turns a
-    # surface's material weight into a scattering angle.
-    config.scatteringX0 = 0.015
+    # Physics rather than a fit: the layout carries the radiation lengths, so
+    # the configuration only says that they are taken as they are.
+    config.materialScale = 1.0
+    config.multipleScattering = True
+    config.energyLoss = True
+    config.energyLossModel = syn.EnergyLossModel.Mode
     if no_decays:
         config.decayYield = 0.0
-    if no_forward_material:
-        syn.applyEndcapMaterialProfile(description, 1e9, 1.0)
+    if keep_material:
+        pass
+    elif no_forward_material:
+        syn.applyEndcapYieldProfile(description, 1e9, 1.0)
     elif endcap_material is not None:
-        syn.applyEndcapMaterialProfile(description, *endcap_material)
+        syn.applyEndcapYieldProfile(description, *endcap_material)
     config.maxPathLength = path_length
     config.maxTurns = turns
     config = _with(config, overrides)
@@ -866,7 +919,7 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         config = _with(config, {
             "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
                                                             target)})
-        if endcap_material is not None:
+        if keep_material or endcap_material is not None:
             material = endcap_material
         elif not no_forward_material:
             # the whole grid once, its neighbourhood thereafter
@@ -920,16 +973,22 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
                   "endcapMaterial=%.2f..%.2f "
                   "decayYield=%.3f momentumScale=%.3f kt=%.3f radial=%.2f"
                   % (round_, config.chargedPerUnitEta, config.secondaryRate,
-                     min(d.materialWeight for d in description.discs),
-                     max(d.materialWeight for d in description.discs),
+                     min(d.yieldWeight for d in description.discs),
+                     max(d.yieldWeight for d in description.discs),
                      config.decayYield, config.secondaryMomentumScale,
                      config.secondaryKt, config.secondaryRadialFraction))
     return config, layout, material
 
 
-def report(config, layout, target: Target) -> None:
+#: Seed offset of the events a fit is *reported* on, so that it is never scored
+#: on the events it was fitted to.
+REPORT_SEED_OFFSET = 9973
+
+
+def report(config, layout, target: Target, events: int = 1) -> None:
     """Print what the fitted configuration produces next to the target."""
-    fast = reduce_event(syn.generateEvent(layout, config), target)
+    fast = reduce_events(layout, config, target, events,
+                         seed=config.seed + REPORT_SEED_OFFSET)
     print("\n%-28s %12s %12s %8s" % ("", "full sim", "fast sim", "ratio"))
     for label, a, b in (
         ("space points/event", target.space_points, fast["space_points"]),
@@ -1008,11 +1067,18 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("secondaryKt", "%.3ff"),
                        ("secondaryRadialFraction", "%.3ff"),
                        ("maxPathLength", "%.2ff"),
-                       ("scatteringX0", "%.3ff"),
+                       ("materialScale", "%.3ff"),
                        ("stubRate", "%.3ff"),
                        ("maxTurns", "%.2ff")):
         lines.append(("  config.%s = " + fmt + ";") % (field,
                                                        getattr(config, field)))
+    # the toggles, which are not fitted but are spelled out by a preset
+    lines.append("  config.multipleScattering = %s;"
+                 % ("true" if config.multipleScattering else "false"))
+    lines.append("  config.energyLoss = %s;"
+                 % ("true" if config.energyLoss else "false"))
+    lines.append("  config.energyLossModel = EnergyLossModel::%s;"
+                 % str(config.energyLossModel).rsplit(".", 1)[-1])
     lines += ["  return config;", "}"]
     return "\n".join(lines)
 
@@ -1035,6 +1101,16 @@ def main() -> None:
     parser.add_argument("--no-forward-material", action="store_true",
                         help="drop the forward material term, for a reference "
                              "that does not constrain it")
+    parser.add_argument("--skip-events", type=int, default=0,
+                        help="reference events to pass over first, so that a "
+                             "fit and the validation of it see different ones")
+    parser.add_argument("--report-events", type=int, default=5,
+                        help="fast-simulation events to average the report "
+                             "over; one is too noisy to compare two fits")
+    parser.add_argument("--keep-material", action="store_true",
+                        help="keep the material the description already "
+                             "carries, which is what a layout measured off a "
+                             "real geometry has, and fit the rates around it")
     parser.add_argument("--endcap-material", default=None, metavar="SCALE,POWER",
                         help="pin the endcap material profile and fit the "
                              "yields around it, instead of fitting it")
@@ -1069,7 +1145,7 @@ def main() -> None:
 
     description, target, provenance = reference(
         args.detector, fullsim=args.fullsim, events=args.events,
-        cache_dir=args.cache_dir)
+        cache_dir=args.cache_dir, skip_events=args.skip_events)
 
     endcap_material = None
     if args.endcap_material is not None:
@@ -1079,20 +1155,20 @@ def main() -> None:
     config, layout, material = fit_config(
         description, target, pileup=args.pileup, no_decays=args.no_decays,
         no_forward_material=args.no_forward_material,
-        endcap_material=endcap_material,
+        endcap_material=endcap_material, keep_material=args.keep_material,
         path_length=args.path_length, turns=args.turns,
         fit_momentum=args.fit_momentum, fit_kick=args.fit_kick,
         overrides=overrides)
 
-    report(config, layout, target)
+    report(config, layout, target, args.report_events)
 
     if material is not None:
         print("\nendcap material profile, for "
-              "`applyEndcapMaterialProfile` in DetectorLayout.cpp:")
+              "`applyEndcapYieldProfile` in DetectorLayout.cpp:")
         print("  scale = %.0ff  power = %.2ff   (weights %.2f..%.2f)"
               % (material[0], material[1],
-                 min(d.materialWeight for d in description.discs),
-                 max(d.materialWeight for d in description.discs)))
+                 min(d.yieldWeight for d in description.discs),
+                 max(d.yieldWeight for d in description.discs)))
 
     name = ("itkPixelTtbarPu200" if args.detector == "itk"
             else "openDataDetectorTtbarPu200")

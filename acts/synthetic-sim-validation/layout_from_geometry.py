@@ -83,29 +83,36 @@ def main() -> None:
 
     layout = syn.makeLayoutFromTrackingGeometry(geometry, gctx, options)
 
+    # in units of a bare sensor, which is what a description states its
+    # material in; the reduction reads the geometry's own material onto the
+    # layout, so these are measured rather than fitted
+    unit = syn.sensorMaterial().thicknessInX0
+
     cylinders, disks = [], []
     for surface in layout.surfaces:
         if not surface.layers:
             continue
         rings = [(layout.layers[i].minBound, layout.layers[i].maxBound)
                  for i in surface.layers]
+        weight = surface.material.thicknessInX0 / unit
         if surface.shape == syn.SurfaceShape.Cylinder:
             cylinders.append((surface.refCoord,
-                              max(abs(b) for r in rings for b in r)))
+                              max(abs(b) for r in rings for b in r), weight))
         elif surface.refCoord > 0:
-            disks.append((surface.refCoord, rings))
+            disks.append((surface.refCoord, rings, weight))
     disks.sort()
 
     if args.report:
-        print("%-10s %9s %s" % ("surface", "position", "extent"))
-        for radius, half in cylinders:
-            print("%-10s %9.2f %9.2f" % ("cylinder", radius, half))
-        for absZ, rings in disks:
-            print("%-10s %9.2f %s"
-                  % ("disk", absZ, " ".join("%.2f-%.2f" % r for r in rings)))
+        print("%-10s %9s %9s %s" % ("surface", "position", "material", "extent"))
+        for radius, half, weight in cylinders:
+            print("%-10s %9.2f %9.2f %9.2f" % ("cylinder", radius, weight, half))
+        for absZ, rings, weight in disks:
+            print("%-10s %9.2f %9.2f %s"
+                  % ("disk", absZ, weight,
+                     " ".join("%.2f-%.2f" % r for r in rings)))
         print()
         print("%d cylinders, %d disks per side, %d rings per side"
-              % (len(cylinders), len(disks), sum(len(r) for _, r in disks)))
+              % (len(cylinders), len(disks), sum(len(r) for _, r, _w in disks)))
         return
 
     print("  description.beamPipeRadius = %.0f.f;" % setup["beamPipeRadius"])
@@ -113,17 +120,19 @@ def main() -> None:
           % ", ".join("%.2ff" % c[0] for c in cylinders))
     print("  description.barrelHalfLengthsZ = {%s};"
           % ", ".join("%.2ff" % c[1] for c in cylinders))
+    print("  description.barrelMaterialWeights = {%s};"
+          % ", ".join("%.2ff" % c[2] for c in cylinders))
     print("  description.barrelModules = 1;")
     print("  // clang-format off")
     print("  description.disks = {")
-    for absZ, rings in disks:
-        print("      {%.2ff, {%s}},"
-              % (absZ, ", ".join("{%.2ff, %.2ff}" % r for r in rings)))
+    for absZ, rings, weight in disks:
+        print("      {%.2ff, {%s}, %.2ff},"
+              % (absZ, ", ".join("{%.2ff, %.2ff}" % r for r in rings), weight))
     print("  };")
     print("  // clang-format on")
     print()
     print("// %d barrel cylinders, %d disks per side carrying %d rings"
-          % (len(cylinders), len(disks), sum(len(r) for _, r in disks)))
+          % (len(cylinders), len(disks), sum(len(r) for _, r, _w in disks)))
 
 
 if __name__ == "__main__":
