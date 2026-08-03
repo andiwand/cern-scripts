@@ -772,7 +772,8 @@ def _with(config, values: dict):
                  "secondaryKt", "secondaryRadialFraction",
                  "secondaryElectronFraction", "secondaryElectronScale",
                  "secondaryElectronExponent", "secondaryElectronSpread",
-                 "maxPathLength", "materialScale", "multipleScattering",
+                 "maxPathLength", "materialScale", "overlapScale",
+                 "multipleScattering",
                  "energyLoss", "energyLossModel", "particlePdg",
                  "maxEnergyLossFraction", "maxTurns",
                  "stubRate", "stubClusters", "stubReach",
@@ -1068,6 +1069,7 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("secondaryRadialFraction", "%.3ff"),
                        ("maxPathLength", "%.2ff"),
                        ("materialScale", "%.3ff"),
+                       ("overlapScale", "%.3ff"),
                        ("stubRate", "%.3ff"),
                        ("maxTurns", "%.2ff")):
         lines.append(("  config.%s = " + fmt + ";") % (field,

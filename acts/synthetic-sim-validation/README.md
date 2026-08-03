@@ -872,13 +872,55 @@ ColliderML's 100 MeV threshold rather than a parameter set wrong - `--fit-moment
 reaches it and trades the non-primary shape for it, the sign of a shape the model
 cannot make rather than a scale it has wrong.
 
-Still to do:
+## Module overlap
 
-- A **duplication probability per crossing** for module overlaps, which account
-  for the whole remaining hits-per-primary deficit. Two space points close
-  together on one layer is also what a real seeder has to cope with. Propagation
-  rather than parameters, and it raises the space point count, so `secondaryRate`
-  has to be re-fitted after it - one command, `fit_event_config.py`.
+`measure_overlaps.py` reads the overlap off the dump's own module identifiers
+rather than off a distance cut, so a second cluster on a layer is an overlap when
+it is on a neighbouring module and a re-crossing otherwise. Above a GeV:
+
+| | extra clusters per crossing | stagger |
+| --- | --- | --- |
+| ITk barrel layer 0 | 0.02 | 7.9 mm in r |
+| ITk barrel layers 1-4 | 0.13 - 0.16 | 7.9 mm in r |
+| ITk endcap, per ring crossed | 0.15 - 0.19 | 5 mm in z |
+| ODD, everywhere | 0.24 | 1.65 mm in r, 1.2 mm in z |
+
+Two things this settles. The rate is **flat**: one number per detector covers it,
+and the ITk endcap only looks different because one `layer_disk` index there
+carries a quarter-shell of rings. And the pair is staggered along the surface
+**normal**, not around in phi - adjacent staves alternate in radius and the
+overlap is that alternation seen edge on, the |r*dphi| between two clusters of a
+pair being 0.24 mm against 7.9 mm in r. So a model that only duplicates a hit
+produces something a seeder will deduplicate; the offset is the whole point.
+
+Following the track through that offset reproduces the rest of the geometry for
+free: the endcap's measured 1.83 mm in r against 6.00 mm in z is the track's own
+slope, not a second parameter.
+
+`DetectorSurface::overlapProbability` and `::overlapOffset` carry it,
+`EventConfig::overlapScale` turns it up or down. It costs 4 % of the generator's
+CPU (ITk 67.5 to 70.4 ms per event, ODD 22.7 to 24.8).
+
+What it bought, against fifty held-out reference events:
+
+| | before | after |
+| --- | --- | --- |
+| ITk mean hits per primary | 0.89 | **1.01** |
+| ITk primary space points | 0.79 | 0.85 |
+| ITk secondaries above 300 MeV | 1.66 | **1.29** |
+| ODD mean hits per primary | 0.86 | **1.05** |
+| ODD primary space points | 0.79 | **1.00** |
+| ODD secondaries above 100 MeV | 2.04 | **1.41** |
+
+`secondaryRate` fell by a fifth on the ITk and a third on the ODD, which is what
+had been standing in for the missing primary clusters all along. The ITk's
+remaining primary gap is no longer hits per particle but the *number* of
+primaries, 0.92: `chargedPerUnitEta` is solved against a fit sample taken from
+file 0 of the dump and the held-out events come from files 1 and 2, which carry
+8 % more. Interleaving the split across the ten files is the fix, and until then
+the ITk's absolute counts are worth 8 % less than they look.
+
+Still to do:
 - **A secondary momentum spread that grows with the parent**, as its median
   already does. One number cannot span the reference's 0.56 to 2.08, and that is
   the whole of the ITk's mean secondary momentum of 0.88.

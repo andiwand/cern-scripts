@@ -100,8 +100,9 @@ def main() -> None:
     segmentation: dict[tuple[int, int, int], set] = {}
     # crossings and extra clusters by class, per (bec, layer)
     counts: dict[tuple[int, int], np.ndarray] = {}
-    offsets = {name: [] for name in CLASSES}
-    barrel_offsets = {name: [] for name in CLASSES}
+    # the offset differs by region, so it is kept per region as well as overall
+    regions = ("all", "barrel", "endcap 3+", "endcap 0-2")
+    offsets = {region: {name: [] for name in CLASSES} for region in regions}
 
     remaining = args.events
     for one in paths:
@@ -143,13 +144,15 @@ def main() -> None:
                         row[0] += 1
                         n_phi = len(segmentation.get(
                             (layer[0], layer[1], group[0][2]), ()))
+                        region = ("barrel" if layer[0] == 0 else
+                                  "endcap 3+" if layer[1] >= 3 else
+                                  "endcap 0-2")
                         for other in group[1:]:
                             kind = _classify(group[0], other, n_phi)
                             row[1 + CLASSES.index(kind)] += 1
-                            offsets[kind].append(_offset(group[0], other))
-                            if layer[0] == 0:
-                                barrel_offsets[kind].append(
-                                    _offset(group[0], other))
+                            offset = _offset(group[0], other)
+                            offsets["all"][kind].append(offset)
+                            offsets[region][kind].append(offset)
         remaining -= stop
 
     print("extra clusters per layer crossing, primaries above %.1f GeV\n"
@@ -170,7 +173,8 @@ def main() -> None:
           % ("all", total[0], total[1] / total[0], total[2] / total[0],
              total[3] / total[0]))
 
-    for label, table in (("all", offsets), ("barrel only", barrel_offsets)):
+    for label in regions:
+        table = offsets[label]
         print("\noffset of an extra cluster [mm], %s" % label)
         print("%-6s %8s %8s %8s %8s %8s %8s"
               % ("class", "n", "dr", "rdphi", "dz", "|dr|", "|rdphi|"))
