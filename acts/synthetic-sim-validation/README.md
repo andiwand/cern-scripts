@@ -928,6 +928,39 @@ The non-primary column is the one to read. It had been carrying the primary
 clusters the layout could not make, which is why it ran a tenth to a quarter high
 while the primaries ran a fifth low; both are now within a few percent of one.
 
+## The primary column has an acceptance in it
+
+A cluster counts as primary from its truth link alone, with no cut on the
+particle, while the "mean hits" row applies the generator's own p_T and eta
+acceptance. So the two rows are over different populations, and the difference is
+not small: **8463 clusters per ITk event and 4537 per ODD event - a twelfth and a
+twentieth of each primary column - come from a primary below `minPt` = 100 MeV or
+beyond `maxEta` = 4**, which the generator is configured never to produce. Split
+out, the primary column reads
+
+| | reference | model | ratio |
+| --- | --- | --- | --- |
+| ITk, in the acceptance | 89803 | 86036 | 0.96 |
+| ITk, outside it | 8463 | 0 | 0.00 |
+| ODD, in the acceptance | 49931 | 52396 | 1.05 |
+| ODD, outside it | 4537 | 0 | 0.00 |
+
+so inside the acceptance the model is within a few percent and on the ODD it is
+*over*, not short. `validate.py` prints those two rows under the primary count.
+
+The total is left alone deliberately, here and in the fit: a seeder meets every
+cluster the detector makes, so the occupancy is what has to be reproduced and
+taking any of it out would leave a generated event thinner than a real one. The
+consequence is that `secondaryRate` stands in for those clusters too - the fit
+solves it so that primary plus secondary hits reach the reference's whole count -
+and at 3 % of all space points it carries roughly 5 % that is not secondaries.
+`Target.unaccepted_space_points` records it. Read the fitted rate accordingly.
+
+The clean fix is to widen the generator's acceptance rather than to narrow the
+comparison, and it is not free: sub-100-MeV primaries curl, `maxTurns` = 1 cannot
+follow them, and the reference's clusters per particle falls from 10.6 at
+100-200 MeV to 8.2 above 3 GeV where the model is flat at 9.8.
+
 ## How many events the split needs
 
 The primary multiplicity of a ttbar pu200 event swings **9 to 11 % event to
