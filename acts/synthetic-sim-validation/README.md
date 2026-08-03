@@ -9,22 +9,25 @@ against a GNN4ITk Athena dump, the ODD against ColliderML.
 ## Running it
 
 ```sh
-# one fast-simulation event per layout, written as two CSV files
-python dump_fastsim.py itk -o /tmp/fastsim-itk
-python dump_fastsim.py odd -o /tmp/fastsim-odd
+# fast-simulation events per layout, one CSV pair each
+python3 dump_fastsim.py itk -o /tmp/fastsim-itk --events 50
+python3 dump_fastsim.py odd -o /tmp/fastsim-odd --events 50
 
-# ITk, against a local GNN4ITk dump
-./validate.py itk --fullsim ~/Downloads/user.avallier.*.DumpGNNITk_v9.root \
-    --fastsim /tmp/fastsim-itk --events 5 -o plots
+# ITk, against a local GNN4ITk dump, on the events the fit did not see
+./validate.py itk --fullsim '~/Downloads/user.avallier.*.DumpGNNITk_v9.root' \
+    --fastsim /tmp/fastsim-itk --events 50 --skip-events 50 -o plots
 
 # ODD, against ColliderML ttbar at a pile-up of 200; the shard is downloaded
 # from HuggingFace on first use and cached
-./validate.py odd --fastsim /tmp/fastsim-odd --events 20 -o plots
+./validate.py odd --fastsim /tmp/fastsim-odd --events 50 --skip-events 50 -o plots
 ```
 
 Plots land in `plots/<detector>/` as PDF so the two comparisons do not overwrite
 each other; `--format png` for a raster. Everything is normalised per event, so
-the samples are comparable whatever number of events each holds.
+the samples are comparable whatever number of events each holds - but give
+`dump_fastsim.py` as many events as the reference has, or the fast-simulation
+line carries several times the noise of the line it is being read against.
+`fastsim.load` globs the prefix, so clear the old CSVs before a shorter run.
 
 `dump_fastsim.py` generates from the shipped preset through the Python bindings;
 `ActsBenchmarkSyntheticEventGeneration --layout itk-pixel --dump <prefix>` writes

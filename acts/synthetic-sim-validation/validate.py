@@ -128,6 +128,12 @@ def _particles(sample, primary: bool, threshold: float) -> np.ndarray:
     return (~sample.primary) & (sample.pt >= threshold)
 
 
+def _errorbars(ax, x, y, error, color) -> None:
+    """Draw error bars on a stepped line, without repeating it as markers."""
+    ax.errorbar(x, y, yerr=error, fmt="none", ecolor=color, elinewidth=0.7,
+                capsize=1.2, alpha=0.7)
+
+
 def _panel(ax, ax_ratio, full, fast, bins, xlabel, full_events, fast_events,
            logy=False, normalise=False):
     """One overlaid histogram with a ratio panel below it.
@@ -137,6 +143,10 @@ def _panel(ax, ax_ratio, full, fast, bins, xlabel, full_events, fast_events,
     reference cannot report - see `secondary_threshold` - where leaving the
     normalisation in pins every ratio panel at the top of its range and hides
     the only thing the panel could have shown.
+
+    Error bars are `sqrt(n)` on the bin's entries. They are a floor rather than
+    the truth: entries within an event are correlated, so a bin fed by a few
+    busy tracks is noisier than this says.
     """
     hf, edges = np.histogram(full, bins=bins)
     hg, _ = np.histogram(fast, bins=bins)
@@ -148,9 +158,13 @@ def _panel(ax, ax_ratio, full, fast, bins, xlabel, full_events, fast_events,
     scale_g = max(hg.sum(), 1) if normalise else fast_events
     yf = hf / (scale_f * widths)
     yg = hg / (scale_g * widths)
+    ef = np.sqrt(hf) / (scale_f * widths)
+    eg = np.sqrt(hg) / (scale_g * widths)
 
     ax.step(centres, yf, where="mid", **FULL_STYLE)
     ax.step(centres, yg, where="mid", **FAST_STYLE)
+    _errorbars(ax, centres, yf, ef, FULL_STYLE["color"])
+    _errorbars(ax, centres, yg, eg, FAST_STYLE["color"])
     ax.set_ylabel("fraction / bin" if normalise else "per event / bin")
     # an empty sample cannot be log-scaled, and an empty panel is worth seeing
     if logy and (yf > 0).any() and (yg > 0).any():
@@ -160,8 +174,14 @@ def _panel(ax, ax_ratio, full, fast, bins, xlabel, full_events, fast_events,
 
     with np.errstate(divide="ignore", invalid="ignore"):
         ratio = np.where(yf > 0, yg / yf, np.nan)
+        # the two samples are independent, so the relative errors add in
+        # quadrature
+        ratio_error = np.abs(ratio) * np.sqrt(
+            np.where(hf > 0, 1.0 / hf, np.nan)
+            + np.where(hg > 0, 1.0 / hg, np.nan))
     ax_ratio.axhline(1.0, color="black", lw=0.8)
     ax_ratio.step(centres, ratio, where="mid", color=FAST_STYLE["color"])
+    _errorbars(ax_ratio, centres, ratio, ratio_error, FAST_STYLE["color"])
     ax_ratio.set_ylim(0, 2)
     ax_ratio.set_ylabel("fast / full", fontsize=7)
     ax_ratio.set_xlabel(xlabel)
@@ -211,9 +231,10 @@ def plot_space_points(full, fast, outdir: Path, extent: Extent, fmt: str) -> Non
 
     # the last slot gets the total count per event instead of a distribution
     ax, ax_ratio = _pair(axes, 1, 2)
-    ax.bar([0, 1], [len(full.sp_x) / full.num_events,
-                    len(fast.sp_x) / fast.num_events],
-           color=[FULL_STYLE["color"], FAST_STYLE["color"]])
+    counts = np.array([len(full.sp_x), len(fast.sp_x)], dtype=float)
+    events = np.array([full.num_events, fast.num_events], dtype=float)
+    ax.bar([0, 1], counts / events, yerr=np.sqrt(counts) / events, capsize=3,
+           ecolor="black", color=[FULL_STYLE["color"], FAST_STYLE["color"]])
     ax.set_xticks([0, 1], ["full sim", "fast sim"])
     ax.set_ylabel("space points per event")
     ax.grid(alpha=0.25, axis="y")
@@ -342,10 +363,15 @@ def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str,
             eta = sample.eta[mask]
             hits = sample.num_hits[mask]
             total, _ = np.histogram(eta, bins=bins, weights=hits)
+            total2, _ = np.histogram(eta, bins=bins, weights=hits.astype(float) ** 2)
             count, _ = np.histogram(eta, bins=bins)
             with np.errstate(divide="ignore", invalid="ignore"):
                 mean = np.where(count > 0, total / count, np.nan)
+                # the error on a mean, from the spread of the particles in the bin
+                variance = np.where(count > 0, total2 / count - mean ** 2, np.nan)
+                error = np.sqrt(np.maximum(variance, 0.0) / np.maximum(count, 1))
             ax.step(centres, mean, where="mid", **style)
+            _errorbars(ax, centres, mean, error, style["color"])
         ax.set_title("primaries" if primary else "secondaries")
         ax.set_xlabel("eta")
         ax.grid(alpha=0.25)
@@ -394,6 +420,9 @@ def summarise(full, fast, threshold: float) -> str:
 def _add_shared(parser: argparse.ArgumentParser, events: int) -> None:
     parser.add_argument("--fastsim", required=True,
                        help="prefix the generator was dumped with")
+    parser.add_argument("--skip-events", type=int, default=0,
+                        help="reference events to pass over first, so that the "
+                             "validation sees different ones from the fit")
     parser.add_argument("--events", type=int, default=events,
                        help="full-simulation events to read")
     parser.add_argument("-o", "--outdir", default="plots",
@@ -427,7 +456,8 @@ def main() -> None:
 
     if args.detector == "itk":
         print("reading %s ..." % args.fullsim)
-        full = fullsim_itk.load(args.fullsim, num_events=args.events)
+        full = fullsim_itk.load(args.fullsim, num_events=args.events,
+                                skip_events=args.skip_events)
         extent = ITK_EXTENT
     else:
         # imported here so that the ITk path does not need parquet at all
@@ -435,6 +465,7 @@ def main() -> None:
 
         full = fullsim_colliderml.load(channel=args.channel, pileup=args.pileup,
                                        num_events=args.events,
+                                       skip_events=args.skip_events,
                                        local=args.fullsim)
         extent = ODD_EXTENT
     threshold = secondary_threshold(full)
