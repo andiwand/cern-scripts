@@ -961,6 +961,121 @@ comparison, and it is not free: sub-100-MeV primaries curl, `maxTurns` = 1 canno
 follow them, and the reference's clusters per particle falls from 10.6 at
 100-200 MeV to 8.2 above 3 GeV where the model is flat at 9.8.
 
+### What the unaccepted clusters are
+
+Measured on five ITk events, of 7835 unaccepted primary clusters per event:
+
+| | particles/ev | clusters/ev | share |
+| --- | --- | --- | --- |
+| primaries below 100 MeV | 579 | 5905 | **75 %** |
+| primaries beyond \|eta\| = 4 | 384 | 1924 | 25 % |
+
+The soft ones are **curlers**, and not a faint version of a normal track: 10.2
+clusters each over only **3.3 distinct layers**, a median of 5 on the busiest
+one, 84 % revisiting a layer. Every one starts at r = 33 mm, 78 % of the clusters
+sit inside r = 130 mm, and the median z spread is **1236 mm** - a tight spiral
+(R = pT/0.6 mm, so 83 mm at 50 MeV) threading along the beam pipe. The high-|eta|
+quarter is ordinary tracks, median |eta| 4.11 and 99 % below 4.29.
+
+Standing in for them with secondaries is wrong in *shape*, not only in label:
+
+| r [mm] | low-pT primary | secondary |
+| --- | --- | --- |
+| 0-40 | 18.7 % | 6.1 % |
+| 40-80 | 22.7 % | 11.3 % |
+| 80-130 | 36.7 % | 27.3 % |
+| 130-200 | 13.4 % | 22.7 % |
+| 200-300 | 7.8 % | 27.9 % |
+
+So 2.4 % of all space points sit several layers too far out, in the region seed
+combinatorics is most sensitive to.
+
+### The spectrum was missing its Jacobian
+
+`samplePt` drew `dN/dpT ~ (1 + pT/s)^-n`. The Hagedorn spectrum is the
+*invariant* one, `dN/dpT ~ pT (1 + pT/s)^-n`, the leading `pT` being the phase
+space Jacobian. Fitting both to the reference over 0.12-8 GeV and extrapolating
+below it:
+
+| | chi2/ndf in the fitted range | particles/ev below 100 MeV |
+| --- | --- | --- |
+| `(1 + pT/s)^-n` | 27.7 | 1977 |
+| `pT (1 + pT/s)^-n` | **4.2** | **823** |
+| reference | - | **538** |
+
+The old form is 3.7x over below the threshold *and* 6.6x worse inside the range
+it was fitted in, where it runs away to s = 4.8 GeV, n = 12.6 faking a turnover
+it cannot produce. That is the same defect as the known excess at 100-200 MeV
+seen from below. Fixing it is what makes a lower `minPt` possible at all.
+
+The survival function does not invert, so `samplePt` solves it in five
+safeguarded Newton steps, exact to 6e-8 and so better than float. The
+distribution is a beta prime with shapes 2 and `n - 2` and could be drawn
+exactly as a ratio of gamma variates, but every exact method rejects, and a
+variable number of draws per track would put two platforms on different events.
+
+### A stiff track was crossing the barrel twice
+
+The helix meets every barrel radius a second time on the way back in, and
+nothing rejected it: `maxTurns` bounds the turning angle and the layout has no
+outer edge. At |eta| < 0.15 a stiff track carried 6.27 hits against 5.56 at
+|eta| 0.3-1.0. `DetectorLayout::escapeRadius` and `escapeHalfZ` stop a track
+where it leaves the tracker and the bin falls to 5.52, flat with its neighbours.
+
+The bound is the **enclosing** tracker, not these pixel-only layouts: a 300 MeV
+track turns on 500 mm, arcs out to a metre through the strips and curls back
+into the pixels, so cutting at the pixel radius would delete real hits. 1000 mm
+and 3050 mm for the ITk, 1100 mm and 3000 mm for the ODD. It is also what lets
+`maxTurns` be raised for curlers without costing anything on tracks that cannot
+curl - a stiff track now stops at its radial exit instead of looping.
+
+### Generating the soft primaries: what it bought and what it cost
+
+`minPt` 0.02 GeV, `|eta|` to 4.3, `maxTurns` 3, on fifty held-out events:
+
+| ITk | before | after |
+| --- | --- | --- |
+| space points/event | 0.95 | 0.95 |
+| &nbsp;&nbsp;primary | 0.88 | **1.00** |
+| &nbsp;&nbsp;non-primary | 1.00 | 0.91 |
+| secondaries/event | 1.50 | **1.06** |
+
+| ODD | before | after |
+| --- | --- | --- |
+| space points/event | 1.00 | 1.01 |
+| &nbsp;&nbsp;primary | 0.96 | 1.09 |
+| &nbsp;&nbsp;non-primary | 1.04 | 0.90 |
+| secondaries/event | 1.28 | 0.88 |
+
+The ITk total does not move at all - the model shifts 12000 clusters/event out
+of the non-primary column into the primary one, which is where they belonged.
+`secondaryRate` falls with them, 4.762 to 3.048 (ITk) and 5.749 to 3.503 (ODD),
+and it is no longer standing in for anything. That is the whole point: the
+composition is now honest, and the residual deficit sits where it really is.
+
+**What is left is a low-pT overshoot.** The generator makes **1.74x** too many
+sub-100-MeV primaries, each leaving 0.85x the clusters, so 1.47x in clusters:
+
+| pT [MeV] | reference/ev | model/ev | ratio |
+| --- | --- | --- | --- |
+| 20-40 | 70.6 | 162 | 2.29 |
+| 40-60 | 118.4 | 237 | 2.00 |
+| 60-80 | 168.0 | 285 | 1.70 |
+| 80-100 | 202.4 | 321 | 1.59 |
+
+Raising `minPt` does not fix it - the excess runs across the whole band rather
+than piling up at the bottom. It is the invariant form over-extrapolating below
+the range it was fitted in, and the fix is to **fit the spectrum over reference
+particles below 100 MeV**, which both loaders can produce (`min_pt_mev`) and
+which is currently thrown away. No third parameter needed, just data already on
+disk. The forward tail is the smaller half of the same story, 1.15-1.25x over
+because the eta density is flat where the real one falls to about 60 % of
+central by |eta| = 4.3; a taper would fix that one.
+
+Cost, measured back to back with the fitted presets: **ITk +8 %** (75.8 to
+81.8 ms/event), **ODD -10 %** (26.2 to 23.5). The escape bound pays for most of
+the extra turns.
+
 ## How many events the split needs
 
 The primary multiplicity of a ttbar pu200 event swings **9 to 11 % event to

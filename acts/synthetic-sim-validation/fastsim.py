@@ -62,12 +62,18 @@ def load(prefix: str, min_pt_gev: float = 0.1,
             & (p["numHits"] > 0)
         )
 
+        # The generator produces primaries below this threshold and beyond this
+        # eta, so the acceptance has to be applied on this side too. Taken off
+        # the particle each space point names rather than off the space point,
+        # which carries no momentum of its own.
+        in_acceptance = ((p["pt"] > min_pt_gev)
+                         & (np.abs(p["eta"]) < max_abs_eta))
+        sp_primary = sp["primary"] > 0.5
+
         out.add_event(
             sp_x=sp["x"], sp_y=sp["y"], sp_z=sp["z"],
-            sp_primary=sp["primary"] > 0.5,
-            # the generator makes no primary outside its own minPt and
-            # maxEta, so every primary space point of its is accepted
-            sp_accepted=sp["primary"] > 0.5,
+            sp_primary=sp_primary,
+            sp_accepted=sp_primary & in_acceptance[sp["particle"]],
             pt=p["pt"][selected],
             eta=p["eta"][selected],
             phi=p["phi"][selected],

@@ -50,8 +50,17 @@ def robust_sigma(values: np.ndarray) -> float:
     return (hi - lo) / 1.349
 
 
-def fit_pt_spectrum(pt: np.ndarray, min_pt: float = 0.1):
-    """Fit `dN/dpT ~ (1 + pT/S)^-n` to a momentum spectrum.
+#: The selection both reference loaders apply, and so the population the primary
+#: count and the momentum spectrum are fitted against. The generator reaches
+#: below and beyond it on purpose - a real event has those particles and they
+#: leave clusters - so anything held up against the reference is cut back to this
+#: first, or the fit pays for particles the reference never listed.
+ACCEPTANCE_MIN_PT = 0.1
+ACCEPTANCE_MAX_ABS_ETA = 4.0
+
+
+def fit_pt_spectrum(pt: np.ndarray, min_pt: float = ACCEPTANCE_MIN_PT):
+    """Fit `dN/dpT ~ pT (1 + pT/S)^-n` to a momentum spectrum.
 
     Done on the closed-form integral rather than by generating, over log-spaced
     bins so that the tail is represented at all, and weighted by the square root
@@ -79,13 +88,15 @@ def fit_pt_spectrum(pt: np.ndarray, min_pt: float = 0.1):
     filled = counts > 0
 
     def above(x, scale, exponent):
-        return ((scale + x) / (scale + min_pt)) ** (1.0 - exponent)
+        # survival of `dN/dpT ~ pT (1 + pT/scale)^-n`, i.e. `samplePt`
+        v = 1.0 + x / scale
+        return (v ** (2.0 - exponent) / (exponent - 2.0)
+                - v ** (1.0 - exponent) / (exponent - 1.0))
 
     def objective(logs):
         scale, exponent = np.exp(logs)
-        # below one the spectrum has no finite integral, and the sampler inverts
-        # a power that changes sign there
-        if exponent <= 1.01:
+        # below two the spectrum has no finite integral
+        if exponent <= 2.01:
             return 1e6
         model = above(bins[:-1], scale, exponent) - above(bins[1:], scale,
                                                           exponent)
@@ -94,7 +105,7 @@ def fit_pt_spectrum(pt: np.ndarray, min_pt: float = 0.1):
         residual = np.log(model[filled]) - np.log(data[filled])
         return (np.sum(weight[filled] * residual**2) / np.sum(weight[filled]))
 
-    result = minimize(objective, np.log([4.7, 11.0]), method="Nelder-Mead",
+    result = minimize(objective, np.log([1.0, 6.5]), method="Nelder-Mead",
                       options={"xatol": 1e-4, "fatol": 1e-10, "maxiter": 3000})
     return tuple(np.exp(result.x))
 
@@ -260,18 +271,26 @@ def reduce_event(event, target: Target) -> dict:
 
     particles = event.particles
     primary = np.fromiter((p.primary for p in particles), bool, len(particles))
+    pt = np.fromiter((p.pt for p in particles), np.float32, len(particles))
+    all_eta = np.fromiter((p.eta for p in particles), np.float32,
+                          len(particles))
+    all_hits = np.fromiter((p.numHits for p in particles), np.int32,
+                           len(particles))
     of_particle = np.asarray(event.particleIds, dtype=np.int64)
     other = ~primary[of_particle]
+    # The generator reaches below the reference's threshold and beyond its eta,
+    # so its primaries are cut back to that selection before being counted
+    # against it. The non-primary component is not: the reference has all of it.
+    accepted = (primary & (pt > ACCEPTANCE_MIN_PT)
+                & (np.abs(all_eta) < ACCEPTANCE_MAX_ABS_ETA))
 
     # The reference cannot see a secondary below its truth-link threshold, so
     # neither may the model when the two are compared per particle. This is the
     # selection, not `~primary`; the space point profiles above stay on the
     # whole non-primary component. See `Target.secondary_pt_threshold`.
-    pt = np.fromiter((p.pt for p in particles), np.float32, len(particles))
     secondary = (~primary) & (pt >= target.secondary_pt_threshold)
 
-    hits = np.fromiter((p.numHits for p in particles), np.int32,
-                       len(particles)).astype(float)[secondary]
+    hits = all_hits.astype(float)[secondary]
     # A surface secondary is produced *on* a surface, the innermost of which is
     # the beam pipe, so anything inside it came from a decay and the split is
     # exact here. In the reference it is only nearly so.
@@ -288,12 +307,12 @@ def reduce_event(event, target: Target) -> dict:
     # are weighted by the hit count and drop a hitless secondary anyway.
     prod_z = np.abs(np.fromiter((p.productionZ for p in particles), np.float32,
                                 len(particles))[secondary])
-    eta = np.abs(np.fromiter((p.eta for p in particles), np.float32,
-                             len(particles))[secondary])
+    eta = np.abs(all_eta[secondary])
     visible = hits > 0
     return {
         "space_points": float(count),
-        "primary_space_points": float((~other).sum()),
+        "primary_space_points": float(accepted[of_particle].sum()),
+        "primaries": float((accepted & (all_hits > 0)).sum()),
         "other": Target._profile(r[other], z[other], (target.r_bands,
                                                       target.z_bands), 1),
         "decay_fraction": (hits[inside].sum() / hits.sum() if hits.sum()
@@ -620,7 +639,11 @@ def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
     @return the yield that lands on `target.primaries`
     """
     event = syn.generateEvent(layout, config)
-    with_hits = sum(1 for p in event.particles if p.primary and p.numHits > 0)
+    # inside the reference's own selection, the generator reaching past it
+    with_hits = sum(1 for p in event.particles
+                    if p.primary and p.numHits > 0
+                    and p.pt > ACCEPTANCE_MIN_PT
+                    and abs(p.eta) < ACCEPTANCE_MAX_ABS_ETA)
     if with_hits == 0:
         return config.chargedPerUnitEta
     return config.chargedPerUnitEta * target.primaries / with_hits
@@ -885,7 +908,9 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     config.pileup = pileup
     config.beamspotSigmaZ = target.z0_sigma
     config.d0Sigma = target.d0_sigma
-    scale, exponent = fit_pt_spectrum(target.primary_pt, config.minPt)
+    # binned from the reference's own threshold, not the generator's: the
+    # generator reaches below it and the reference lists nothing there
+    scale, exponent = fit_pt_spectrum(target.primary_pt)
     config.ptScale, config.ptExponent = scale, exponent
     # Physics rather than a fit: K0S and Lambda are what decay at this distance,
     # cTau being 27 and 79 mm and the typical boost of order two. It cannot be
@@ -1010,7 +1035,7 @@ def report(config, layout, target: Target, events: int = 1) -> None:
          fast["primary_space_points"]),
         ("  non-primary", target.space_points - target.primary_space_points,
          fast["space_points"] - fast["primary_space_points"]),
-        ("primaries/event", target.primaries, float(config.numPrimaries())),
+        ("primaries/event", target.primaries, fast["primaries"]),
         ("z0 sigma [mm]", target.z0_sigma, config.beamspotSigmaZ),
         ("d0 sigma [mm]", target.d0_sigma, config.d0Sigma),
         ("secondaries from a decay", target.decay_fraction,
