@@ -8,6 +8,8 @@ generator's own CSV pair identically.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
 #: Space point positions in mm and whether each came from a generator particle,
@@ -22,8 +24,15 @@ import numpy as np
 #: from the generator, whether or not that particle is inside the acceptance the
 #: particle fields are selected on, and a space point with no truth link at all
 #: is not primary.
+#:
+#: `sp_accepted` is the same flag with that acceptance applied, and it is the one
+#: to compare a generated sample against. A twelfth of the ITk reference's
+#: primary clusters come from a primary below 100 MeV or beyond |eta| = 4, which
+#: the generator is configured never to produce, so reading the two `sp_primary`
+#: counts against each other charges the model for particles it was told not to
+#: make.
 FIELDS = (
-    "sp_x", "sp_y", "sp_z", "sp_primary",
+    "sp_x", "sp_y", "sp_z", "sp_primary", "sp_accepted",
     "pt", "eta", "phi", "d0", "z0", "prod_r", "prod_z", "primary", "num_hits",
 )
 
@@ -60,6 +69,42 @@ class Sample:
             if parts:
                 setattr(self, field, np.concatenate(parts))
         return self
+
+
+#: Bumped whenever `FIELDS` changes or a loader's meaning does, so that a cache
+#: written by an older version is not silently reused.
+CACHE_VERSION = 1
+
+
+def cached(path, build) -> "Sample":
+    """Read a sample once and reuse it across runs.
+
+    The reference is gigabytes of ROOT or parquet reduced to a couple of hundred
+    megabytes of flat arrays, and validating the same reference against a new
+    fast simulation is the common case. Reading it again each time is most of
+    what a validation run costs.
+
+    @param path where to keep the reduced sample, or None not to cache
+    @param build called to build it when the cache is cold
+    @return the sample
+    """
+    if path is None:
+        return build()
+    path = Path(path)
+    if path.exists():
+        with np.load(path) as data:
+            out = Sample.__new__(Sample)
+            out.num_events = int(data["num_events"])
+            for field in FIELDS:
+                setattr(out, field, data[field])
+        print("reference from %s" % path)
+        return out
+    out = build()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez(path, num_events=np.int64(out.num_events),
+             **{field: getattr(out, field) for field in FIELDS})
+    print("reference cached to %s" % path)
+    return out
 
 
 def perigee(vx, vy, vz, px, py, pz, charge, b_field_t: float = 2.0):

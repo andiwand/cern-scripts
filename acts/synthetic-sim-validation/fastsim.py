@@ -9,8 +9,23 @@ from __future__ import annotations
 import glob
 
 import numpy as np
+import pandas as pd
 
 import sample
+
+
+def _read_csv(path: str) -> dict:
+    """Read one of the generator's CSV files, by column name.
+
+    `pandas` and not `numpy.genfromtxt`, which parses a line at a time in Python
+    and costs half a second per event here -- half a minute over a validation
+    sample, against a second or two for the same files.
+
+    @param path the file
+    @return the columns, keyed by their header
+    """
+    frame = pd.read_csv(path)
+    return {name: frame[name].to_numpy() for name in frame.columns}
 
 
 def load(prefix: str, min_pt_gev: float = 0.1,
@@ -37,10 +52,10 @@ def load(prefix: str, min_pt_gev: float = 0.1,
 
     out = sample.Sample()
     for path in paths:
-        sp = np.genfromtxt(path, delimiter=",", names=True)
+        sp = _read_csv(path)
 
         particles = path[:-len("_spacepoints.csv")] + "_particles.csv"
-        p = np.genfromtxt(particles, delimiter=",", names=True)
+        p = _read_csv(particles)
         selected = (
             (p["pt"] > min_pt_gev)
             & (np.abs(p["eta"]) < max_abs_eta)
@@ -50,6 +65,9 @@ def load(prefix: str, min_pt_gev: float = 0.1,
         out.add_event(
             sp_x=sp["x"], sp_y=sp["y"], sp_z=sp["z"],
             sp_primary=sp["primary"] > 0.5,
+            # the generator makes no primary outside its own minPt and
+            # maxEta, so every primary space point of its is accepted
+            sp_accepted=sp["primary"] > 0.5,
             pt=p["pt"][selected],
             eta=p["eta"][selected],
             phi=p["phi"][selected],

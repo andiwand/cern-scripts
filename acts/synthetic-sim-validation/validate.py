@@ -36,6 +36,7 @@ import numpy as np
 
 import fastsim
 import fullsim_itk
+import sample
 
 FULL_STYLE = dict(color="#1f77b4", label="full sim")
 FAST_STYLE = dict(color="#d62728", label="fast sim")
@@ -390,8 +391,20 @@ def summarise(full, fast, threshold: float) -> str:
 
     row("space points/event",
         len(full.sp_x) / full.num_events, len(fast.sp_x) / fast.num_events)
+    # The total above and the components below are every space point either
+    # sample holds: a seeder meets all of them, so that is the comparison. The
+    # split is where the reference has to be read with care - it flags a cluster
+    # primary from its truth link alone, and a twelfth of the ITk's come from a
+    # primary below the generator's minPt or beyond its maxEta, which it cannot
+    # make as primaries and produces as secondaries instead. That row is broken
+    # out rather than hidden, being most of what is left of the primary deficit.
     row("  primary", full.sp_primary.sum() / full.num_events,
         fast.sp_primary.sum() / fast.num_events)
+    row("    in the acceptance", full.sp_accepted.sum() / full.num_events,
+        fast.sp_accepted.sum() / fast.num_events)
+    row("    outside it", (full.sp_primary & ~full.sp_accepted).sum()
+        / full.num_events,
+        (fast.sp_primary & ~fast.sp_accepted).sum() / fast.num_events)
     row("  non-primary", (~full.sp_primary).sum() / full.num_events,
         (~fast.sp_primary).sum() / fast.num_events)
     for label, mask_f, mask_g in (
@@ -425,6 +438,9 @@ def _add_shared(parser: argparse.ArgumentParser, events: int) -> None:
                              "validation sees different ones from the fit")
     parser.add_argument("--events", type=int, default=events,
                        help="full-simulation events to read")
+    parser.add_argument("--cache-dir", default=".",
+                        help="where to keep the reduced reference between runs; "
+                             "empty to re-read it every time")
     parser.add_argument("-o", "--outdir", default="plots",
                        help="plots go into <outdir>/<detector>/")
     parser.add_argument("--format", default="pdf", choices=("pdf", "png", "svg"),
@@ -454,19 +470,32 @@ def main() -> None:
     outdir = Path(args.outdir) / args.detector
     outdir.mkdir(parents=True, exist_ok=True)
 
+    # The reference is the same from one run to the next while the fast
+    # simulation being read against it is not, so it is reduced once and kept.
+    cache = None
+    if args.cache_dir:
+        cache = (Path(args.cache_dir)
+                 / ("sample-%s-%d+%d-v%d.npz"
+                    % (args.detector, args.events, args.skip_events,
+                       sample.CACHE_VERSION)))
+
     if args.detector == "itk":
         print("reading %s ..." % args.fullsim)
-        full = fullsim_itk.load(args.fullsim, num_events=args.events,
-                                skip_events=args.skip_events)
+        full = sample.cached(cache, lambda: fullsim_itk.load(
+            args.fullsim, num_events=args.events,
+            skip_events=args.skip_events))
         extent = ITK_EXTENT
     else:
-        # imported here so that the ITk path does not need parquet at all
-        import fullsim_colliderml
+        def build_odd():
+            # imported here so that the ITk path does not need parquet at all
+            import fullsim_colliderml
 
-        full = fullsim_colliderml.load(channel=args.channel, pileup=args.pileup,
-                                       num_events=args.events,
-                                       skip_events=args.skip_events,
-                                       local=args.fullsim)
+            return fullsim_colliderml.load(
+                channel=args.channel, pileup=args.pileup,
+                num_events=args.events, skip_events=args.skip_events,
+                local=args.fullsim)
+
+        full = sample.cached(cache, build_odd)
         extent = ODD_EXTENT
     threshold = secondary_threshold(full)
     print("  %d events, %d space points, %d particles, secondaries above "

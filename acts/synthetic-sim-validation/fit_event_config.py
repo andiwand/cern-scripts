@@ -106,7 +106,7 @@ class Target:
     #: written by an older version is not silently reused. The reduction is what
     #: the whole fit sees of the reference, and a stale one is a fit against the
     #: wrong thing rather than a crash.
-    VERSION = 6
+    VERSION = 7
 
     #: How far inside the layout's beam pipe a production point has to be to
     #: count as a decay. The layout carries the beam pipe as one radius while
@@ -124,7 +124,18 @@ class Target:
         self.primaries = primary.sum() / full.num_events
         self.z0_sigma = robust_sigma(full.z0[primary])
         self.d0_sigma = robust_sigma(full.d0[primary])
+        # The whole cluster count, deliberately. A seeder meets every cluster
+        # the detector makes, so the occupancy is what the generator has to
+        # reproduce, and taking any of it out would leave a generated event
+        # thinner than a real one.
         self.space_points = len(full.sp_x) / full.num_events
+        # What `secondaryRate` is therefore standing in for on top of the real
+        # secondaries: the clusters of primaries below the generator's minPt or
+        # beyond its maxEta, which it cannot make as primaries. A twelfth of the
+        # ITk's primary clusters and 3 % of all of them, so the fitted rate is
+        # about 5 % above a rate that only had secondaries to account for.
+        outside = int((full.sp_primary & ~full.sp_accepted).sum())
+        self.unaccepted_space_points = outside / full.num_events
 
         # The non-primary space points on their own. Scoring the total instead
         # would score nothing: `secondaryRate` is solved for the total, so a
@@ -135,7 +146,7 @@ class Target:
         z = np.abs(full.sp_z)
         other = ~full.sp_primary
         self.other = self._profile(r[other], z[other], bands, full.num_events)
-        self.primary_space_points = int(full.sp_primary.sum()) / full.num_events
+        self.primary_space_points = int(full.sp_accepted.sum()) / full.num_events
 
         # What fraction of the secondary space points come from a particle born
         # away from any surface, i.e. from a decay in the beam pipe vacuum. Only
@@ -393,8 +404,10 @@ def _shape_mismatch(reference, model) -> float:
 
 def _reduce(full, bands, beam_pipe) -> Target:
     """Build a `Target` and report the sample it came from."""
-    print("full simulation: %d events, %d space points, %.0f%% of them primary"
-          % (full.num_events, len(full.sp_x), 100 * full.sp_primary.mean()))
+    print("full simulation: %d events, %d space points, %.0f%% of them "
+          "primary, %.1f%% of them from a primary outside the acceptance"
+          % (full.num_events, len(full.sp_x), 100 * full.sp_primary.mean(),
+             100 * (full.sp_primary & ~full.sp_accepted).mean()))
     return Target(full, bands, beam_pipe)
 
 

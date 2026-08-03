@@ -1,0 +1,5 @@
+# Reduced references, rebuilt from the dumps on demand and hundreds of megabytes
+sample-*.npz
+target-*.pkl
+plots/
+__pycache__/

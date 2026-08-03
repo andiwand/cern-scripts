@@ -167,6 +167,12 @@ def _load_event(out: sample.Sample, particles, hits, min_pt_gev: float,
         & (num_hits > 0)
     )
 
+    # the same split, restricted to the primaries the generator is configured to
+    # make: the rest are below `minPt` or beyond `maxEta`, and charging the model
+    # for clusters it was told not to produce is not a comparison
+    sp_accepted = np.where(found, (is_generator & selected)[order][clamped],
+                           False)
+
     vx = np.asarray(particles["vx"])[selected]
     vy = np.asarray(particles["vy"])[selected]
     vz = np.asarray(particles["vz"])[selected]
@@ -182,6 +188,7 @@ def _load_event(out: sample.Sample, particles, hits, min_pt_gev: float,
 
     out.add_event(
         sp_x=sp_x, sp_y=sp_y, sp_z=sp_z, sp_primary=sp_primary,
+        sp_accepted=sp_accepted,
         pt=pt[selected],
         eta=eta[selected],
         phi=phi.astype(np.float32),
