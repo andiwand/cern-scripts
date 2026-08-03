@@ -40,9 +40,9 @@ came from. The two shipped presets are
 
 ```sh
 ./fit_event_config.py itk --fullsim '<dump>*.root' --events 50 \
-    --path-length 4 --turns 1 --fit-kick --set secondaryKt=0.25 \
+    --path-length 4 --turns 3 --fit-kick --set secondaryKt=0.25 \
     --set stubRate=1.267 --set stubClusters=2.1 --set stubReach=4.0
-./fit_event_config.py odd --events 50 --path-length 4 --turns 2 \
+./fit_event_config.py odd --events 50 --path-length 4 --turns 3 \
     --fit-kick --set secondaryKt=0.25 \
     --set stubRate=1.800 --set stubClusters=2.1 --set stubReach=4.0
 ```
@@ -52,7 +52,8 @@ disjoint: `--events 50` takes the front of each ITk file and the front of the OD
 shard, `--events 50 --skip-events 50` in `validate.py` takes what follows. Fewer
 is a false economy - the reference reduction is cached, so a bigger one is paid
 once, while a primary multiplicity that swings ten percent event to event puts
-4.6 % on `chargedPerUnitEta` fitted to five events against 1.4 % fitted to fifty.
+4.6 % on `chargedPerUnitRapidity` fitted to five events against 1.4 % fitted to
+fifty.
 The stub channel and the kick have to be passed in because they are measured
 elsewhere and this fit does not touch them; left out they would silently go to
 zero and to the fit's own answer.
@@ -131,7 +132,7 @@ on another's layout is wrong by more than the generator's own coarseness.
 | observable | parameter |
 | --- | --- |
 | space points / event | `secondaryRate` |
-| primaries / event | `chargedPerUnitEta` |
+| primaries / event | `chargedPerUnitRapidity` |
 | high-momentum tail | `ptExponent` |
 | mean primary pT | `ptScale` |
 | d0 core width | `d0Sigma` |
@@ -180,9 +181,9 @@ from a swarm of stubs standing in for them. A third, `Target.secondary_eta`,
 closes the same gap for the opening angle. All three are in `FIGURES`, so
 `ablate.py` scores them too.
 
-`chargedPerUnitEta` needs a note. The familiar minimum-bias 6.6 per unit of
+`chargedPerUnitRapidity` needs a note. The familiar minimum-bias 6.6 per unit of
 pseudorapidity is the density at *central* eta, while the generator spreads it
-flat over |eta| < 4 where the real distribution falls off forward. Both references
+flat over |y| < 4.3 where the real distribution falls off forward. Both references
 give 5.1 to 5.3 averaged over that range: an ITk dump has 8.5k and ColliderML 8.5k
 long-lived charged primaries per event above 100 MeV inside |eta| < 4, against the
 10.6k a flat 6.6 produces. ColliderML's particle table also contains charged
@@ -935,7 +936,7 @@ particle, while the "mean hits" row applies the generator's own p_T and eta
 acceptance. So the two rows are over different populations, and the difference is
 not small: **8463 clusters per ITk event and 4537 per ODD event - a twelfth and a
 twentieth of each primary column - come from a primary below `minPt` = 100 MeV or
-beyond `maxEta` = 4**, which the generator is configured never to produce. Split
+beyond `|eta|` = 4**, which the generator is configured never to produce. Split
 out, the primary column reads
 
 | | reference | model | ratio |
@@ -1076,10 +1077,84 @@ Cost, measured back to back with the fitted presets: **ITk +8 %** (75.8 to
 81.8 ms/event), **ODD -10 %** (26.2 to 23.5). The escape bound pays for most of
 the extra turns.
 
+### The plateau is flat in rapidity, not in pseudorapidity
+
+The reference's primary `dN/deta` is not flat between -2 and 2. It dips about
+9 % at eta = 0 and peaks near |eta| = 2, which is the opposite of the textbook
+midrapidity peak and looks at first like a bug in the loader. It is not - the
+loader takes charged particles only, and the shape is the Jacobian.
+`dN/deta = (p/E) dN/dy`, and `p/E` is smallest at eta = 0, where it is
+`pT / sqrt(pT^2 + m^2)`. With the threshold at 100 MeV and a pion at 140, the
+softest particles lose a third of their density at the centre and none of it by
+|eta| = 2. Sliced in pT the centre-to-shoulder ratio follows `p/E` exactly:
+
+| pT [GeV] | centre/shoulder | `p/E` at eta = 0 |
+| --- | --- | --- |
+| 0.10-0.15 | 0.683 | 0.660 |
+| 0.15-0.25 | 0.839 | 0.811 |
+| 0.25-0.40 | 0.899 | 0.915 |
+| 0.40-0.70 | 0.932 | 0.967 |
+| 0.70-1.5 | 1.032 | 0.991 |
+| 1.5-5 | 1.225 | 0.999 |
+| > 5 | 1.929 | 1.000 |
+
+Above a GeV the ratio crosses one and the usual peak appears; the soft end
+dominates the count, so the dip wins. Reweighting each particle by `E/p`
+flattens the reference to 2 % across |eta| < 2.
+
+The generator drew eta flat, so it could not have this shape. Drawing the
+*rapidity* flat and converting with the pion mass costs one factor,
+`cot(theta) = sqrt(1 + (m/pT)^2) sinh(y)`, and no new parameter - `particlePdg`
+already supplies the mass for the energy loss. `minEta`/`maxEta` became
+`minRapidity`/`maxRapidity` and `chargedPerUnitEta` `chargedPerUnitRapidity`,
+because the quantity is a different one.
+
+Refitted and revalidated on fifty held-out events:
+
+| ITk | before | after |
+| --- | --- | --- |
+| space points/event | 0.95 | 0.95 |
+| &nbsp;&nbsp;primary, in acceptance | 0.97 | 0.97 |
+| &nbsp;&nbsp;primary, **outside** | 1.29 | **1.16** |
+| &nbsp;&nbsp;non-primary | 0.91 | 0.92 |
+
+| ODD | before | after |
+| --- | --- | --- |
+| space points/event | 1.01 | 1.01 |
+| &nbsp;&nbsp;primary, in acceptance | 1.04 | 1.03 |
+| &nbsp;&nbsp;primary, **outside** | 1.66 | **1.31** |
+| &nbsp;&nbsp;non-primary | 0.90 | **0.95** |
+
+The out-of-acceptance overshoot was the defect and it is where the improvement
+lands. ODD's non-primary recovering from 0.90 to 0.95 is the displacement
+argument running backwards: the fit holds the total, so every surplus primary
+cluster had been pushing a secondary one out, and returning them brings the
+secondaries back without `secondaryRate` being used for it.
+
+The eta shape itself, normalised over |eta| < 3:
+
+| | ratio spread, \|eta\| < 2 | centre/shoulder |
+| --- | --- | --- |
+| ITk reference | - | 0.929 |
+| ITk model | **2.9 %** (was 9.7) | 0.920 |
+| ODD reference | - | 0.950 |
+| ODD model | **3.5 %** (was 9.6) | 0.925 |
+
+Fitted values moved: `chargedPerUnitRapidity` 6.09 to 6.24 (ITk) and 5.59 to
+5.74 (ODD), `secondaryRate` 3.048 to 3.928 and 3.503 to 3.432, `decayYield`
+0.107 to 0.123 and 0.013 to 0.009. The endcap yield profile went to
+`(500, 1.00)` for the ITk and `(350, 1.20)` for the ODD.
+
+What is *not* fixed: beyond |eta| = 2.5 the model still runs 4-8 % high, because
+the rapidity plateau is drawn flat where the real one falls away. That is the
+same forward overshoot as before, now correctly attributed - it is the plateau's
+shape, not the eta-to-y conversion. The sub-100-MeV overshoot of the previous
+section is untouched and remains the larger of the two.
+
 ## How many events the split needs
 
 The primary multiplicity of a ttbar pu200 event swings **9 to 11 % event to
-event**, so N events fix `chargedPerUnitEta` to about 10/sqrt(N) percent. Five
+event**, so N events fix `chargedPerUnitRapidity` to about 10/sqrt(N) percent. Five
 events, which the ITk preset used to be fitted on, is 4.6 %; fifty is 1.4 %. That
 was worth more than anything else measured here.
 

@@ -142,9 +142,9 @@ class Target:
         self.space_points = len(full.sp_x) / full.num_events
         # What `secondaryRate` is therefore standing in for on top of the real
         # secondaries: the clusters of primaries below the generator's minPt or
-        # beyond its maxEta, which it cannot make as primaries. A twelfth of the
-        # ITk's primary clusters and 3 % of all of them, so the fitted rate is
-        # about 5 % above a rate that only had secondaries to account for.
+        # beyond its rapidity range, which it cannot make as primaries. A
+        # twelfth of ITk's primary clusters and 3 % of all of them, so the rate
+        # sits about 5 % above one that only had secondaries to account for.
         outside = int((full.sp_primary & ~full.sp_accepted).sum())
         self.unaccepted_space_points = outside / full.num_events
 
@@ -624,7 +624,7 @@ def solve_secondary_momentum_scale(layout, config, target: Target) -> float:
     return scale
 
 
-def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
+def solve_charged_per_unit_rapidity(layout, config, target: Target) -> float:
     """Find the primary yield that leaves the right number of primaries with hits.
 
     Not simply the count divided by the pile-up and the eta span: not every
@@ -645,8 +645,8 @@ def solve_charged_per_unit_eta(layout, config, target: Target) -> float:
                     and p.pt > ACCEPTANCE_MIN_PT
                     and abs(p.eta) < ACCEPTANCE_MAX_ABS_ETA)
     if with_hits == 0:
-        return config.chargedPerUnitEta
-    return config.chargedPerUnitEta * target.primaries / with_hits
+        return config.chargedPerUnitRapidity
+    return config.chargedPerUnitRapidity * target.primaries / with_hits
 
 
 def solve_secondary_rate(layout, config, target: Target) -> float:
@@ -800,8 +800,9 @@ def _with(config, values: dict):
     configuration has to be the one everything else is taken from.
     """
     out = syn.EventConfig()
-    for name in ("pileup", "chargedPerUnitEta", "minPt", "ptScale",
-                 "ptExponent", "minEta", "maxEta", "beamspotSigmaZ", "d0Sigma",
+    for name in ("pileup", "chargedPerUnitRapidity", "minPt", "ptScale",
+                 "ptExponent", "minRapidity", "maxRapidity", "beamspotSigmaZ",
+                 "d0Sigma",
                  "secondaryRate", "decayYield", "decayLength",
                  "secondaryMinPt", "secondaryMomentumScale",
                  "secondaryMomentumExponent", "secondaryMomentumSpread",
@@ -949,15 +950,15 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # material term is fitted inside the loop because it moves the count too,
     # and the decay yield after it because the shape it is a fraction of has to
     # have settled first.
-    span = config.maxEta - config.minEta
-    config.chargedPerUnitEta = target.primaries / (pileup * span)
+    span = config.maxRapidity - config.minRapidity
+    config.chargedPerUnitRapidity = target.primaries / (pileup * span)
     # the endcap material profile lives on the layout, not on the configuration,
     # so it is carried out of the loop by hand to be reported with it
     material = None
     for round_ in range(rounds):
         config = _with(config, {
-            "chargedPerUnitEta": solve_charged_per_unit_eta(layout, config,
-                                                            target)})
+            "chargedPerUnitRapidity": solve_charged_per_unit_rapidity(
+                layout, config, target)})
         if keep_material or endcap_material is not None:
             material = endcap_material
         elif not no_forward_material:
@@ -1008,10 +1009,10 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         # back by a solve above -- `decayYield` is the one that would be
         config = _with(config, overrides)
         if verbose:
-            print("    round %d: chargedPerUnitEta=%.3f secondaryRate=%.3f "
+            print("    round %d: chargedPerUnitRapidity=%.3f secondaryRate=%.3f "
                   "endcapMaterial=%.2f..%.2f "
                   "decayYield=%.3f momentumScale=%.3f kt=%.3f radial=%.2f"
-                  % (round_, config.chargedPerUnitEta, config.secondaryRate,
+                  % (round_, config.chargedPerUnitRapidity, config.secondaryRate,
                      min(d.yieldWeight for d in description.discs),
                      max(d.yieldWeight for d in description.discs),
                      config.decayYield, config.secondaryMomentumScale,
@@ -1088,7 +1089,7 @@ def as_cpp(config, name: str, provenance: str) -> str:
         "  // %s" % provenance,
         "  EventConfig config;",
     ]
-    for field, fmt in (("chargedPerUnitEta", "%.2ff"),
+    for field, fmt in (("chargedPerUnitRapidity", "%.2ff"),
                        ("ptScale", "%.3ff"),
                        ("ptExponent", "%.2ff"),
                        # "%.0ff" would print 50 as "50f", which is not a literal

@@ -125,8 +125,8 @@ def quick(term: Term, config, layout, description, target):
     trial = fit._with(config, term.off)
     if term.flat_material:
         layout = flat_layout(description)
-    trial = fit._with(trial, {"chargedPerUnitEta":
-                              fit.solve_charged_per_unit_eta(layout, trial,
+    trial = fit._with(trial, {"chargedPerUnitRapidity":
+                              fit.solve_charged_per_unit_rapidity(layout, trial,
                                                              target)})
     trial = fit._with(trial, {"secondaryRate":
                               fit.solve_secondary_rate(layout, trial, target)})
@@ -246,7 +246,7 @@ def main() -> None:
         # the compensation is half the answer: a term the rest of the model can
         # absorb shows up as another parameter moving to take its place
         print("    %-18s rate=%.3f eta=%.3f decays=%.3f"
-              % ("", fitted.secondaryRate, fitted.chargedPerUnitEta,
+              % ("", fitted.secondaryRate, fitted.chargedPerUnitRapidity,
                  fitted.decayYield))
 
 
