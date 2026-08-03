@@ -135,14 +135,15 @@ each, per event and normalised to the reference:
 | space points | 0.94 | 1.00 |
 | &nbsp;&nbsp;primary, inside the generated acceptance | 0.94 | 1.02 |
 | &nbsp;&nbsp;primary, outside it | 1.07 | 1.23 |
-| &nbsp;&nbsp;non-primary | 0.94 | 0.96 |
+| &nbsp;&nbsp;non-primary | 0.94 | 0.97 |
 | primaries / event | 0.94 | 1.00 |
-| mean secondary pT | 0.94 | 1.07 |
-| mean secondary hits | 1.04 | 1.10 |
+| secondaries / event | 1.07 | 1.00 |
+| mean secondary pT | 0.94 | 1.05 |
+| mean secondary hits | 1.04 | 1.09 |
 | primary `dN/deta` spread over \|eta\| < 4 | 2.2 % | 2.7 % |
-| secondary `dN/deta` spread over the same | 0.26 | 0.18 |
-| secondary production `r` spread | 2.32 | 1.65 |
-| secondary production `z` spread | 1.81 | 0.86 |
+| secondary `dN/deta` spread over the same | 0.26 | 0.13 |
+| secondary production `r` spread | 2.32 | 1.61 |
+| secondary production `z` spread | 1.81 | 0.77 |
 
 The ITk column is about five percent low across every count because its two
 halves are: on the half it was fitted to the same configuration gives 1.00 on
@@ -480,6 +481,49 @@ the detail is in the git history of this file if it is ever wanted again.
   its remaining 5 % sits at \|eta\| 1 to 1.5 where a hand-written table is
   weakest, and the ATLAS one is trained.
 
+### A secondary counts in two lengths, not one
+
+Every secondary was produced per *radiation* length. Only the knocked-out
+electrons follow X0; an interaction product follows the nuclear length L0, and
+the two run apart with composition:
+
+| | L0/X0 | nuclear yield per X0, rel. silicon | electron share |
+| --- | --- | --- | --- |
+| silicon (sensor) | 4.96 | 1.00 | 0.68 |
+| carbon fibre | 2.01 | 2.47 | 0.46 |
+| beryllium | 1.19 | 4.16 | 0.34 |
+| copper | 10.67 | 0.47 | 0.82 |
+
+Supports and services are low-Z, so per radiation length they interact two to
+four times as often as the silicon the rate was calibrated on. That is part of
+what the endcap `yieldWeight` profile was standing in for. The rate is quoted
+per radiation length of a sensor, so silicon is unchanged *by construction* -
+the ITk, whose every surface is `sensorMaterial` times a weight, refits to
+exactly its shipped preset and validates bit-identically, which is the check
+that the normalisation is right. The electron fraction stops being free and
+becomes a property of the surface.
+
+On the ODD, whose supports are carbon, it moved the production radii onto the
+shells with no fitted parameter - r = 36-40 from 0.45 of the reference to 0.68,
+70-80 from 0.50 to 0.76, 120-125 from 0.63 to 0.85 - and took secondaries per
+event from 0.92 to 1.00. It costs a mild central tilt in the non-primary space
+point `dN/deta`, 1.13..0.89 becoming 1.21..0.81.
+
+**Do not close the remaining gap with more material.** A fitted endcap material
+profile `1 + (|z|/1800)^2` scores better than anything else tried, and implies
+1.9 X0 at \|eta\| = 3 and 2.2 at 3.5 for the *pixels alone*, against roughly
+1.2-1.3 and 1.4-1.6 for the **whole** ITk (arXiv 2412.15090, fig. 5). It is not
+real material.
+
+### Beware six-event scans
+
+A configuration scanned over six events and read against a fifty-event baseline
+is not a measurement. Running the *shipped* configuration both ways gives a
+secondary `dN/deta` spread of 0.252 against 0.257 - stable - but a production
+`z` spread of 1.17 against 1.43. Differences in the production profiles below
+about 0.3 are noise at that size, and several of them were chased before this
+was noticed.
+
 ## Still to do
 
 - **Fit the spectrum over reference particles below 100 MeV**, which both
@@ -492,6 +536,24 @@ the detail is in the git history of this file if it is ever wanted again.
   `includeMaterialSurfaces` to stop throwing on that geometry and the layer
   weights to lose what moves out to a shell. This is the largest remaining
   layout defect and the likeliest cure for the \|d0\| tail.
+- **Give the ODD beam pipe its beryllium**, now that composition counts. It is
+  carried as a weight in sensors, but beryllium interacts four times as often
+  per radiation length as silicon, so the physical thickness no longer has to
+  undershoot by the factor it did.
+- **Read `L0` off the geometry.** `material_from_geometry.py` collapses each
+  `MaterialSlab` to `thicknessInX0 / sensorX0` and throws the nuclear length
+  away, which is what forces silicon's ratio onto every surface. Keeping the
+  slab makes composition measured rather than fitted, and is the precondition
+  for retiring the endcap yield profile.
+- **The ODD's decay channel is starved**: `decayYield` fits to 0.012 against the
+  ITk's 0.132, and the \|d0\| > 100 mm tail is 0.022 of the secondary space
+  points against the reference's 0.083. V0s at large radius are what fill that
+  tail. `measure_secondary_populations.py` already reads ColliderML truth, so
+  measure it instead.
+- **Range out the soft secondaries.** A 50 MeV daughter is propagated for three
+  turns through many layers; a real one stops in centimetres. Likely the cause
+  of the mean secondary hits sitting at 1.04 and 1.09 and of the one-cluster bin
+  being under-filled.
 - **The ODD's beam pipe weight is a sensor where beryllium is a fifth of one.**
   Harmless while the path length was clamped; now that a cylinder keeps its
   grazing path the wall makes 33 % of the model's secondaries against the
