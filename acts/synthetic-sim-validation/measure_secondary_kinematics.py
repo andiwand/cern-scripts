@@ -230,6 +230,21 @@ def main() -> None:
     print("%-24s %8d %10.3f %10.3f %10.3f"
           % ("all, on the primaries", len(kt), *weighted))
 
+    # The share the opening-angle model has to reproduce at its soft end: a
+    # daughter too soft to pay the kick has no memory of its parent, so it goes
+    # backward half the time. A model that folds the backward hemisphere onto
+    # the forward one has none of these and piles them at 90 degrees instead.
+    print("\n=== emitted backward of the parent ===")
+    back = pl < 0
+    print("  %.3f of them, %.3f weighted by the crossings"
+          % (back.mean(), weight[back].sum() / weight.sum()))
+    for lo, hi in ((0.0, 0.4), (0.4, 0.6), (0.6, 1.0), (1.0, 1e9)):
+        pick = (daughter_p >= lo) & (daughter_p < hi)
+        if pick.sum() < 50:
+            continue
+        print("    daughter %5.2f - %-8.2f n=%8d   backward %.3f"
+              % (lo, hi, pick.sum(), back[pick].mean()))
+
     print("\n=== longitudinal momentum ===")
     scale, power, points = momentum_power_law(pl, parent_p)
     print("  median pL against the parent's momentum:")

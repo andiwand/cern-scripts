@@ -37,10 +37,11 @@ The two shipped presets came out of
 
 ```sh
 ./fit_event_config.py itk --fullsim '<dump>*.root' --events 50 \
-    --path-length 4 --turns 3 --fit-kick --set secondaryKt=0.25 \
+    --path-length 4 --turns 3 --fit-kick --endcap-material 500,1.00 \
+    --set secondaryKt=0.25 \
     --set stubRate=1.267 --set stubClusters=2.1 --set stubReach=4.0
 ./fit_event_config.py odd --events 50 --path-length 4 --turns 3 \
-    --fit-kick --set secondaryKt=0.25 \
+    --fit-kick --endcap-material 350,1.20 --set secondaryKt=0.25 \
     --set stubRate=1.800 --set stubClusters=2.1 --set stubReach=4.0
 ```
 
@@ -52,6 +53,13 @@ side, the same number the validation gets, and the two halves disjoint:
 channel and the kick are passed in because they are measured elsewhere and this
 fit does not touch them; left out they would silently go to zero and to the
 fit's own answer.
+
+The endcap yield profile is pinned rather than fitted, both layouts having
+settled ones. Left free it walks about inside its own flat valley: refitting it
+alongside the rapidity edge moved the ITk from 500 to 350 and paid for a better
+non-primary shape with a worse secondary \|d0\| and production \|z\|, all of
+it inside the noise of the grid. Re-fit it when the *layout* changes, not when a
+term beside it does.
 
 ### The ODD path needs pyarrow, which the ACTS environment breaks
 
@@ -124,14 +132,21 @@ each, per event and normalised to the reference:
 
 | | ITk | ODD |
 | --- | --- | --- |
-| space points | 0.95 | 1.01 |
-| &nbsp;&nbsp;primary, inside the generated acceptance | 0.97 | 1.03 |
-| &nbsp;&nbsp;primary, outside it | 1.16 | 1.31 |
-| &nbsp;&nbsp;non-primary | 0.92 | 0.95 |
-| primaries / event | 1.01 | 1.00 |
-| mean secondary pT | 0.93 | 1.05 |
-| mean secondary hits | 0.96 | 0.97 |
-| primary `dN/deta` spread over \|eta\| < 2 | 2.9 % | 3.5 % |
+| space points | 0.94 | 1.00 |
+| &nbsp;&nbsp;primary, inside the generated acceptance | 0.94 | 1.02 |
+| &nbsp;&nbsp;primary, outside it | 1.07 | 1.23 |
+| &nbsp;&nbsp;non-primary | 0.94 | 0.96 |
+| primaries / event | 0.94 | 1.00 |
+| mean secondary pT | 0.94 | 1.07 |
+| mean secondary hits | 1.04 | 1.10 |
+| primary `dN/deta` spread over \|eta\| < 4 | 2.2 % | 2.7 % |
+| secondary `dN/deta` spread over the same | 0.26 | 0.18 |
+| secondary production `r` spread | 2.32 | 1.65 |
+| secondary production `z` spread | 1.81 | 0.86 |
+
+The ITk column is about five percent low across every count because its two
+halves are: on the half it was fitted to the same configuration gives 1.00 on
+the primary space points. See "Split the ITk 250/250" below.
 
 Both beam-spot widths, the primary spectrum and the secondary production point
 sit within a few percent by construction, being what the fit is scored on. What
@@ -144,16 +159,21 @@ the shipped presets carry, and where each number comes from:
   cluster resolution.
 - **Fitted**: `chargedPerUnitRapidity`, `ptScale`/`ptExponent`, `d0Sigma`,
   `beamspotSigmaZ`, `secondaryRate`, `decayYield`, `secondaryRadialFraction`,
-  and the two parameters of the endcap yield profile.
+  `rapidityEdge`/`rapidityEdgeWidth`, and the two parameters of the endcap
+  yield profile. Note `--path-length` is the *disc* bound; the cylinder bound
+  is a preset value and not fitted.
 
 Three known gaps, in order of size:
 
-1. **The soft end of the spectrum runs 1.74x high** below 100 MeV, the invariant
+1. **The far tail of the secondary \|d0\| is short**: beyond a millimetre the
+   model puts a quarter of the space points the reference does, and it got worse
+   with every fix below that moved production inboard. The model's secondaries
+   are made too close to the beam line, which is the ITk's un-separated services
+   and the endcap ring supports neither layout carries.
+2. **The soft end of the spectrum runs 1.74x high** below 100 MeV, the invariant
    Hagedorn form over-extrapolating below the range it was fitted in.
-2. **Hits per primary are short in the barrel**, because no layout resolves the
+3. **Hits per primary are short in the barrel**, because no layout resolves the
    overlap of modules along z. The secondaries take up the slack.
-3. **The rapidity plateau is flat where the real one falls away**, so beyond
-   \|eta\| = 2.5 the model runs 4-8 % high.
 
 ### What the fit is sensitive to
 
@@ -165,6 +185,7 @@ on another's layout is wrong by more than the generator's own coarseness.
 | --- | --- |
 | space points / event | `secondaryRate` |
 | primaries / event | `chargedPerUnitRapidity` |
+| primary `dN/deta` shape | `rapidityEdge`, `rapidityEdgeWidth` |
 | high-momentum tail | `ptExponent` |
 | mean primary pT | `ptScale` |
 | d0 core width | `d0Sigma` |
@@ -377,6 +398,72 @@ the detail is in the git history of this file if it is ever wanted again.
   rapidity flat costs one factor and no new parameter, and took the eta shape
   from 9.7 % to 2.9 %.
 
+- **The rapidity plateau has an edge, and it is worth two parameters.** Both
+  references are flat in `dN/dy` to a third of a percent inside \|y\| = 2.4 and
+  have lost a seventh of that by \|y\| = 3.3, which is the fragmentation region
+  and the standard `1 / (1 + exp((|y| - y0) / w))` describes it. Fitted against
+  the primary `dN/deta` shape rather than read off the reference's own `dN/dy`:
+  the forward end of that measurement is cut by the reference's own
+  \|eta\| < 4, so it constrains the shape only to \|y\| = 3.45 and the
+  extrapolation past it is what the eta comparison actually sees. Drawn by
+  rejection against the flat plateau, so the primary count is untouched and only
+  `secondaryRate` has to follow.
+
+- **The endcap yield profile is the largest term in the model, and the edge
+  does not touch it.** Ablated on the ODD with a full refit, dropping the yield
+  profile takes the secondary production \|z\| from 0.10 to 0.86 and the
+  non-primary shape from 0.065 to 0.20, and needs `secondaryRate` 6.0 instead of
+  4.8. Dropping the rapidity edge instead takes the primary \|eta\| from 0.001
+  to 0.007 and *improves* the secondary figures slightly. The two are orthogonal:
+  the profile weights the secondary yield of a crossing and cannot move a primary
+  cluster, the edge moves primaries and only then their secondaries, and each is
+  pinned by an observable the other cannot reach.
+
+**The secondary direction, the path length and the support**
+
+- **The opening angle had a delta at exactly 90 degrees.** `sin = min(kT/p, 1)`
+  folds the backward hemisphere onto the forward one and clamps every draw it
+  cannot pay for onto a right angle: a tenth of the daughters above 100 MeV,
+  and a right-angle daughter of a forward parent is central, so the whole
+  plateau piled into \|eta\| < 0.1 at two to three times the reference. Drawing
+  the direction from the Fisher distribution at concentration `(p/kT)^2` carries
+  both limits on the parameter that was already there -- the Rayleigh kick when
+  the daughter can pay it, isotropic when it cannot -- and the ODD's secondary
+  `dN/deta` spread went 0.24 to 0.16. `measure_secondary_kinematics.py` reports
+  the share on the dump: 12.7 % of daughters are emitted backward,
+  crossing-weighted, 29 % below 400 MeV and none above a GeV.
+- **One path-length bound cannot serve a disc and a cylinder.** A cylinder is
+  crossed `cosh(eta)` times less often per unit z and traversed `cosh(eta)`
+  times more deeply, so its material per unit z cancels to a constant -- which
+  is exactly what both references show along their beam pipes, flat to a metre.
+  Bounding it at a module's aspect ratio breaks the cancellation above
+  `|z| = bound * r`: at four the ITk's wall made 8 % of the model's secondaries
+  against the reference's 18 %, and the model's wall profile tracked
+  `4/cosh(eta)` bin for bin. Splitting the bound took the ODD's production `z`
+  mismatch from 0.107 to 0.041 and put the ITk's wall share at 18.5 %.
+  Scanning the cylinder bound saturates by 80; a hundred is the tracker's own
+  length over a beam pipe radius.
+- **A layer is not only its modules.** The ODD's four
+  `<support name="SupportCylinder">` entries at r = 37-39, 75-77, 120-122 and
+  176-178 mm are where the reference's production radius peaks, and the first
+  alone carries a fifth of its barrel secondaries. They are *not* in the ACTS
+  ODD tracking geometry -- `includeMaterialSurfaces` adds two passive discs and
+  no cylinder, because the reduction keeps material for layers and a shell
+  between two layers belongs to neither -- so they are transcribed from
+  `OpenDataPixels.xml` like the ITk's positions are from GeoModelXml. Adding
+  them took the ODD's non-primary shape from 0.022 to 0.013 and its non-primary
+  radial profile to 1.02/0.99/1.02/0.97.
+- **The ITk cannot have the same treatment yet.** Its layer material weights
+  (1.44 to 3.18 sensors, against the ODD's 1.1) already contain the services,
+  mapped onto the layers by the ACTS ITk geometry, so separate shells would
+  double count; and `includeMaterialSurfaces` throws on that geometry, some
+  material surface reducing to a cylinder of zero radius.
+- **`validate.py` was never showing hitless secondaries.** A fifth of the
+  model's are, but `fastsim.load` cuts `numHits > 0` exactly as the two
+  reference loaders do. Read the CSVs directly and the population is a
+  different one -- which is how they got blamed for the eta spike that was
+  really the opening angle.
+
 **On seeding**
 
 - The seed counts fell by about a fifth after the endcap refit and the
@@ -398,20 +485,23 @@ the detail is in the git history of this file if it is ever wanted again.
 - **Fit the spectrum over reference particles below 100 MeV**, which both
   loaders can produce (`min_pt_mev`) and which is currently thrown away. No
   third parameter needed, and it is the largest remaining defect.
-- **Taper the rapidity plateau**, which is the forward half of the same
-  overshoot.
 - **A secondary momentum spread that grows with the parent**, as its median
   already does. One number cannot span the reference's 0.56 to 2.08, and that is
   the whole of the ITk's mean secondary momentum of 0.93.
-- **A backward branch for the secondary momentum**: 11 % of the dump's daughters
-  are emitted with negative longitudinal momentum and a log-normal cannot be.
-- **Material on the beam pipe and along a barrel cylinder.** The ITk reference
-  makes 8.8 % of its secondary hit weight in the beam pipe wall against the
-  model's 0.4 %, and the ODD wants a barrel cylinder weighted differently at
-  \|z\| < 250 than beyond it. `barrelModules` already splits a cylinder into eta
-  modules, so a layer weight would reach the second.
-- **Re-measure `ablate.py`**, whose table predates the presets, the figures it
-  scores and the terms it can remove.
+- **Separate the ITk's services from its layers**, which needs
+  `includeMaterialSurfaces` to stop throwing on that geometry and the layer
+  weights to lose what moves out to a shell. This is the largest remaining
+  layout defect and the likeliest cure for the \|d0\| tail.
+- **The ODD's beam pipe weight is a sensor where beryllium is a fifth of one.**
+  Harmless while the path length was clamped; now that a cylinder keeps its
+  grazing path the wall makes 33 % of the model's secondaries against the
+  reference's 21 %. The physical weight alone undershoots, so what the extra
+  stands for has to be found before it is changed.
+- **Re-measure the rest of `ablate.py`**, whose table predates the presets and
+  the figures it scores. The yield profile and the rapidity edge were re-measured
+  above; its baseline arguments were also stale, saying one and two turns where
+  the presets carry three. Note it refits without pinning the endcap profile, so
+  its own baseline row sits worse than the shipped preset.
 - **Split the ITk 250/250.** Its two fifty-event halves differ by a flat 5.2 %
   across every component, so its validation ratios read about that pessimistic.
   The dump has five hundred events; the ODD shard has a hundred and cannot.

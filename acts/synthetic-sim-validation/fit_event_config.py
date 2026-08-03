@@ -20,7 +20,7 @@ secondary count therefore cannot be matched and should not be; what a seeder see
 is the space point density, and that is what is fitted here.
 
 Prints the fitted configuration as the C++ of a preset, ready to paste into
-`Fatras/src/Synthetic/EventGenerator.cpp`.
+`Fatras/src/Synthetic/EventConfig.cpp`.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ class Target:
     #: written by an older version is not silently reused. The reduction is what
     #: the whole fit sees of the reference, and a stale one is a fit against the
     #: wrong thing rather than a crash.
-    VERSION = 7
+    VERSION = 8
 
     #: How far inside the layout's beam pipe a production point has to be to
     #: count as a decay. The layout carries the beam pipe as one radius while
@@ -241,6 +241,22 @@ class Target:
         self.secondary_eta = self._shape(np.abs(full.eta[secondary]),
                                          self.eta_bands)
 
+        # Where the primaries went, which is the plateau the generator draws
+        # them on seen through the `p/E` Jacobian and the acceptance. Finer
+        # bands than the secondaries': this is a shape with structure in it -
+        # flat centrally and falling away past |eta| = 2.5 - rather than a
+        # broad weighting, and eight bands cannot resolve where the fall
+        # starts. The reference has ten thousand primaries an event, so even at
+        # twenty bands the noise is well under a percent.
+        #
+        # Taken inside the acceptance on both sides, like the primary counts:
+        # beyond it the reference has nothing and the generator is not asked
+        # for anything.
+        self.primary_eta_bands = np.linspace(0.0, ACCEPTANCE_MAX_ABS_ETA, 21)
+        accepted = primary & (full.pt > ACCEPTANCE_MIN_PT)
+        self.primary_eta = self._shape(np.abs(full.eta[accepted]),
+                                       self.primary_eta_bands)
+
     @staticmethod
     def _shape(values, bands) -> np.ndarray:
         counts = np.histogram(values, bins=bands)[0].astype(float)
@@ -322,6 +338,8 @@ def reduce_event(event, target: Target) -> dict:
         "secondary_prod_z": Target._shape(prod_z[visible], target.z_bands),
         "secondary_eta": Target._shape(eta[visible], target.eta_bands),
         "secondary_hits": float(hits[visible].mean()) if visible.any() else 0.0,
+        "primary_eta": Target._shape(np.abs(all_eta[accepted & (all_hits > 0)]),
+                                     target.primary_eta_bands),
     }
 
 
@@ -410,6 +428,18 @@ def _eta_mismatch(fast, target: Target) -> float:
     return _shape_mismatch(target.secondary_eta, fast["secondary_eta"])
 
 
+def _primary_eta_mismatch(fast, target: Target) -> float:
+    """Squared log-ratio of the primary |eta| profiles.
+
+    What the rapidity plateau is fitted against. Note it is not the plateau
+    seen directly: a primary reaches this histogram through the `p/E` Jacobian,
+    through the acceptance and through having to leave a space point at all, so
+    the edge cannot be read off the reference's own `dN/dy` and pinned - the
+    forward end of that measurement is itself cut by the reference's |eta| < 4.
+    """
+    return _shape_mismatch(target.primary_eta, fast["primary_eta"])
+
+
 def _shape_mismatch(reference, model) -> float:
     """Squared log-ratio of two normalised profiles, band by band."""
     a = np.asarray(reference, dtype=float)
@@ -472,30 +502,45 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
     @param cache_dir where the reduced reference is kept between runs
     @return (description, target, provenance)
     """
+    import sample
+    import sample
     import validate  # for the per-detector bands
 
     if detector == "itk":
         description = syn.itkPixelDescription()
         bands = validate.ITK_BANDS
-        provenance = "Fitted against five events of a GNN4ITk ttbar pu200 dump."
         events = events or 5
+        provenance = ("Fitted against %d events of a GNN4ITk ttbar pu200 dump."
+                      % events)
 
-        def build():
+        def load():
             import fullsim_itk
-            return _reduce(fullsim_itk.load(fullsim, num_events=events,
-                                            skip_events=skip_events), bands,
-                           description.beamPipeRadius)
+            return fullsim_itk.load(fullsim, num_events=events,
+                                    skip_events=skip_events)
     else:
         description = syn.openDataDetectorPixelDescription()
         bands = validate.ODD_BANDS
-        provenance = "Fitted against twenty events of ColliderML ttbar_pu200."
         events = events or 20
+        provenance = ("Fitted against %d events of ColliderML ttbar_pu200."
+                      % events)
 
-        def build():
+        def load():
             import fullsim_colliderml
-            return _reduce(fullsim_colliderml.load(num_events=events,
-                                                  skip_events=skip_events),
-                           bands, description.beamPipeRadius)
+            return fullsim_colliderml.load(num_events=events,
+                                           skip_events=skip_events)
+
+    # Two caches, one behind the other. The outer one is the reduction the fit
+    # reads and is invalidated by `Target.VERSION`; the inner one is the loaded
+    # dump, so a new reduction can be built without touching the gigabytes it
+    # came from. `validate.py` writes the same file for the events it scores on,
+    # so the two share whichever half they have in common.
+    def build():
+        raw = (Path(cache_dir) / ("sample-%s-%d+%d-v%d.npz"
+                                  % (detector, events, skip_events,
+                                     sample.CACHE_VERSION))
+               if cache_dir else None)
+        return _reduce(sample.cached(raw, load), bands,
+                       description.beamPipeRadius)
 
     cache = Path(cache_dir) / ("target-%s-%d%s-v%d.pkl"
                                % (detector, events,
@@ -622,6 +667,74 @@ def solve_secondary_momentum_scale(layout, config, target: Target) -> float:
             break
         scale *= target.secondary_mean_pt / have
     return scale
+
+
+#: Where the rapidity plateau's edge is looked for, as (edge, width) grids in
+#: units of rapidity. Coarse first and then a local refinement, the objective
+#: being smooth in both. Bounded below by 2.6, inside which the reference's own
+#: dN/dy is flat to a third of a percent; the upper end reaches well past
+#: `maxRapidity` because the two trade - a distant edge with a wide fall is the
+#: same shape inside the range as a nearer one with a sharp fall - and the
+#: minimum has to be allowed to sit inside the grid rather than against it.
+RAPIDITY_EDGES = np.arange(2.6, 5.61, 0.2)
+RAPIDITY_WIDTHS = np.arange(0.1, 1.51, 0.1)
+
+
+def solve_rapidity_edge(layout, config, target: Target, seeds: int = 3,
+                        around=None):
+    """Find the taper on the rapidity plateau that reproduces the primary |eta|.
+
+    `dN/dy` is flat only centrally and the fragmentation region falls away, so a
+    plateau held flat to `maxRapidity` puts several percent too many primaries
+    beyond |eta| = 2.5 - where each of them leaves twice the clusters a central
+    one does, which is why it is worth more than the count suggests.
+
+    A grid rather than a solve: the two parameters trade against each other
+    along a valley - a nearer edge with a wider fall looks much like a farther
+    one with a sharper - so a step in either alone is not informative. It is
+    cheap enough at this resolution, the objective needing one event per point.
+
+    Averaged over several seeds. A single event moves the twenty bands of the
+    profile by enough to pick the wrong point of a flat valley, and the whole
+    difference between the best and the worst point of the neighbourhood is a
+    couple of percent of the shape.
+
+    @param layout the detector to generate on
+    @param config the configuration to start from
+    @param target what to match
+    @param seeds how many events to average the objective over
+    @param around a previous result to refine about, or None for the whole grid
+    @return (edge, width, mismatch)
+    """
+    if around is None:
+        edges, widths = RAPIDITY_EDGES, RAPIDITY_WIDTHS
+    else:
+        edge, width = around[0], around[1]
+        edges = edge + np.array([-0.1, 0.0, 0.1])
+        widths = np.maximum(width + np.array([-0.05, 0.0, 0.05]), 0.05)
+
+    # A primary's own hits do not depend on the secondaries it makes, and the
+    # profile counts nothing else, so the whole non-primary component is
+    # switched off for the scan. It is nine tenths of the cost of an event and
+    # none of this measurement.
+    base = _with(config, {"secondaryRate": 0.0, "stubRate": 0.0,
+                          "decayYield": 0.0})
+
+    best = None
+    for edge in edges:
+        for width in widths:
+            score = 0.0
+            for seed in range(seeds):
+                trial = _with(base, {"rapidityEdge": float(edge),
+                                     "rapidityEdgeWidth": float(width),
+                                     "seed": config.seed + seed})
+                score += _primary_eta_mismatch(
+                    reduce_event(syn.generateEvent(layout, trial), target),
+                    target)
+            score /= seeds
+            if best is None or score < best[2]:
+                best = (float(edge), float(width), score)
+    return best
 
 
 def solve_charged_per_unit_rapidity(layout, config, target: Target) -> float:
@@ -801,15 +914,16 @@ def _with(config, values: dict):
     """
     out = syn.EventConfig()
     for name in ("pileup", "chargedPerUnitRapidity", "minPt", "ptScale",
-                 "ptExponent", "minRapidity", "maxRapidity", "beamspotSigmaZ",
-                 "d0Sigma",
+                 "ptExponent", "minRapidity", "maxRapidity", "rapidityEdge",
+                 "rapidityEdgeWidth", "beamspotSigmaZ", "d0Sigma",
                  "secondaryRate", "decayYield", "decayLength",
                  "secondaryMinPt", "secondaryMomentumScale",
                  "secondaryMomentumExponent", "secondaryMomentumSpread",
                  "secondaryKt", "secondaryRadialFraction",
                  "secondaryElectronFraction", "secondaryElectronScale",
                  "secondaryElectronExponent", "secondaryElectronSpread",
-                 "maxPathLength", "materialScale", "overlapScale",
+                 "maxDiscPathLength", "maxCylinderPathLength",
+                 "materialScale", "overlapScale",
                  "multipleScattering",
                  "energyLoss", "energyLossModel", "particlePdg",
                  "maxEnergyLossFraction", "maxTurns",
@@ -829,6 +943,7 @@ def _with(config, values: dict):
 FIGURES = (("shape", "shape", 0.0),
            ("prod_z", "prod z", 0.0),
            ("sec_eta", "sec eta", 0.0),
+           ("prim_eta", "prim eta", 0.0),
            ("d0", "|d0|", 0.0),
            ("space_points", "sp", 1.0),
            ("primary_sp", "prim sp", 1.0),
@@ -858,6 +973,7 @@ def scorecard(config, layout, target: Target) -> dict:
         "shape": _mismatch(fast, target),
         "prod_z": _production_mismatch(fast, target),
         "sec_eta": _eta_mismatch(fast, target),
+        "prim_eta": _primary_eta_mismatch(fast, target),
         "d0": _d0_mismatch(fast, target),
         "space_points": ratio(fast["space_points"], target.space_points),
         "primary_sp": ratio(fast["primary_space_points"],
@@ -871,7 +987,7 @@ def scorecard(config, layout, target: Target) -> dict:
 
 def fit_config(description, target: Target, *, pileup=200, no_decays=False,
                no_forward_material=False, endcap_material=None,
-               keep_material=False,
+               keep_material=False, no_rapidity_edge=False, rapidity_edge=None,
                path_length=1.0, turns=0.5,
                fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
                verbose=True):
@@ -891,7 +1007,13 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
            yields around it, rather than fitting it too. For a layout whose
            profile is already settled: the objective has a long flat valley, so
            re-running the grid only walks about inside it.
-    @param path_length clamp on the incidence weighting; one disables it
+    @param no_rapidity_edge leave the rapidity plateau flat over the whole range
+    @param rapidity_edge pin the plateau's edge to (edge, width) rather than
+           fitting it
+    @param path_length clamp on the incidence weighting of a *disc*; one
+           disables it. The cylinder bound is `maxCylinderPathLength` and
+           is left where the preset carries it: it is what makes a beam
+           pipe produce evenly along z, not something to fit.
     @param turns turning angle to propagate through
     @param fit_momentum solve the secondary momentum scale for the mean
     @param fit_kick fit the transverse kick to |d0| and |eta|
@@ -932,7 +1054,7 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         syn.applyEndcapYieldProfile(description, 1e9, 1.0)
     elif endcap_material is not None:
         syn.applyEndcapYieldProfile(description, *endcap_material)
-    config.maxPathLength = path_length
+    config.maxDiscPathLength = path_length
     config.maxTurns = turns
     config = _with(config, overrides)
     # built after the description is final, the endcap material being part of it
@@ -955,7 +1077,20 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # the endcap material profile lives on the layout, not on the configuration,
     # so it is carried out of the loop by hand to be reported with it
     material = None
+    # The plateau's edge is fitted first in the round: it moves primaries from
+    # the forward region into the central one, and every count below is taken
+    # inside an acceptance those primaries cross.
+    edge = rapidity_edge
     for round_ in range(rounds):
+        if no_rapidity_edge:
+            config = _with(config, {"rapidityEdgeWidth": 0.0})
+        else:
+            if rapidity_edge is None:
+                # the whole grid once, its neighbourhood thereafter
+                edge = solve_rapidity_edge(layout, config, target,
+                                           around=edge)[:2]
+            config = _with(config, {"rapidityEdge": edge[0],
+                                    "rapidityEdgeWidth": edge[1]})
         config = _with(config, {
             "chargedPerUnitRapidity": solve_charged_per_unit_rapidity(
                 layout, config, target)})
@@ -1010,11 +1145,12 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         config = _with(config, overrides)
         if verbose:
             print("    round %d: chargedPerUnitRapidity=%.3f secondaryRate=%.3f "
-                  "endcapMaterial=%.2f..%.2f "
+                  "endcapMaterial=%.2f..%.2f rapidityEdge=%.2f/%.2f "
                   "decayYield=%.3f momentumScale=%.3f kt=%.3f radial=%.2f"
                   % (round_, config.chargedPerUnitRapidity, config.secondaryRate,
                      min(d.yieldWeight for d in description.discs),
                      max(d.yieldWeight for d in description.discs),
+                     config.rapidityEdge, config.rapidityEdgeWidth,
                      config.decayYield, config.secondaryMomentumScale,
                      config.secondaryKt, config.secondaryRadialFraction))
     return config, layout, material
@@ -1058,8 +1194,15 @@ def report(config, layout, target: Target, events: int = 1) -> None:
                                  _production_mismatch(fast, target)))
     print("%-28s %12s %12.4f" % ("secondary |eta| mismatch", "",
                                  _eta_mismatch(fast, target)))
+    print("%-28s %12s %12.4f" % ("primary |eta| mismatch", "",
+                                 _primary_eta_mismatch(fast, target)))
     print("%-28s %12s %12.4f" % ("secondary |d0| mismatch", "",
                                  _d0_mismatch(fast, target)))
+    a = np.asarray(target.primary_eta, float)
+    b = np.asarray(fast["primary_eta"], float)
+    print("  primary |eta|: %s" % "  ".join(
+        "%.1f %.2f" % (target.primary_eta_bands[i], b[i] / a[i])
+        for i in range(len(a)) if a[i] > 0 and b[i] > 0))
     a = np.asarray(target.secondary_prod_z, float)
     b = np.asarray(fast["secondary_prod_z"], float)
     print("  secondary production |z|: %s" % "  ".join(
@@ -1092,6 +1235,8 @@ def as_cpp(config, name: str, provenance: str) -> str:
     for field, fmt in (("chargedPerUnitRapidity", "%.2ff"),
                        ("ptScale", "%.3ff"),
                        ("ptExponent", "%.2ff"),
+                       ("rapidityEdge", "%.2ff"),
+                       ("rapidityEdgeWidth", "%.2ff"),
                        # "%.0ff" would print 50 as "50f", which is not a literal
                        ("beamspotSigmaZ", "%.0f.f"),
                        ("d0Sigma", "%.4ff"),
@@ -1106,7 +1251,8 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("secondaryMomentumSpread", "%.3ff"),
                        ("secondaryKt", "%.3ff"),
                        ("secondaryRadialFraction", "%.3ff"),
-                       ("maxPathLength", "%.2ff"),
+                       ("maxDiscPathLength", "%.2ff"),
+                       ("maxCylinderPathLength", "%.2ff"),
                        ("materialScale", "%.3ff"),
                        ("overlapScale", "%.3ff"),
                        ("stubRate", "%.3ff"),
@@ -1155,11 +1301,19 @@ def main() -> None:
     parser.add_argument("--endcap-material", default=None, metavar="SCALE,POWER",
                         help="pin the endcap material profile and fit the "
                              "yields around it, instead of fitting it")
+    parser.add_argument("--no-rapidity-edge", action="store_true",
+                        help="leave the rapidity plateau flat over the whole "
+                             "generated range, as it was before the edge was "
+                             "measured")
+    parser.add_argument("--rapidity-edge", default=None, metavar="EDGE,WIDTH",
+                        help="pin the plateau's edge and fit the rest around "
+                             "it, instead of scanning for it")
     parser.add_argument("--path-length", type=float, default=1.0,
                         metavar="MAX",
-                        help="weight the yield of a crossing by its path "
-                             "length through the surface, clamped at MAX; "
-                             "one leaves every crossing weighted alike")
+                        help="weight the yield of a crossing of a disc by "
+                             "its path length through it, clamped at MAX; one "
+                             "leaves every crossing weighted alike. Cylinders "
+                             "have a bound of their own in the preset")
     parser.add_argument("--turns", type=float, default=0.5,
                         help="turning angle to propagate through, in turns; "
                              "half stops a track at its outermost point")
@@ -1193,10 +1347,16 @@ def main() -> None:
         scale, _, power = args.endcap_material.partition(",")
         endcap_material = (float(scale), float(power))
 
+    rapidity_edge = None
+    if args.rapidity_edge is not None:
+        edge, _, width = args.rapidity_edge.partition(",")
+        rapidity_edge = (float(edge), float(width))
+
     config, layout, material = fit_config(
         description, target, pileup=args.pileup, no_decays=args.no_decays,
         no_forward_material=args.no_forward_material,
         endcap_material=endcap_material, keep_material=args.keep_material,
+        no_rapidity_edge=args.no_rapidity_edge, rapidity_edge=rapidity_edge,
         path_length=args.path_length, turns=args.turns,
         fit_momentum=args.fit_momentum, fit_kick=args.fit_kick,
         overrides=overrides)

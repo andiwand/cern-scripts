@@ -58,12 +58,15 @@ class Term:
 #: Every term that was added on top of the plain "helix from the beam line
 #: crossing surfaces" model, in the order they went in.
 TERMS = (
-    Term("material", "endcap material profile on the yield",
+    Term("yield-profile", "the endcap yield profile",
          fit_off={"no_forward_material": True}, flat_material=True),
     Term("path-length", "yield weighted by the incidence angle",
-         off={"maxPathLength": 1.0}, fit_off={"path_length": 1.0}),
+         off={"maxDiscPathLength": 1.0, "maxCylinderPathLength": 1.0}, fit_off={"path_length": 1.0}),
     Term("turns", "the return branch of a curling track",
          off={"maxTurns": 0.5}, fit_off={"turns": 0.5}),
+    Term("rapidity-edge", "the fall-off at the end of the rapidity plateau",
+         off={"rapidityEdgeWidth": 0.0},
+         fit_off={"no_rapidity_edge": True}),
     Term("decays", "neutral V0 decays away from a surface",
          off={"decayYield": 0.0}, fit_off={"no_decays": True}),
     Term("min-pt", "the floor under the secondary momentum",
@@ -86,8 +89,8 @@ TERMS = (
 #: The fit arguments the shipped preset of each detector was produced with.
 #: `ablate.py` has to start from these or it would be scoring the preset
 #: against a differently-fitted baseline rather than against itself.
-BASELINE = {"itk": {"path_length": 4.0, "turns": 1.0},
-            "odd": {"path_length": 4.0, "turns": 2.0}}
+BASELINE = {"itk": {"path_length": 4.0, "turns": 3.0},
+            "odd": {"path_length": 4.0, "turns": 3.0}}
 
 PRESET = {"itk": (syn.makeItkPixelLayout, syn.EventConfig.itkPixelTtbarPu200),
           "odd": (syn.makeOpenDataDetectorPixelLayout,
@@ -95,14 +98,14 @@ PRESET = {"itk": (syn.makeItkPixelLayout, syn.EventConfig.itkPixelTtbarPu200),
 
 
 def flat_layout(description):
-    """The same detector with no material description at all.
+    """The same detector with every disc yielding alike.
 
-    Both shipped descriptions leave `barrelMaterialWeights` empty, so every
-    barrel surface already stands for one sensor and the endcap profile is the
-    whole of the model's material. Flattening it therefore removes the material
-    term outright rather than only its forward part.
+    The material a layout carries is read off the geometry and is not this: the
+    profile is the *surplus* a coarse forward disc has to make up for the rings
+    it does not resolve. Flattening it leaves the material alone and removes
+    that surplus.
     """
-    syn.applyEndcapMaterialProfile(description, 1e9, 1.0)
+    syn.applyEndcapYieldProfile(description, 1e9, 1.0)
     return syn.makeLayout(description)
 
 

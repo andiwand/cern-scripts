@@ -123,7 +123,12 @@ def secondary_threshold(full) -> float:
 
 
 def _particles(sample, primary: bool, threshold: float) -> np.ndarray:
-    """The particle mask one of the two components is compared on."""
+    """The particle mask one of the two components is compared on.
+
+    Hitless particles are already gone, every loader dropping them: a reference
+    can only list what left a cluster. The model draws plenty, so its raw CSVs
+    are not this population.
+    """
     if primary:
         return sample.primary
     return (~sample.primary) & (sample.pt >= threshold)
@@ -351,34 +356,68 @@ def plot_particles(full, fast, outdir: Path, extent: Extent, fmt: str,
     _save(fig, outdir, name, fmt)
 
 
+def _mean_per_bin(eta, hits, bins):
+    """The mean of `hits` in each eta bin, and the error on that mean.
+
+    @return (mean, error), NaN where a bin holds no particle
+    """
+    total, _ = np.histogram(eta, bins=bins, weights=hits)
+    total2, _ = np.histogram(eta, bins=bins, weights=hits.astype(float) ** 2)
+    count, _ = np.histogram(eta, bins=bins)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mean = np.where(count > 0, total / count, np.nan)
+        # the error on a mean, from the spread of the particles in the bin
+        variance = np.where(count > 0, total2 / count - mean ** 2, np.nan)
+        error = np.sqrt(np.maximum(variance, 0.0) / np.maximum(count, 1))
+    return mean, error
+
+
 def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str,
                      threshold: float) -> None:
     """Mean number of pixel hits per particle against eta."""
     bins = np.linspace(-4, 4, 41)
     centres = 0.5 * (bins[:-1] + bins[1:])
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
-    for ax, primary in ((axes[0], True), (axes[1], False)):
+    fig, axes = _figure(1, 2, "Hits per particle")
+    for col, primary in ((0, True), (1, False)):
+        ax, ax_ratio = _pair(axes, 0, col)
+        means = {}
         for sample, style in ((full, FULL_STYLE), (fast, FAST_STYLE)):
             mask = _particles(sample, primary, threshold)
-            eta = sample.eta[mask]
-            hits = sample.num_hits[mask]
-            total, _ = np.histogram(eta, bins=bins, weights=hits)
-            total2, _ = np.histogram(eta, bins=bins, weights=hits.astype(float) ** 2)
-            count, _ = np.histogram(eta, bins=bins)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                mean = np.where(count > 0, total / count, np.nan)
-                # the error on a mean, from the spread of the particles in the bin
-                variance = np.where(count > 0, total2 / count - mean ** 2, np.nan)
-                error = np.sqrt(np.maximum(variance, 0.0) / np.maximum(count, 1))
+            mean, error = _mean_per_bin(sample.eta[mask],
+                                        sample.num_hits[mask], bins)
+            means[style["label"]] = (mean, error)
             ax.step(centres, mean, where="mid", **style)
             _errorbars(ax, centres, mean, error, style["color"])
         ax.set_title("primaries" if primary else "secondaries")
-        ax.set_xlabel("eta")
         ax.grid(alpha=0.25)
         ax.legend(fontsize=8)
-    axes[0].set_ylabel("mean pixel hits per particle")
-    fig.suptitle("Hits per particle")
+
+        (mf, ef), (mg, eg) = means[FULL_STYLE["label"]], means[FAST_STYLE["label"]]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(mf > 0, mg / mf, np.nan)
+            # the two samples are independent, so the relative errors add in
+            # quadrature
+            ratio_error = np.abs(ratio) * np.sqrt((ef / mf) ** 2 + (eg / mg) ** 2)
+        ax_ratio.axhline(1.0, color="black", lw=0.8)
+        ax_ratio.step(centres, ratio, where="mid", color=FAST_STYLE["color"])
+        _errorbars(ax_ratio, centres, ratio, ratio_error, FAST_STYLE["color"])
+        # tighter than the density panels': this is a mean rather than a count,
+        # so it is never zero where either sample has particles at all and a
+        # tenth either way is the scale the barrel deficit lives on
+        ax_ratio.set_ylim(0.5, 1.5)
+        ax_ratio.set_ylabel("fast / full", fontsize=7)
+        ax_ratio.set_xlabel("eta")
+        ax_ratio.grid(alpha=0.25)
+
+    # primaries and secondaries on one scale, so the two panels can be read
+    # against each other rather than only against the reference
+    top = [_pair(axes, 0, col)[0] for col in (0, 1)]
+    low = min(ax.get_ylim()[0] for ax in top)
+    high = max(ax.get_ylim()[1] for ax in top)
+    for ax in top:
+        ax.set_ylim(low, high)
+    top[0].set_ylabel("mean pixel hits per particle")
     _save(fig, outdir, "hits_vs_eta", fmt)
 
 
