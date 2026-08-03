@@ -39,12 +39,23 @@ reference and prints it as the C++ of a preset, which is where
 came from. The two shipped presets are
 
 ```sh
-./fit_event_config.py itk --fullsim <dump>.root --events 5 \
-    --path-length 4 --turns 1 --endcap-material 250,1.20 \
-    --fit-kick --set secondaryKt=0.21
-./fit_event_config.py odd --events 20 --path-length 4 --turns 2 \
-    --endcap-material 784,2.99 --fit-kick --set secondaryKt=0.21
+./fit_event_config.py itk --fullsim '<dump>*.root' --events 50 \
+    --path-length 4 --turns 1 --fit-kick --set secondaryKt=0.25 \
+    --set stubRate=1.267 --set stubClusters=2.1 --set stubReach=4.0
+./fit_event_config.py odd --events 50 --path-length 4 --turns 2 \
+    --fit-kick --set secondaryKt=0.25 \
+    --set stubRate=1.800 --set stubClusters=2.1 --set stubReach=4.0
 ```
+
+Fifty events either side, the same number the validation gets, and the two halves
+disjoint: `--events 50` takes the front of each ITk file and the front of the ODD
+shard, `--events 50 --skip-events 50` in `validate.py` takes what follows. Fewer
+is a false economy - the reference reduction is cached, so a bigger one is paid
+once, while a primary multiplicity that swings ten percent event to event puts
+4.6 % on `chargedPerUnitEta` fitted to five events against 1.4 % fitted to fifty.
+The stub channel and the kick have to be passed in because they are measured
+elsewhere and this fit does not touch them; left out they would silently go to
+zero and to the fit's own answer.
 
 The kick is pinned because it is measured, and because `--fit-kick` scored on
 |d0| and |eta| alone runs it to the top of whatever grid it is given: a wider
@@ -901,24 +912,41 @@ slope, not a second parameter.
 `EventConfig::overlapScale` turns it up or down. It costs 4 % of the generator's
 CPU (ITk 67.5 to 70.4 ms per event, ODD 22.7 to 24.8).
 
-What it bought, against fifty held-out reference events:
+What it bought, fitted on fifty events and scored on fifty it never saw:
 
 | | before | after |
 | --- | --- | --- |
 | ITk mean hits per primary | 0.89 | **1.01** |
-| ITk primary space points | 0.79 | 0.85 |
-| ITk secondaries above 300 MeV | 1.66 | **1.29** |
+| ITk non-primary space points | 1.09 | **1.00** |
+| ITk primary space points | 0.79 | 0.88 |
 | ODD mean hits per primary | 0.86 | **1.05** |
-| ODD primary space points | 0.79 | **1.00** |
-| ODD secondaries above 100 MeV | 2.04 | **1.41** |
+| ODD non-primary space points | 1.27 | **1.04** |
+| ODD primary space points | 0.79 | **0.96** |
+| ODD space points per event | 1.00 | **1.00** |
 
-`secondaryRate` fell by a fifth on the ITk and a third on the ODD, which is what
-had been standing in for the missing primary clusters all along. The ITk's
-remaining primary gap is no longer hits per particle but the *number* of
-primaries, 0.92: `chargedPerUnitEta` is solved against a fit sample taken from
-file 0 of the dump and the held-out events come from files 1 and 2, which carry
-8 % more. Interleaving the split across the ten files is the fix, and until then
-the ITk's absolute counts are worth 8 % less than they look.
+The non-primary column is the one to read. It had been carrying the primary
+clusters the layout could not make, which is why it ran a tenth to a quarter high
+while the primaries ran a fifth low; both are now within a few percent of one.
+
+## How many events the split needs
+
+The primary multiplicity of a ttbar pu200 event swings **9 to 11 % event to
+event**, so N events fix `chargedPerUnitEta` to about 10/sqrt(N) percent. Five
+events, which the ITk preset used to be fitted on, is 4.6 %; fifty is 1.4 %. That
+was worth more than anything else measured here.
+
+Both halves are also spread over the ten dump files rather than taken from the
+front, `fullsim_itk.load` giving each file its share of `--events` and
+`--skip-events`. The files are separate Athena jobs and their means differ, but
+by 3.2 % where the per-event spread alone predicts 3.1 %, so this is insurance
+rather than a correction. There is no ordering structure within a file either -
+blocks of fifty consecutive events run 9105, 9576, 9176, 9046, 9277 primaries
+against errors of +-130.
+
+So what is left of the ITk's primary count, 0.95, is those two particular blocks
+disagreeing by 2.6 sigma. It is sampling, not the model. The ODD cannot do better
+than fifty and fifty, its shard holding a hundred events, and does not need to;
+the ITk has five hundred, so a 250/250 split would take each half to +-0.6 %.
 
 Still to do:
 - **A secondary momentum spread that grows with the parent**, as its median

@@ -106,7 +106,7 @@ class Target:
     #: written by an older version is not silently reused. The reduction is what
     #: the whole fit sees of the reference, and a stale one is a fit against the
     #: wrong thing rather than a crash.
-    VERSION = 5
+    VERSION = 6
 
     #: How far inside the layout's beam pipe a production point has to be to
     #: count as a decay. The layout carries the beam pipe as one radius while

@@ -57,10 +57,15 @@ def load(path: str, num_events: int | None = None, min_pt_mev: float = 100.0,
     list corresponds to. Without the hit requirement the full-simulation sample
     is dominated by particles that never reach the detector at all.
 
+    Both counts are spread evenly over the files rather than paid out of the
+    front, so that a fit and the validation of it see the same mix of them. The
+    files are separate Athena jobs and their primary multiplicities differ by a
+    few percent, which a sample taken from one file alone carries whole.
+
     @param path the dump file, or a shell glob over several of them
-    @param num_events how many events to read, all of them if None
-    @param skip_events how many to pass over first, so that a fit and the
-           validation of it can be given different events
+    @param num_events how many events to read in total, all of them if None
+    @param skip_events how many to pass over in each file first, so that a fit
+           and the validation of it can be given different events
     @param min_pt_mev the momentum threshold in MeV
     @param max_abs_eta the pseudorapidity acceptance
     @return the distributions
@@ -69,19 +74,18 @@ def load(path: str, num_events: int | None = None, min_pt_mev: float = 100.0,
     if not paths:
         raise FileNotFoundError(path)
 
+    def share(total: int, index: int) -> int:
+        """`total` split across the files, the remainder going to the first."""
+        base, extra = divmod(total, len(paths))
+        return base + (1 if index < extra else 0)
+
     out = sample.Sample()
-    remaining = num_events
-    skip = skip_events
-    for one in paths:
-        if remaining is not None and remaining <= 0:
-            break
+    for index, one in enumerate(paths):
         tree = uproot.open(one)[TREE]
-        # entry_start pays the skip out of this file before the next one
         available = tree.num_entries
-        start = min(skip, available)
-        skip -= start
-        stop = available if remaining is None else min(available,
-                                                       start + remaining)
+        start = min(share(skip_events, index), available)
+        stop = (available if num_events is None
+                else min(available, start + share(num_events, index)))
         if start >= stop:
             continue
         for batch in tree.iterate(BRANCHES, entry_start=start,
@@ -89,8 +93,6 @@ def load(path: str, num_events: int | None = None, min_pt_mev: float = 100.0,
             for i in range(len(batch["Part_pt"])):
                 _load_event(out, {k: v[i] for k, v in batch.items()},
                             min_pt_mev, max_abs_eta)
-        if remaining is not None:
-            remaining -= stop - start
 
     return out.finish()
 
