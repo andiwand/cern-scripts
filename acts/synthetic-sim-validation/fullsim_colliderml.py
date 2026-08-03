@@ -83,7 +83,7 @@ def _hits_per_particle(hit_particle_id, particle_id):
 
 def load(channel: str = "ttbar", pileup: str = "pu200", num_events: int = 20,
          local: str | None = None, min_pt_gev: float = 0.1,
-         max_abs_eta: float = 4.0) -> sample.Sample:
+         max_abs_eta: float = 4.0, skip_events: int = 0) -> sample.Sample:
     """Read a ColliderML shard and return the distributions to compare against.
 
     The selection mirrors the ITk one: charged particles inside the generator's
@@ -95,6 +95,8 @@ def load(channel: str = "ttbar", pileup: str = "pu200", num_events: int = 20,
     @param channel the physics channel
     @param pileup the pile-up variant, "pu0" or "pu200"
     @param num_events how many events to read, at most a shard's hundred
+    @param skip_events how many to pass over first, so that a fit and the
+           validation of it can be given different events
     @param local a directory of already-downloaded shards, or None to fetch them
     @param min_pt_gev the momentum threshold in GeV
     @param max_abs_eta the pseudorapidity acceptance
@@ -107,9 +109,13 @@ def load(channel: str = "ttbar", pileup: str = "pu200", num_events: int = 20,
     # one event per batch, so a shard is never held in memory in full
     batches = zip(particles.iter_batches(batch_size=1, columns=PARTICLE_COLUMNS),
                   hits.iter_batches(batch_size=1, columns=HIT_COLUMNS))
+    seen = 0
     for particle_batch, hit_batch in batches:
         if out.num_events >= num_events:
             break
+        seen += 1
+        if seen <= skip_events:
+            continue
         _load_event(out,
                     particle_batch.to_pylist()[0], hit_batch.to_pylist()[0],
                     min_pt_gev, max_abs_eta)

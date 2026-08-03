@@ -8,6 +8,9 @@ Only what the comparison against the synthetic generator needs is read.
 from __future__ import annotations
 
 import numpy as np
+import glob
+import os
+
 import uproot
 
 import sample
@@ -46,7 +49,7 @@ BRANCHES = [
 
 
 def load(path: str, num_events: int | None = None, min_pt_mev: float = 100.0,
-         max_abs_eta: float = 4.0) -> sample.Sample:
+         max_abs_eta: float = 4.0, skip_events: int = 0) -> sample.Sample:
     """Read a dump and return the distributions to compare against.
 
     Particles are restricted to charged, final-state ones that leave at least one
@@ -54,21 +57,40 @@ def load(path: str, num_events: int | None = None, min_pt_mev: float = 100.0,
     list corresponds to. Without the hit requirement the full-simulation sample
     is dominated by particles that never reach the detector at all.
 
-    @param path the dump file
+    @param path the dump file, or a shell glob over several of them
     @param num_events how many events to read, all of them if None
+    @param skip_events how many to pass over first, so that a fit and the
+           validation of it can be given different events
     @param min_pt_mev the momentum threshold in MeV
     @param max_abs_eta the pseudorapidity acceptance
     @return the distributions
     """
-    out = sample.Sample()
-    tree = uproot.open(path)[TREE]
-    stop = None if num_events is None else num_events
+    paths = sorted(glob.glob(os.path.expanduser(path)))
+    if not paths:
+        raise FileNotFoundError(path)
 
-    for batch in tree.iterate(BRANCHES, entry_stop=stop, step_size=1,
-                              library="np"):
-        for i in range(len(batch["Part_pt"])):
-            _load_event(out, {k: v[i] for k, v in batch.items()},
-                        min_pt_mev, max_abs_eta)
+    out = sample.Sample()
+    remaining = num_events
+    skip = skip_events
+    for one in paths:
+        if remaining is not None and remaining <= 0:
+            break
+        tree = uproot.open(one)[TREE]
+        # entry_start pays the skip out of this file before the next one
+        available = tree.num_entries
+        start = min(skip, available)
+        skip -= start
+        stop = available if remaining is None else min(available,
+                                                       start + remaining)
+        if start >= stop:
+            continue
+        for batch in tree.iterate(BRANCHES, entry_start=start,
+                                  entry_stop=stop, step_size=1, library="np"):
+            for i in range(len(batch["Part_pt"])):
+                _load_event(out, {k: v[i] for k, v in batch.items()},
+                            min_pt_mev, max_abs_eta)
+        if remaining is not None:
+            remaining -= stop - start
 
     return out.finish()
 
