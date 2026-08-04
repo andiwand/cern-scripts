@@ -136,6 +136,10 @@ def slab_literal(slab) -> str:
 def material_literal(material, indent: str = "       ") -> str:
     """The C++ that reconstructs a surface's material.
 
+    Every band is quoted at the thickness of the shared slab, so what a band
+    states is its own two lengths and nothing else. Zero is a band holding
+    nothing.
+
     @param material the `SurfaceMaterial`
     @param indent what to put in front of the continuation lines
     @return the literal
@@ -144,19 +148,62 @@ def material_literal(material, indent: str = "       ") -> str:
         return "{}"
     out = "{%s" % slab_literal(material.slab)
     if material.bounds:
-        out += (",\n%s{%s},\n%s{%s}"
+        lengths = [(b.material.X0, b.material.L0) if b.thicknessInX0 > 0
+                   else (0.0, 0.0) for b in material.bands]
+        out += (",\n%s{%s},\n%s{%s},\n%s{%s}"
                 % (indent, ", ".join("%.1ff" % b for b in material.bounds),
-                   indent, ", ".join("%.3ff" % s for s in material.scales)))
+                   indent, ", ".join("%.2ff" % x0 for x0, _ in lengths),
+                   indent, ", ".join("%.2ff" % l0 for _, l0 in lengths)))
     return out + "}"
 
 
+#: `L0/X0` of the lightest and heaviest thing a tracker is built out of:
+#: beryllium at 1.19, carbon 2.0, silicon 5.0, copper 10.7, tungsten 28.4. A
+#: mapped slab is an accumulated mixture rather than one substance, but a
+#: mixture still lands between its components, so a band outside this is a bug
+#: in the reduction and not a material.
+PHYSICAL_L0_OVER_X0 = (1.1, 32.0)
+
+
+def report_composition(materials: list) -> None:
+    """Hold every band against what matter can actually be.
+
+    This is what carrying the two lengths per band buys that a thickness could
+    not: a thickness scale keeps `L0/X0` at whatever the surface average was, so
+    it never reads as impossible however wrong it is.
+
+    @param materials the emitted `SurfaceMaterial`s, with a label each
+    """
+    ratios, bad = [], []
+    for label, material in materials:
+        if material is None:
+            continue
+        for bound, band in zip(material.bounds, material.bands):
+            if band.thicknessInX0 <= 0:
+                continue
+            ratio = band.material.L0 / band.material.X0
+            ratios.append(ratio)
+            if not PHYSICAL_L0_OVER_X0[0] <= ratio <= PHYSICAL_L0_OVER_X0[1]:
+                bad.append((label, bound, ratio))
+    if not ratios:
+        return
+    ratios.sort()
+    print("  // L0/X0 over %d bands: %.2f to %.2f, median %.2f"
+          % (len(ratios), ratios[0], ratios[-1], ratios[len(ratios) // 2]))
+    for label, bound, ratio in bad[:10]:
+        print("  // NOT A MATERIAL: %s below %.1f has L0/X0 = %.2f"
+              % (label, bound, ratio))
+    if len(bad) > 10:
+        print("  // ... and %d more" % (len(bad) - 10))
+
+
 def profile(edges: list, bands: list):
-    """A `SurfaceMaterial` from a band of slabs each, `None` being vacuum.
+    """A `SurfaceMaterial` from a slab per band, `None` being vacuum.
 
     @param edges the band bounds, one more than there are bands
     @param bands the slab of each band
-    @return the material, whose slab is the mean over the whole surface so that
-            a scale of one means the average
+    @return the material, whose slab is the mean over the whole surface and
+            whose bands state their own two lengths at that slab's thickness
     """
     widths = [hi - lo for lo, hi in zip(edges, edges[1:])]
     total = sum(widths)
@@ -170,10 +217,26 @@ def profile(edges: list, bands: list):
     if not weighted:
         return None
     mean = syn.MaterialSlab.combineLayers(weighted)
-    out = syn.SurfaceMaterial(mean)
-    out.bounds = [float(hi) for hi in edges[1:]]
-    out.scales = [0.0 if s is None else s.thicknessInX0 / mean.thicknessInX0
-                  for s in bands]
+    x0s, l0s = [], []
+    for slab in bands:
+        # the band keeps its x/X0 and x/L0 at the shared thickness, which is
+        # what fixes its two lengths
+        if slab is None or slab.thicknessInX0 <= 0:
+            x0s.append(0.0)
+            l0s.append(0.0)
+            continue
+        x0s.append(mean.thickness / slab.thicknessInX0)
+        l0s.append(mean.thickness / slab.thicknessInL0
+                   if slab.thicknessInL0 > 0 else 0.0)
+    return syn.SurfaceMaterial(mean, [float(e) for e in edges[1:]], x0s, l0s)
+
+
+def bands_of(material, edges: list) -> list:
+    """@return the slab of `material` in each band of `edges`, None for vacuum"""
+    out = []
+    for lo, hi in zip(edges, edges[1:]):
+        slab = material.at(0.5 * (lo + hi))
+        out.append(slab if slab.thicknessInX0 > 0 else None)
     return out
 
 
@@ -199,21 +262,27 @@ def merge(materials: list):
     for lo, hi in zip(edges, edges[1:]):
         here = []
         for m in materials:
-            scale = m.scaleAt(0.5 * (lo + hi))
-            if scale > 0:
-                slab = syn.MaterialSlab(m.slab.material, m.slab.thickness)
-                slab.scaleThickness(scale / len(materials))
-                here.append(slab)
+            slab = m.at(0.5 * (lo + hi))
+            if slab.thicknessInX0 <= 0:
+                continue
+            part = syn.MaterialSlab(slab.material, slab.thickness)
+            part.scaleThickness(1.0 / len(materials))
+            here.append(part)
         bands.append(syn.MaterialSlab.combineLayers(here) if here else None)
     return profile(edges, bands) or materials[0]
 
 
 def fill_rings(material, rings):
-    """Give a ring the surface average where nothing was measured over it.
+    """Give a ring what the rest of the surface carries where nothing was
+    measured over it.
 
     The ITk description and the ACTS geometry do not agree on which rings share
     a disc, so a handful of rings have no surface of their own to read. Leaving
-    those at vacuum is worse than the average they used to get.
+    those at vacuum is worse than the stand-in.
+
+    The stand-in is the mean over what *was* measured, not over the whole
+    surface: the latter is diluted by however much of the disc is empty, which
+    on a disc that is mostly beam hole is most of it.
 
     @param material the disc's material, or None
     @param rings the rings of the disc
@@ -222,20 +291,30 @@ def fill_rings(material, rings):
     if material is None or not material.bounds:
         return material
     missing = [r for r in rings
-               if material.scaleAt(0.5 * (r.rMin + r.rMax)) <= 0]
+               if material.at(0.5 * (r.rMin + r.rMax)).thicknessInX0 <= 0]
     if not missing:
         return material
     edges = sorted({0.0} | set(material.bounds)
                    | {r.rMin for r in missing} | {r.rMax for r in missing})
-    bands = []
-    for lo, hi in zip(edges, edges[1:]):
+    bands = bands_of(material, edges)
+
+    filled = sum(hi - lo for (lo, hi), slab
+                 in zip(zip(edges, edges[1:]), bands) if slab is not None)
+    parts = []
+    for (lo, hi), slab in zip(zip(edges, edges[1:]), bands):
+        if slab is None:
+            continue
+        part = syn.MaterialSlab(slab.material, slab.thickness)
+        part.scaleThickness((hi - lo) / filled)
+        parts.append(part)
+    if not parts:
+        return material
+    standIn = syn.MaterialSlab.combineLayers(parts)
+
+    for k, (lo, hi) in enumerate(zip(edges, edges[1:])):
         mid = 0.5 * (lo + hi)
-        scale = material.scaleAt(mid)
-        if scale <= 0 and any(r.rMin <= mid <= r.rMax for r in missing):
-            scale = 1.0
-        slab = syn.MaterialSlab(material.slab.material, material.slab.thickness)
-        slab.scaleThickness(scale)
-        bands.append(slab if scale > 0 else None)
+        if bands[k] is None and any(r.rMin <= mid <= r.rMax for r in missing):
+            bands[k] = standIn
     return profile(edges, bands) or material
 
 
@@ -297,11 +376,13 @@ def main() -> None:
     byRadius = assign(cylinders, radii, args.tolerance)
     byZ = assign(discs, [d.absZ for d in description.discs], args.tolerance)
 
+    emitted = []
     print("  // Read off the geometry by "
           "`material_from_geometry.py %s`." % args.detector)
     print("  description.barrelMaterials = {")
     for r in description.barrelRadii:
         slab = byRadius.get(r)
+        emitted.append(("barrel r = %.1f" % r, slab))
         print("      %s,%s" % (material_literal(slab),
                                "" if slab else "  // nothing at r = %.1f" % r))
     print("  };")
@@ -314,6 +395,7 @@ def main() -> None:
             raise SystemExit("no beam pipe material found at r = %.1f; a "
                              "vacuum beam pipe makes no secondaries at all"
                              % description.beamPipeRadius)
+        emitted.append(("beam pipe", slab))
         print("  description.beamPipeMaterial =\n      %s;"
               % material_literal(slab, "      "))
 
@@ -353,6 +435,7 @@ def main() -> None:
                 raise SystemExit(
                     "unbounded passive surface at %.1f: the reduction did not "
                     "give it an extent" % s.refCoord)
+            emitted.append(("service at %.1f" % abs(s.refCoord), s.material))
             print("      {SurfaceShape::%s, %.1ff, %.1ff, %.1ff,\n       %s},"
                   % ("Cylinder" if cylinder else "Disc", abs(s.refCoord),
                      lo, hi, material_literal(s.material)))
@@ -363,6 +446,7 @@ def main() -> None:
     unmatched = 0
     for disc in description.discs:
         slab = fill_rings(byZ.get(disc.absZ), disc.rings)
+        emitted.append(("disc z = %.1f" % disc.absZ, slab))
         unmatched += slab is None
         rings = ", ".join("{%.2ff, %.2ff}" % (r.rMin, r.rMax)
                           for r in disc.rings)
@@ -372,6 +456,7 @@ def main() -> None:
     print("  // clang-format on")
     print("  // %d of %d discs matched a measured surface"
           % (len(description.discs) - unmatched, len(description.discs)))
+    report_composition(emitted)
 
 
 if __name__ == "__main__":

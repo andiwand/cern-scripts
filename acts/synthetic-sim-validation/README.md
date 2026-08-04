@@ -131,12 +131,23 @@ which builds `acts.examples.itk` - for its material. Run these with
 `python <script>`, not the shebang: the shebang picks up a different interpreter
 and DD4hep then fails to find its plugins.
 
-A surface does not carry one slab but a slab and a profile of thicknesses along
-itself, so a ring is told from the gap beside it and the barrel end of a service
-cylinder from its endcap end. `material_budget.py` is the check on the
-compression: it walks the same ray through the shipped table and through a
-reduction of the geometry that keeps every band, and the two agree to five
-percent centrally and about ten forward.
+A surface does not carry one slab. It is banded along itself -- `r` on a disc,
+`|z|` on a cylinder -- so that a ring is told from the gap beside it and the
+barrel end of a service cylinder from its endcap end. Each band carries a
+*material* of its own at a thickness they all share, rather than a thickness of
+its own at a shared material: both hold the same two numbers, but only the first
+lets `L0/X0` be read off and held against beryllium at 1.2, carbon at 2.0 and
+silicon at 5.0. A thickness scale keeps whatever ratio the surface average had,
+so it never reads as impossible however wrong it is.
+
+`material_from_geometry.py` prints the range over every band it emits. The ITk's
+743 come out between 1.28 and 6.92 with a median of 3.28, the ODD's 240 between
+1.13 and 9.62, and the generic detector's silicon at 4.86 against a textbook
+4.96 -- all of them matter.
+
+`material_budget.py` is the check on the compression: it walks the same ray
+through the shipped table and through a reduction of the geometry that keeps
+every band, and the two agree to six percent on the ITk and twelve on the ODD.
 
 ## Where it stands
 
@@ -167,8 +178,8 @@ for the shipped preset in a minute, where a refit takes an hour:
 
 | | shape | prod z | sec eta | prim eta | \|d0\| | sp | sec hits |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| ITk | 0.105 | 0.075 | 0.026 | 0.002 | 0.061 | 0.99 | 0.96 |
-| ODD | 0.030 | 0.492 | 0.012 | 0.002 | 0.563 | 1.00 | 1.10 |
+| ITk | 0.108 | 0.082 | 0.028 | 0.002 | 0.067 | 0.99 | 0.96 |
+| ODD | 0.026 | 0.475 | 0.013 | 0.002 | 0.548 | 1.00 | 1.09 |
 
 Against the averaged material these were 0.175 / 0.103 / 0.036 / 0.030 / 1.03 /
 0.90 and 0.066 / **1.715** / 0.067 / 0.544 / 1.06 / 1.07. Everything improved
@@ -692,11 +703,14 @@ It put the ODD's innermost pixel layer at 33.27 mm where its sensors are at
 32.21, which is the sagitta of the chord and so worst at the smallest radius.
 `test_odd_pixel_layout_matches_real_geometry` had been failing on it.
 
-Bands cost little: merging neighbours that agree to within 20 % leaves the ITk
-at 1344 across 161 surfaces, eight lines of table per disc. The composition is
-*not* banded -- one slab per surface and a profile of thicknesses -- because
-along a mapped surface the amount runs over factors of thirty and the
-composition by under a fifth.
+Bands cost little: merging neighbours whose *both* lengths agree to within 20 %
+leaves the ITk at 743 across 161 surfaces, four lines of table per surface. Both
+lengths have to agree for two bands to be one, so a band holding as much
+material as its neighbour but of a different kind survives -- which is the point
+of carrying them separately. Banding the composition as well as the amount took
+the ITk's `x/L0` closure from 0.912 to 0.942, where its `x/X0` sits at 0.941:
+the two lengths now agree on how far the layout is from its geometry, which is
+what they should do if the only thing left is compression.
 
 ### The closure test: fitted material against aggregated material
 
@@ -709,15 +723,15 @@ geometry twice.
 
 | | ITk | ODD | ITk / ODD |
 | --- | --- | --- | --- |
-| fitted `secondaryNuclearRate` | 6.888 | 5.433 | **1.268** |
-| fitted `secondaryElectronRate` | 2.948 | 2.325 | 1.268 |
-| shipped / geometry `x/L0`, \|eta\| < 3 | 0.912 | 1.119 | 0.815 |
+| fitted `secondaryNuclearRate` | 6.869 | 5.531 | **1.242** |
+| fitted `secondaryElectronRate` | 2.940 | 2.367 | 1.242 |
+| shipped / geometry `x/L0`, \|eta\| < 3 | 0.942 | 1.124 | 0.838 |
 
-The product is **1.03**. The layouts disagree on the yield per nuclear length by
-27 %, and 23 of those 27 points are the ITk carrying 9 % less material than its
+The product is **1.04**. The layouts disagree on the yield per nuclear length by
+24 %, and 19 of those 24 points are the ITk carrying 6 % less material than its
 own geometry while the ODD carries 12 % more. Read the other way: correct each
 layout onto its geometry and the two detectors agree on secondaries per `L0` to
-three percent, across two different full simulations with two different
+four percent, across two different full simulations with two different
 definitions of what a secondary is.
 
 `material_budget.py --closure-eta 3` prints the third row. The bound matters:
@@ -744,10 +758,18 @@ material error from a kinematics error.
 - **The ITk's non-primary shape (0.175) and mean secondary hits (0.90)**
   regressed against the fitted yield weight that used to hide them.
 - **Carry each layout's residual material error into its rate.** The closure
-  below says the ITk is 9 % light and the ODD 12 % heavy against their own
-  geometries, which is the whole of the 27 % their fitted rates disagree by.
+  below says the ITk is 6 % light and the ODD 12 % heavy against their own
+  geometries, which is the whole of the 24 % their fitted rates disagree by.
   Fixing that is a matter of where the reduction still loses material, not of
   the model.
+- **Fit the material per ring against the reference** rather than only against
+  the geometry. Only the overall normalisation is degenerate with the rates, so
+  `N - 1` of `N` surfaces are measurable, and it is a division rather than a
+  fit: the secondaries a surface produces divided by the primary crossings that
+  made them, in both samples, with the flux cancelling. `implied_material.py`
+  does this per (r, \|z\|) cell and would need attributing to surfaces instead.
+  Splitting `X0` from `L0` needs the reference split by species, which the ITk
+  dump supports through `Part_pdg_id`.
 - **The ODD's decay channel is starved**: `decayYield` fits to 0.012 against the
   ITk's 0.132, and the \|d0\| > 100 mm tail is 0.022 of the secondary space
   points against the reference's 0.083. V0s at large radius are what fill that

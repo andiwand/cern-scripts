@@ -2,9 +2,10 @@
 """What a straight ray collects, in the shipped layout and in the geometry.
 
 The shipped descriptions carry the material of the real detector, compressed:
-each surface keeps one slab and a profile of a few bands along itself. This
-prints what that costs, by walking the same ray through the shipped layout and
-through a reduction of the geometry fine enough to be the geometry.
+each surface keeps a thickness and a handful of bands stating what it is made
+of along itself. This prints what that costs, by walking the same ray through
+the shipped layout and through a reduction of the geometry fine enough to be
+the geometry.
 
 Both sides use the same reduction, so this checks the transcription and the
 compression rather than `materialOf` itself. It is the closure test for the
@@ -71,12 +72,12 @@ def collect(layout, eta: float):
                      <= layout.layers[i].maxBound for i in s.layers)
         else:
             on = s.passiveMinBound <= along <= s.passiveMaxBound
-        scale = s.material.scaleAt(along) if on else 0.0
-        if scale <= 0.0:
+        band = s.material.at(along)
+        if not on or band.thicknessInX0 <= 0.0:
             continue
         met += 1
-        x0 += s.material.slab.thicknessInX0 * scale * path
-        l0 += s.material.slab.thicknessInL0 * scale * path
+        x0 += band.thicknessInX0 * path
+        l0 += band.thicknessInL0 * path
     return x0, l0, met
 
 
