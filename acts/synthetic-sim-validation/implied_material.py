@@ -32,6 +32,7 @@ import argparse
 import glob
 
 import numpy as np
+import pandas as pd
 import uproot
 
 TREE = "GNN4ITk"
@@ -99,21 +100,35 @@ def _secondaries(ev, min_pt: float) -> np.ndarray:
 
 
 def read_fastsim(prefix: str, min_pt: float):
-    """The same from a generated event, plus the crossings that are the flux.
+    """The same from generated events, plus the crossings that are the flux.
+
+    Globbed the way `fastsim.load` globs: `dump_fastsim.py --events N` numbers
+    the pairs `<prefix>-000`, `-001` and so on and only a single event keeps the
+    bare prefix, so reading the prefix alone finds nothing at all.
 
     @param prefix the path prefix `dump_fastsim.py` was run with
     @param min_pt the momentum threshold in GeV
-    @return (secondary r, secondary z, primary space point r, its z)
+    @return (secondary r, secondary z, primary space point r, its z, events)
     """
-    particles = np.genfromtxt(prefix + "_particles.csv", delimiter=",",
-                              names=True)
-    keep = ((particles["primary"] < 0.5) & (particles["pt"] > min_pt)
-            & (np.abs(particles["eta"]) < 4.0) & (particles["numHits"] > 0))
-    space_points = np.genfromtxt(prefix + "_spacepoints.csv", delimiter=",",
-                                 names=True)
-    primary = space_points["primary"] > 0.5
-    return (particles["productionRadius"][keep], particles["productionZ"][keep],
-            space_points["r"][primary], space_points["z"][primary])
+    paths = sorted(glob.glob(prefix + "*_spacepoints.csv"))
+    if not paths:
+        raise FileNotFoundError("no %s*_spacepoints.csv" % prefix)
+    r, z, flux_r, flux_z = [], [], [], []
+    for path in paths:
+        # `pd.read_csv` rather than `np.genfromtxt`, which takes ten minutes
+        # over fifty events of a quarter of a million space points each
+        particles = pd.read_csv(path.replace("_spacepoints", "_particles"))
+        keep = ((particles["primary"] < 0.5) & (particles["pt"] > min_pt)
+                & (np.abs(particles["eta"]) < 4.0)
+                & (particles["numHits"] > 0))
+        r.append(particles["productionRadius"][keep].to_numpy())
+        z.append(particles["productionZ"][keep].to_numpy())
+        space_points = pd.read_csv(path)
+        primary = space_points["primary"] > 0.5
+        flux_r.append(space_points["r"][primary].to_numpy())
+        flux_z.append(space_points["z"][primary].to_numpy())
+    return (np.concatenate(r), np.concatenate(z), np.concatenate(flux_r),
+            np.concatenate(flux_z), len(paths))
 
 
 def cells(r, z, weight: float) -> np.ndarray:
@@ -148,21 +163,23 @@ def main() -> None:
 
     paths = sorted(p for pattern in args.fullsim for p in glob.glob(pattern))
     ref_r, ref_z, events = read_reference(paths, args.events, args.min_pt)
-    fast_r, fast_z, flux_r, flux_z = read_fastsim(args.fastsim, args.min_pt)
-    print("reference: %d events, %d secondaries;  fast: 1 event, %d "
+    fast_r, fast_z, flux_r, flux_z, fast_events = read_fastsim(args.fastsim,
+                                                               args.min_pt)
+    print("reference: %d events, %d secondaries;  fast: %d events, %d "
           "secondaries, %d primary space points"
-          % (events, len(ref_r), len(fast_r), len(flux_r)))
+          % (events, len(ref_r), fast_events, len(fast_r), len(flux_r)))
 
     reference = cells(ref_r, ref_z, 1.0 / events)
-    model = cells(fast_r, fast_z, 1.0)
-    flux = cells(flux_r, flux_z, 1.0)
+    model = cells(fast_r, fast_z, 1.0 / fast_events)
+    flux = cells(flux_r, flux_z, 1.0 / fast_events)
 
     _print("reference secondaries per event", reference, "%.0f")
     _print("model secondaries per event", model, "%.0f")
     _print("primary space points per event, the flux", flux, "%.0f")
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        sparse = (model < MIN_ENTRIES) | (reference < MIN_ENTRIES / events)
+        sparse = ((model < MIN_ENTRIES / fast_events)
+                  | (reference < MIN_ENTRIES / events))
         correction = np.where(sparse | (flux <= 0), np.nan, reference / model)
     # the overall factor is `secondaryRate`, which is solved for separately, so
     # what this table is about is the departure from it
