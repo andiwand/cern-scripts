@@ -421,6 +421,84 @@ def plot_hits_vs_eta(full, fast, outdir: Path, fmt: str,
     _save(fig, outdir, "hits_vs_eta", fmt)
 
 
+def plot_production_rz(full, fast, outdir: Path, extent: Extent, fmt: str,
+                       threshold: float) -> None:
+    """Where the secondaries are made, in r and z.
+
+    The occupancy map says where the model *records*; this says where it
+    *interacts*, which is the layout's material seen through the particle flux.
+    A surface counted twice shows up here and nowhere else: it puts a line into
+    the map and a spike into the radial profile at one radius, while the
+    clusters it makes are spread over every layer downstream of it.
+
+    The reference lists only the secondaries it kept truth for, so the rates are
+    not comparable and the profiles are normalised. The *positions* are what
+    this is for.
+    """
+    fmask = _particles(full, primary=False, threshold=threshold)
+    gmask = _particles(fast, primary=False, threshold=threshold)
+
+    # maps on top, then each profile over its own ratio panel
+    fig = plt.figure(figsize=(11, 9))
+    grid = fig.add_gridspec(3, 2, height_ratios=[3.0, 2.0, 1.0], hspace=0.32)
+    maps = [fig.add_subplot(grid[0, c]) for c in range(2)]
+    mains = [fig.add_subplot(grid[1, c]) for c in range(2)]
+    ratios = [fig.add_subplot(grid[2, c], sharex=mains[c]) for c in range(2)]
+
+    for ax, sample, mask, name in ((maps[0], full, fmask, "full sim"),
+                                   (maps[1], fast, gmask, "fast sim")):
+        _, _, _, mesh = ax.hist2d(
+            sample.prod_z[mask], sample.prod_r[mask],
+            bins=[extent.z_bins(300), extent.r_bins(150)],
+            weights=np.full(int(mask.sum()), 1.0 / sample.num_events),
+            norm=matplotlib.colors.LogNorm(),
+        )
+        mesh.set_rasterized(True)
+        ax.set_title(name)
+        ax.set_xlabel("production z [mm]")
+        ax.set_ylabel("production r [mm]")
+
+    # Fine bins on purpose: a doubled surface is a single-bin spike, and the
+    # coarse bands the objective uses would average it away.
+    for i, (field, bins, label) in enumerate(
+            (("prod_r", extent.r_bins(300), "production r [mm]"),
+             ("prod_z", extent.z_bins(300), "production |z| [mm]"))):
+        a = getattr(full, field)[fmask]
+        b = getattr(fast, field)[gmask]
+        if field == "prod_z":
+            a, b = np.abs(a), np.abs(b)
+            bins = bins[bins >= 0]
+        ha, edges = np.histogram(a, bins=bins)
+        hb, _ = np.histogram(b, bins=bins)
+        centres = 0.5 * (edges[:-1] + edges[1:])
+        ya = ha / max(ha.sum(), 1)
+        yb = hb / max(hb.sum(), 1)
+        mains[i].step(centres, ya, where="mid", **FULL_STYLE)
+        mains[i].step(centres, yb, where="mid", **FAST_STYLE)
+        mains[i].set_yscale("log")
+        mains[i].set_ylabel("fraction / bin")
+        mains[i].legend(fontsize=7)
+        mains[i].grid(alpha=0.25)
+        mains[i].tick_params(labelbottom=False)
+
+        with np.errstate(divide="ignore", invalid="ignore"):
+            ratio = np.where(ya > 0, yb / ya, np.nan)
+            error = np.abs(ratio) * np.sqrt(
+                np.where(ha > 0, 1.0 / ha, np.nan)
+                + np.where(hb > 0, 1.0 / hb, np.nan))
+        ratios[i].axhline(1.0, color="black", lw=0.8)
+        ratios[i].step(centres, ratio, where="mid", color=FAST_STYLE["color"])
+        _errorbars(ratios[i], centres, ratio, error, FAST_STYLE["color"])
+        ratios[i].set_ylim(0, 2)
+        ratios[i].set_ylabel("fast / full", fontsize=7)
+        ratios[i].set_xlabel(label)
+        ratios[i].grid(alpha=0.25)
+
+    fig.suptitle("Secondary production points (pT > %.2f GeV, shapes)"
+                 % threshold)
+    _save(fig, outdir, "production_rz", fmt)
+
+
 def summarise(full, fast, threshold: float) -> str:
     lines = ["", "%-30s %14s %14s %8s" % ("", "full sim", "fast sim", "ratio")]
 
@@ -554,6 +632,7 @@ def main() -> None:
                    threshold=threshold)
     plot_particles(full, fast, outdir, extent, args.format, primary=False,
                    threshold=threshold)
+    plot_production_rz(full, fast, outdir, extent, args.format, threshold)
     plot_hits_vs_eta(full, fast, outdir, args.format, threshold)
 
     print("\nwrote plots to %s/" % outdir)

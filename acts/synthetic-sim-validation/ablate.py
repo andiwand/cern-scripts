@@ -47,8 +47,6 @@ class Term:
     #: takes as arguments. Only a refit needs these: they stop the fit from
     #: fitting a parameter that is no longer in the model.
     fit_off: dict = field(default_factory=dict)
-    #: whether taking it out changes the layout rather than the configuration
-    flat_material: bool = False
     #: an alternative form of a term rather than its removal, which is a
     #: different question - "was this worth changing to" rather than "is this
     #: worth having" - and so is reported apart
@@ -58,8 +56,6 @@ class Term:
 #: Every term that was added on top of the plain "helix from the beam line
 #: crossing surfaces" model, in the order they went in.
 TERMS = (
-    Term("yield-profile", "the endcap yield profile",
-         fit_off={"no_forward_material": True}, flat_material=True),
     Term("path-length", "yield weighted by the incidence angle",
          off={"maxDiscPathLength": 1.0, "maxCylinderPathLength": 1.0}, fit_off={"path_length": 1.0}),
     Term("turns", "the return branch of a curling track",
@@ -97,18 +93,6 @@ PRESET = {"itk": (syn.makeItkPixelLayout, syn.EventConfig.itkPixelTtbarPu200),
                   syn.EventConfig.openDataDetectorTtbarPu200)}
 
 
-def flat_layout(description):
-    """The same detector with every disc yielding alike.
-
-    The material a layout carries is read off the geometry and is not this: the
-    profile is the *surplus* a coarse forward disc has to make up for the rings
-    it does not resolve. Flattening it leaves the material alone and removes
-    that surplus.
-    """
-    syn.applyEndcapYieldProfile(description, 1e9, 1.0)
-    return syn.makeLayout(description)
-
-
 def quick(term: Term, config, layout, description, target):
     """Take a term out of a fitted configuration and re-solve the two
     normalisations.
@@ -120,19 +104,16 @@ def quick(term: Term, config, layout, description, target):
     @param term the term to remove
     @param config the fitted configuration
     @param layout the fitted layout
-    @param description the layout description, for the terms that need a
-           different layout
+    @param description the layout description, unused now that no term needs a
+           layout of its own
     @param target what to score against
     @return the scorecard
     """
     trial = fit._with(config, term.off)
-    if term.flat_material:
-        layout = flat_layout(description)
     trial = fit._with(trial, {"chargedPerUnitRapidity":
                               fit.solve_charged_per_unit_rapidity(layout, trial,
                                                              target)})
-    trial = fit._with(trial, {"secondaryRate":
-                              fit.solve_secondary_rate(layout, trial, target)})
+    trial = fit._with(trial, fit.solve_secondary_rate(layout, trial, target))
     return fit.scorecard(trial, layout, target)
 
 
@@ -140,9 +121,8 @@ def refit(term: Term, detector: str, target, fullsim=None, events=None,
           cache_dir="."):
     """Fit the whole model again with a term taken out.
 
-    A fresh description each time: the endcap material profile is fitted onto
-    it in place, so reusing one would carry the previous term's fit into this
-    one.
+    A fresh description each time, so that nothing a previous fit did to one
+    can leak into this one.
 
     @return (scorecard, config)
     """
@@ -150,8 +130,8 @@ def refit(term: Term, detector: str, target, fullsim=None, events=None,
                                       cache_dir=cache_dir)
     arguments = dict(BASELINE[detector])
     arguments.update(term.fit_off)
-    config, layout, _ = fit.fit_config(description, target, overrides=term.off,
-                                       verbose=False, **arguments)
+    config, layout = fit.fit_config(description, target, overrides=term.off,
+                                    verbose=False, **arguments)
     return fit.scorecard(config, layout, target), config
 
 
@@ -229,7 +209,6 @@ def main() -> None:
         print(row("+- over %d seeds" % args.seeds,
                   noise(config, layout, target, args.seeds)))
     for term in terms:
-        # a fresh description per term: `flat_layout` fills the weights in place
         fresh, _, _ = fit.reference(args.detector, fullsim=args.fullsim,
                                     events=args.events, cache_dir=args.cache_dir)
         print(row(term.key, quick(term, config, layout, fresh, target)))
@@ -249,7 +228,7 @@ def main() -> None:
         # the compensation is half the answer: a term the rest of the model can
         # absorb shows up as another parameter moving to take its place
         print("    %-18s rate=%.3f eta=%.3f decays=%.3f"
-              % ("", fitted.secondaryRate, fitted.chargedPerUnitRapidity,
+              % ("", fitted.secondaryNuclearRate, fitted.chargedPerUnitRapidity,
                  fitted.decayYield))
 
 

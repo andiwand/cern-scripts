@@ -140,7 +140,7 @@ class Target:
         # reproduce, and taking any of it out would leave a generated event
         # thinner than a real one.
         self.space_points = len(full.sp_x) / full.num_events
-        # What `secondaryRate` is therefore standing in for on top of the real
+        # What the secondary rates are therefore standing in for on top of the
         # secondaries: the clusters of primaries below the generator's minPt or
         # beyond its rapidity range, which it cannot make as primaries. A
         # twelfth of ITk's primary clusters and 3 % of all of them, so the rate
@@ -149,7 +149,7 @@ class Target:
         self.unaccepted_space_points = outside / full.num_events
 
         # The non-primary space points on their own. Scoring the total instead
-        # would score nothing: `secondaryRate` is solved for the total, so a
+        # would score nothing: the rates are solved for the total, so a
         # model that puts its secondaries in the wrong place looks exactly like
         # one that does not.
         self.r_bands, self.z_bands = bands
@@ -596,8 +596,7 @@ def solve_secondary_kick(layout, config, target: Target, seeds: int = 3,
     varies by up to 0.04 between realisations at a fixed setting, as large as
     the differences being resolved, and a simplex contracts on that.
 
-    @note The rate is re-solved at every grid point, as in
-          `fit_endcap_material` and for the same reason: a wider kick throws
+    @note The rate is re-solved at every grid point: a wider kick throws
           secondaries off the layout and so changes the space point count,
           while |d0| is scored as a *share* of the secondary space points.
 
@@ -621,8 +620,7 @@ def solve_secondary_kick(layout, config, target: Target, seeds: int = 3,
             # re-solved once per grid point rather than per seed: the rate is
             # what makes the count right, and it barely moves between
             # realisations
-            trial = _with(trial, {"secondaryRate": solve_secondary_rate(
-                layout, trial, target)})
+            trial = _with(trial, solve_secondary_rate(layout, trial, target))
             scores = []
             for i in range(seeds):
                 fast = reduce_event(
@@ -717,7 +715,8 @@ def solve_rapidity_edge(layout, config, target: Target, seeds: int = 3,
     # profile counts nothing else, so the whole non-primary component is
     # switched off for the scan. It is nine tenths of the cost of an event and
     # none of this measurement.
-    base = _with(config, {"secondaryRate": 0.0, "stubRate": 0.0,
+    base = _with(config, {"secondaryElectronRate": 0.0,
+                          "secondaryNuclearRate": 0.0, "stubRate": 0.0,
                           "decayYield": 0.0})
 
     best = None
@@ -762,8 +761,12 @@ def solve_charged_per_unit_rapidity(layout, config, target: Target) -> float:
     return config.chargedPerUnitRapidity * target.primaries / with_hits
 
 
-def solve_secondary_rate(layout, config, target: Target) -> float:
-    """Find the `secondaryRate` that reproduces the space point count.
+def solve_secondary_rate(layout, config, target: Target) -> dict:
+    """Scale both secondary rates so that the space point count comes out right.
+
+    The two are scaled together: which of them a crossing draws on follows from
+    its material, and that ratio is measured rather than fitted. Only the level
+    is free.
 
     The primary hits do not depend on the rate at all and only one generation of
     secondaries is produced, so the surface secondaries' hit count scales with
@@ -771,12 +774,16 @@ def solve_secondary_rate(layout, config, target: Target) -> float:
     is for.
 
     @param layout the detector to generate on
-    @param config the configuration, whose own `secondaryRate` is the reference
-           point the extrapolation starts from
+    @param config the configuration, whose own rates are the reference point
+           the extrapolation starts from
     @param target what to match
-    @return the rate that lands on `target.space_points`
+    @return the two rates that land on `target.space_points`
     """
-    rate = config.secondaryRate
+    scale = 1.0
+
+    def rates(factor):
+        return {"secondaryElectronRate": config.secondaryElectronRate * factor,
+                "secondaryNuclearRate": config.secondaryNuclearRate * factor}
     # A cascade makes the count grow faster than the rate - a secondary that is
     # itself allowed to interact contributes a term in rate squared - so the
     # plain step overshoots and can oscillate. Damping the exponent costs a few
@@ -787,23 +794,23 @@ def solve_secondary_rate(layout, config, target: Target) -> float:
     # overshoots. It still converges geometrically, the decays being the
     # smaller part.
     for _ in range(6 if step == 1.0 else 10):
-        trial = _with(config, {"secondaryRate": rate})
+        trial = _with(config, rates(scale))
         summary = syn.summarize(syn.generateEvent(layout, trial), 1.0)
         if summary.secondaryHits == 0:
             break
         wanted = target.space_points - summary.primaryHits
         if wanted <= 0:
             # the primaries alone already overshoot, which curling can do
-            return 0.0
-        rate *= (wanted / summary.secondaryHits) ** step
-    return rate
+            return rates(0.0)
+        scale *= (wanted / summary.secondaryHits) ** step
+    return rates(scale)
 
 
 def solve_decay_yield(layout, config, target: Target) -> float:
     """Find the `decayYield` that puts the right share of secondaries inside the
     beam pipe.
 
-    Linear in the yield in the same way `secondaryRate` is, so one step. Note it
+    Linear in the yield in the same way the secondary rates are, so one step.
     is a *share* rather than a count: the reference's own count of secondaries
     is not something the generator reproduces, but the fraction of them born
     away from a surface is a property of the physics rather than of the
@@ -824,87 +831,6 @@ def solve_decay_yield(layout, config, target: Target) -> float:
     return config.decayYield * odds / have
 
 
-#: Scales and powers of the endcap profile to try, in mm and dimensionless.
-#: Coarse and wide rather than fine: the objective is noisy at the level of the
-#: differences being resolved, so what a grid buys is the right basin and not
-#: precision.
-MATERIAL_GRID = ((250.0, 350.0, 500.0, 700.0, 900.0, 1200.0),
-                 (1.0, 1.2, 1.5, 2.0, 2.5, 3.0))
-
-
-def fit_endcap_material(description, config, target: Target, seeds: int = 5,
-                        around=None):
-    """Fit the endcap material profile of the *layout*.
-
-    The profile fills `DetectorSurface::materialX0`, so a trial rebuilds
-    the layout rather than changing the event configuration. Two parameters,
-    with `secondaryRate` re-solved at every setting so that the count is never
-    traded against the shape.
-
-    A seed-averaged grid and not a simplex: the objective is noisy at the level
-    of the differences being resolved and has a long flat valley, so a simplex
-    contracts along the ridge it starts on. What a grid buys is the right basin
-    rather than the last digit.
-
-    Scored on the space point shape *and* the production profile. The first
-    alone cannot tell the two apart: a secondary made on the outermost disc
-    leaves one hit, so a large surplus there hardly moves the clusters. See
-    `_production_mismatch`.
-
-    @param description the layout description to vary
-    @param config the configuration to generate with
-    @param target what to match
-    @param seeds events to average each grid point over
-    @param around a previous result to search the neighbourhood of, rather than
-           the whole grid; the profile does not move far once the yields have
-           settled and the whole grid costs a hundred events
-    @return (endcapMaterialScale, endcapMaterialPower)
-    """
-    def objective(scale, power):
-        trial_layout = _layout_with(description, scale, power)
-        # once per grid point rather than per seed: the rate is what makes the
-        # count right and it barely moves between realisations
-        trial = _with(config, {"secondaryRate": solve_secondary_rate(
-            trial_layout, config, target)})
-        scores = []
-        for i in range(seeds):
-            fast = reduce_event(
-                syn.generateEvent(trial_layout, _with(trial,
-                                                      {"seed": 5000 + i})),
-                target)
-            scores.append(_mismatch(fast, target)
-                          + _production_mismatch(fast, target))
-        return float(np.mean(scores))
-
-    scales, powers = MATERIAL_GRID
-    if around is None:
-        trials = [(s, p) for s in scales for p in powers]
-    else:
-        i = int(np.argmin(np.abs(np.log(np.asarray(scales) / around[0]))))
-        j = int(np.argmin(np.abs(np.asarray(powers) - around[1])))
-        trials = [(scales[a], powers[b])
-                  for a in range(max(0, i - 1), min(len(scales), i + 2))
-                  for b in range(max(0, j - 1), min(len(powers), j + 2))]
-
-    best, best_score = trials[0], float("inf")
-    for scale, power in trials:
-        score = objective(scale, power)
-        if score < best_score:
-            best, best_score = (scale, power), score
-    return best
-
-
-def _layout_with(description, scale, power):
-    """Rebuild a layout with a different endcap material profile.
-
-    The weights live on the discs of the description, so the profile is applied
-    to them and the layout rebuilt; there is no material term in the event
-    configuration to vary instead.
-    """
-    syn.applyEndcapYieldProfile(description, float(scale), float(power))
-    return syn.makeLayout(description)
-
-
 def _with(config, values: dict):
     """Copy a configuration with some fields replaced.
 
@@ -916,12 +842,15 @@ def _with(config, values: dict):
     for name in ("pileup", "chargedPerUnitRapidity", "minPt", "ptScale",
                  "ptExponent", "minRapidity", "maxRapidity", "rapidityEdge",
                  "rapidityEdgeWidth", "beamspotSigmaZ", "d0Sigma",
-                 "secondaryRate", "decayYield", "decayLength",
+                 "secondaryElectronRate", "secondaryNuclearRate",
+                 "decayYield", "decayLength",
                  "secondaryMinPt", "secondaryMomentumScale",
                  "secondaryMomentumExponent", "secondaryMomentumSpread",
                  "secondaryKt", "secondaryRadialFraction",
-                 "secondaryElectronFraction", "secondaryElectronScale",
+                 "secondaryEvaporationFraction", "secondaryEvaporationScale",
+                 "secondaryElectronScale",
                  "secondaryElectronExponent", "secondaryElectronSpread",
+                 "secondaryElectronKt",
                  "maxDiscPathLength", "maxCylinderPathLength",
                  "materialScale", "overlapScale",
                  "multipleScattering",
@@ -986,8 +915,7 @@ def scorecard(config, layout, target: Target) -> dict:
 
 
 def fit_config(description, target: Target, *, pileup=200, no_decays=False,
-               no_forward_material=False, endcap_material=None,
-               keep_material=False, no_rapidity_edge=False, rapidity_edge=None,
+               no_rapidity_edge=False, rapidity_edge=None,
                path_length=1.0, turns=0.5,
                fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
                verbose=True):
@@ -995,18 +923,12 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
 
     Callable so that `ablate.py` can run the same fit with a term taken out.
 
-    @param description the layout description; modified in place, the endcap
-           material profile being part of the fit
+    @param description the layout description, which is read as it stands: what
+           a crossing yields is its material and its path length, and there is
+           no weight on top of either to fit
     @param target what to fit to
     @param pileup number of interactions to generate
     @param no_decays drop the decay component
-    @param keep_material leave the material the description already carries
-           alone, neither fitting a profile nor applying one
-    @param no_forward_material leave the endcap material flat
-    @param endcap_material pin the endcap profile to (scale, power) and fit the
-           yields around it, rather than fitting it too. For a layout whose
-           profile is already settled: the objective has a long flat valley, so
-           re-running the grid only walks about inside it.
     @param no_rapidity_edge leave the rapidity plateau flat over the whole range
     @param rapidity_edge pin the plateau's edge to (edge, width) rather than
            fitting it
@@ -1022,8 +944,7 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
            an ablation switches off with, and it is reapplied each round
            because a solve returns a fresh configuration.
     @param verbose print the value of every parameter as it settles
-    @return (config, layout, material), `material` being the fitted endcap
-            profile or None
+    @return (config, layout)
     """
     overrides = dict(overrides or {})
 
@@ -1048,16 +969,9 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     config.energyLossModel = syn.EnergyLossModel.Mode
     if no_decays:
         config.decayYield = 0.0
-    if keep_material:
-        pass
-    elif no_forward_material:
-        syn.applyEndcapYieldProfile(description, 1e9, 1.0)
-    elif endcap_material is not None:
-        syn.applyEndcapYieldProfile(description, *endcap_material)
     config.maxDiscPathLength = path_length
     config.maxTurns = turns
     config = _with(config, overrides)
-    # built after the description is final, the endcap material being part of it
     layout = syn.makeLayout(description)
     if verbose:
         print("determined directly: beamspotSigmaZ=%.1f d0Sigma=%.4f "
@@ -1068,15 +982,11 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # The yield and the secondary rate each shift the other's target - more
     # primaries mean more secondaries, and both leave space points - so they are
     # alternated. Each step is exact in its own parameter, so this settles at
-    # once and the later rounds are there to show that it has. The forward
-    # material term is fitted inside the loop because it moves the count too,
-    # and the decay yield after it because the shape it is a fraction of has to
-    # have settled first.
+    # once and the later rounds are there to show that it has. The decay yield
+    # comes after them because the shape it is a fraction of has to have
+    # settled first.
     span = config.maxRapidity - config.minRapidity
     config.chargedPerUnitRapidity = target.primaries / (pileup * span)
-    # the endcap material profile lives on the layout, not on the configuration,
-    # so it is carried out of the loop by hand to be reported with it
-    material = None
     # The plateau's edge is fitted first in the round: it moves primaries from
     # the forward region into the central one, and every count below is taken
     # inside an acceptance those primaries cross.
@@ -1094,14 +1004,6 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         config = _with(config, {
             "chargedPerUnitRapidity": solve_charged_per_unit_rapidity(
                 layout, config, target)})
-        if keep_material or endcap_material is not None:
-            material = endcap_material
-        elif not no_forward_material:
-            # the whole grid once, its neighbourhood thereafter
-            material = fit_endcap_material(description, config, target,
-                                           around=material)
-        if material is not None:
-            layout = _layout_with(description, *material)
         # Off by default, the scale being measured off the dump's own
         # secondaries against their parents. Solving it instead trades the
         # non-primary shape for the mean momentum -- on the ITk it moves the
@@ -1130,30 +1032,28 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         if not no_decays:
             config = _with(config, {
                 "decayYield": solve_decay_yield(layout, config, target)})
-        config = _with(config, {
-            "secondaryRate": solve_secondary_rate(layout, config, target)})
+        config = _with(config, solve_secondary_rate(layout, config, target))
         # Once more, because the rate above moves the surface secondaries that
         # the decay fraction is a fraction *of*, so solving the yield before it
         # leaves the fraction stale by as much as 15 % on the ODD.
         if not no_decays:
             config = _with(config, {
                 "decayYield": solve_decay_yield(layout, config, target)})
-            config = _with(config, {
-                "secondaryRate": solve_secondary_rate(layout, config, target)})
+            config = _with(config,
+                           solve_secondary_rate(layout, config, target))
         # last, so that a term an ablation has switched off cannot be brought
         # back by a solve above -- `decayYield` is the one that would be
         config = _with(config, overrides)
         if verbose:
-            print("    round %d: chargedPerUnitRapidity=%.3f secondaryRate=%.3f "
-                  "endcapMaterial=%.2f..%.2f rapidityEdge=%.2f/%.2f "
-                  "decayYield=%.3f momentumScale=%.3f kt=%.3f radial=%.2f"
-                  % (round_, config.chargedPerUnitRapidity, config.secondaryRate,
-                     min(d.yieldWeight for d in description.discs),
-                     max(d.yieldWeight for d in description.discs),
+            print("    round %d: chargedPerUnitRapidity=%.3f rates=%.3f/%.3f "
+                  "rapidityEdge=%.2f/%.2f decayYield=%.3f momentumScale=%.3f "
+                  "kt=%.3f radial=%.2f"
+                  % (round_, config.chargedPerUnitRapidity,
+                     config.secondaryElectronRate, config.secondaryNuclearRate,
                      config.rapidityEdge, config.rapidityEdgeWidth,
                      config.decayYield, config.secondaryMomentumScale,
                      config.secondaryKt, config.secondaryRadialFraction))
-    return config, layout, material
+    return config, layout
 
 
 #: Seed offset of the events a fit is *reported* on, so that it is never scored
@@ -1240,16 +1140,19 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        # "%.0ff" would print 50 as "50f", which is not a literal
                        ("beamspotSigmaZ", "%.0f.f"),
                        ("d0Sigma", "%.4ff"),
-                       ("secondaryRate", "%.3ff"),
+                       ("secondaryElectronRate", "%.3ff"),
+                       ("secondaryNuclearRate", "%.3ff"),
                        ("decayYield", "%.3ff"),
-                       ("secondaryElectronFraction", "%.3ff"),
                        ("secondaryElectronScale", "%.3ff"),
                        ("secondaryElectronExponent", "%.3ff"),
                        ("secondaryElectronSpread", "%.3ff"),
+                       ("secondaryElectronKt", "%.3ff"),
                        ("secondaryMomentumScale", "%.3ff"),
                        ("secondaryMomentumExponent", "%.3ff"),
                        ("secondaryMomentumSpread", "%.3ff"),
                        ("secondaryKt", "%.3ff"),
+                       ("secondaryEvaporationFraction", "%.3ff"),
+                       ("secondaryEvaporationScale", "%.3ff"),
                        ("secondaryRadialFraction", "%.3ff"),
                        ("maxDiscPathLength", "%.2ff"),
                        ("maxCylinderPathLength", "%.2ff"),
@@ -1285,22 +1188,12 @@ def main() -> None:
     parser.add_argument("--no-decays", action="store_true",
                         help="drop the decay component and fit without it, to "
                              "see what it is worth")
-    parser.add_argument("--no-forward-material", action="store_true",
-                        help="drop the forward material term, for a reference "
-                             "that does not constrain it")
     parser.add_argument("--skip-events", type=int, default=0,
                         help="reference events to pass over first, so that a "
                              "fit and the validation of it see different ones")
     parser.add_argument("--report-events", type=int, default=5,
                         help="fast-simulation events to average the report "
                              "over; one is too noisy to compare two fits")
-    parser.add_argument("--keep-material", action="store_true",
-                        help="keep the material the description already "
-                             "carries, which is what a layout measured off a "
-                             "real geometry has, and fit the rates around it")
-    parser.add_argument("--endcap-material", default=None, metavar="SCALE,POWER",
-                        help="pin the endcap material profile and fit the "
-                             "yields around it, instead of fitting it")
     parser.add_argument("--no-rapidity-edge", action="store_true",
                         help="leave the rapidity plateau flat over the whole "
                              "generated range, as it was before the edge was "
@@ -1342,34 +1235,19 @@ def main() -> None:
         args.detector, fullsim=args.fullsim, events=args.events,
         cache_dir=args.cache_dir, skip_events=args.skip_events)
 
-    endcap_material = None
-    if args.endcap_material is not None:
-        scale, _, power = args.endcap_material.partition(",")
-        endcap_material = (float(scale), float(power))
-
     rapidity_edge = None
     if args.rapidity_edge is not None:
         edge, _, width = args.rapidity_edge.partition(",")
         rapidity_edge = (float(edge), float(width))
 
-    config, layout, material = fit_config(
+    config, layout = fit_config(
         description, target, pileup=args.pileup, no_decays=args.no_decays,
-        no_forward_material=args.no_forward_material,
-        endcap_material=endcap_material, keep_material=args.keep_material,
         no_rapidity_edge=args.no_rapidity_edge, rapidity_edge=rapidity_edge,
         path_length=args.path_length, turns=args.turns,
         fit_momentum=args.fit_momentum, fit_kick=args.fit_kick,
         overrides=overrides)
 
     report(config, layout, target, args.report_events)
-
-    if material is not None:
-        print("\nendcap material profile, for "
-              "`applyEndcapYieldProfile` in DetectorLayout.cpp:")
-        print("  scale = %.0ff  power = %.2ff   (weights %.2f..%.2f)"
-              % (material[0], material[1],
-                 min(d.yieldWeight for d in description.discs),
-                 max(d.yieldWeight for d in description.discs)))
 
     name = ("itkPixelTtbarPu200" if args.detector == "itk"
             else "openDataDetectorTtbarPu200")
