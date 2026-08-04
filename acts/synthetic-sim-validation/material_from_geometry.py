@@ -96,13 +96,13 @@ def measure_beam_pipe(name: str, radius: float, barrel_radii,
     best, most = None, 0.0
     for surface in layout.surfaces:
         if (surface.shape != syn.SurfaceShape.Cylinder
-                or surface.material.slab.thickness <= 0
+                or surface.material.average().thickness <= 0
                 or abs(surface.refCoord - radius) > tolerance):
             continue
         if any(abs(surface.refCoord - r) <= tolerance for r in barrel_radii):
             continue
-        if surface.material.slab.thicknessInX0 > most:
-            best, most = surface.material, surface.material.slab.thicknessInX0
+        if surface.material.average().thicknessInX0 > most:
+            best, most = surface.material, surface.material.average().thicknessInX0
     return best
 
 
@@ -146,7 +146,7 @@ def material_literal(material, indent: str = "       ") -> str:
     """
     if material is None:
         return "{}"
-    out = "{%s" % slab_literal(material.slab)
+    out = "{%s" % slab_literal(material.average())
     if material.bounds:
         lengths = [(b.material.X0, b.material.L0) if b.thicknessInX0 > 0
                    else (0.0, 0.0) for b in material.bands]
@@ -360,7 +360,7 @@ def main() -> None:
 
     cylinders, discs, passive = [], [], []
     for s in layout.surfaces:
-        if s.material.slab.thickness <= 0:
+        if s.material.average().thickness <= 0:
             continue
         if s.passive:
             # one side only; the description mirrors a disc itself
