@@ -684,6 +684,14 @@ The generic detector was building **two coincident discs at every endcap `z`**,
 a literal table and a leftover loop both filling `description.discs`. Every
 endcap crossing there gave two space points and twice the material.
 
+And the reduction was placing every **module at its envelope rather than at its
+centre**. A module is a plane tangent to its cylinder, so its centre is nearer
+the beam than any of its corners -- and the fallback written for cylinders and
+discs, which have no radius at their centre at all, was firing on all of them.
+It put the ODD's innermost pixel layer at 33.27 mm where its sensors are at
+32.21, which is the sagitta of the chord and so worst at the smallest radius.
+`test_odd_pixel_layout_matches_real_geometry` had been failing on it.
+
 Bands cost little: merging neighbours that agree to within 20 % leaves the ITk
 at 1344 across 161 surfaces, eight lines of table per disc. The composition is
 *not* banded -- one slab per surface and a profile of thicknesses -- because
@@ -757,10 +765,6 @@ material error from a kinematics error.
   the figures it scores. The yield profile and the rapidity edge were re-measured
   above; its baseline arguments were also stale, saying one and two turns where
   the presets carry three. The yield-profile term is gone from its list.
-- **`test_odd_pixel_layout_matches_real_geometry` fails on the first barrel
-  radius**, 33.27 out of the reduction against the 32.21 the preset carries.
-  It predates the material work and is a drift between the transcribed ODD
-  positions and the geometry ACTS now builds, not a material question.
 - **Split the ITk 250/250.** Its two fifty-event halves differ by a flat 5.2 %
   across every component, so its validation ratios read about that pessimistic.
   The dump has five hundred events; the ODD shard has a hundred and cannot.
