@@ -37,11 +37,10 @@ The two shipped presets came out of
 
 ```sh
 ./fit_event_config.py itk --fullsim '<dump>*.root' --events 50 \
-    --path-length 4 --turns 3 --fit-kick --endcap-material 500,1.00 \
-    --set secondaryKt=0.25 \
+    --path-length 4 --turns 3 --set secondaryKt=0.319 \
     --set stubRate=1.267 --set stubClusters=2.1 --set stubReach=4.0
 ./fit_event_config.py odd --events 50 --path-length 4 --turns 3 \
-    --fit-kick --endcap-material 350,1.20 --set secondaryKt=0.25 \
+    --set secondaryKt=0.319 \
     --set stubRate=1.800 --set stubClusters=2.1 --set stubReach=4.0
 ```
 
@@ -91,6 +90,7 @@ ITk loader asks uproot for `library="np"`.
 | `itk_layout_from_xml.py` | the ITk layout, out of the ATLAS GeoModelXml |
 | `layout_from_geometry.py` | the ODD and Generic layouts, out of the ACTS geometry |
 | `material_from_geometry.py` | the material half of the same, matched onto a shipped description |
+| `material_budget.py` | what a ray collects in a shipped layout, against the geometry it was read from |
 | `measure_secondary_kinematics.py` | the secondary momentum and kick laws, off the dump's parent links |
 | `measure_secondary_populations.py` | the same on ColliderML, which has no truth-link threshold; also the stub channel |
 | `measure_overlaps.py` | module overlap, off the dump's own module identifiers |
@@ -117,6 +117,9 @@ python layout_from_geometry.py generic --report
 
 # the material of any of them, including the ITk's
 python material_from_geometry.py itk
+
+# and what the result collects along a ray, against the geometry it came from
+python material_budget.py itk
 ```
 
 `layout_from_geometry.py` is just `makeLayoutFromTrackingGeometry`, so for a
@@ -128,6 +131,13 @@ which builds `acts.examples.itk` - for its material. Run these with
 `python <script>`, not the shebang: the shebang picks up a different interpreter
 and DD4hep then fails to find its plugins.
 
+A surface does not carry one slab but a slab and a profile of thicknesses along
+itself, so a ring is told from the gap beside it and the barrel end of a service
+cylinder from its endcap end. `material_budget.py` is the check on the
+compression: it walks the same ray through the shipped table and through a
+reduction of the geometry that keeps every band, and the two agree to five
+percent centrally and about ten forward.
+
 ## Where it stands
 
 Fitted on one half of a reference sample and read on the other, fifty events
@@ -135,13 +145,16 @@ each, per event and normalised to the reference:
 
 | | ITk | ODD |
 | --- | --- | --- |
-| space points | 0.98 | 1.05 |
+| space points | 0.94 | 1.00 |
 | &nbsp;&nbsp;primary, inside the generated acceptance | 0.94 | 1.02 |
-| &nbsp;&nbsp;primary, outside it | 1.07 | 1.29 |
-| &nbsp;&nbsp;non-primary | 1.00 | 1.07 |
+| &nbsp;&nbsp;primary, outside it | 1.04 | 1.29 |
+| &nbsp;&nbsp;non-primary | 0.94 | 0.94 |
 | primaries / event | 0.94 | 1.00 |
-| mean secondary pT | 1.04 | 1.22 |
-| mean secondary hits | 0.90 | 1.08 |
+| mean secondary pT | 1.01 | 1.22 |
+| mean secondary hits | 0.99 | 1.09 |
+
+The ITk column reads a flat 6 % low because its two fifty-event halves differ by
+that much; see the last item under "Still to do".
 
 The truth-level secondary *count* is no longer quoted: the ITk dump lists only
 the secondaries it kept truth for, some 5 400 per event against the 147 000
@@ -152,10 +165,15 @@ space points.
 And the scored figures, which is what a fit moves. `scorecard.py` prints these
 for the shipped preset in a minute, where a refit takes an hour:
 
-| | shape | prod z | sec eta | prim eta | \|d0\| | sp |
-| --- | --- | --- | --- | --- | --- | --- |
-| ITk | 0.175 | 0.103 | 0.036 | 0.002 | 0.030 | 1.03 |
-| ODD | 0.066 | 1.715 | 0.067 | 0.002 | 0.544 | 1.06 |
+| | shape | prod z | sec eta | prim eta | \|d0\| | sp | sec hits |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ITk | 0.105 | 0.075 | 0.026 | 0.002 | 0.061 | 0.99 | 0.96 |
+| ODD | 0.030 | 0.492 | 0.012 | 0.002 | 0.563 | 1.00 | 1.10 |
+
+Against the averaged material these were 0.175 / 0.103 / 0.036 / 0.030 / 1.03 /
+0.90 and 0.066 / **1.715** / 0.067 / 0.544 / 1.06 / 1.07. Everything improved
+except \|d0\| on the ITk, which doubled when its beam pipe stopped being the
+pixel volume boundary and gained its real four-times-thicker wall.
 
 Nothing about a surface is fitted any more. What the shipped presets carry:
 
@@ -171,17 +189,19 @@ Nothing about a surface is fitted any more. What the shipped presets carry:
   `beamspotSigmaZ`, the two secondary rates, `decayYield`,
   `secondaryRadialFraction` and `rapidityEdge`/`rapidityEdgeWidth`. Six fewer
   than before: the endcap yield profile, its ring weights and the material
-  weights are all gone.
+  weights are all gone. `secondaryRadialFraction` now fits to zero on both
+  detectors, having been 0.25 and 0.10: it was standing in for material in the
+  wrong place.
 
 Three known gaps, in order of size:
 
-1. **The ODD's forward secondary production is a factor five to ten short**
-   beyond \|z\| = 600, which is the worst figure anywhere and is what
-   `prod z = 1.7` measures. Its material budget is sane, so this is the layout's
-   forward reach and not its material.
-2. **The ITk's non-primary shape regressed** to 0.175, and its mean secondary
-   hit count to 0.90. Both were better under the fitted yield weight, which is
-   the point: the weight was hiding them.
+1. **The ODD's forward secondary production is still short** beyond
+   \|z\| = 900, though banding the material took `prod z` from 1.7 to 0.49 and
+   the 600-700 mm band from 0.32 to 0.91. What is left is 0.4 to 0.6 past a
+   metre, which is where its geometry runs out of mapped material too.
+2. **The ITk's \|d0\| under 100 um runs at twice the reference**, which
+   arrived with the correct beam pipe. Either the wall is now overstated or the
+   dump's barcode convention does not count what is made there.
 3. **The soft end of the spectrum runs high** below 100 MeV, the invariant
    Hagedorn form over-extrapolating below the range it was fitted in.
 
@@ -622,6 +642,85 @@ secondaries go backward, a quarter of them below 600 MeV and essentially none
 above two GeV -- the quasi-isotropic evaporation product, the `grey tracks` of
 nuclear emulsion. A kick about the parent cannot make one at any scale.
 
+### A surface's average is not its material, and five bugs were under that
+
+A surface used to carry one slab, averaged over its whole footprint. Read
+against the maps at their own resolution the shipped ITk was **1.65 times too
+heavy at `eta = 0`** and the ODD **a quarter too light in `x/L0` beyond
+`eta = 2.5`**. Both come from the same thing: a mapped surface is not uniform,
+and where its material sits is as much of the answer as how much of it there is.
+
+| | model / maps, `x/X0` | | | | |
+| --- | --- | --- | --- | --- | --- |
+| \|eta\| | 0 | 1 | 2 | 3 | 3.5 |
+| ITk, one slab per surface | **1.65** | 1.18 | 0.88 | 1.08 | 1.05 |
+| ITk, banded | 1.00 | 0.95 | 0.82 | 1.16 | 1.20 |
+
+The ITk keeps three service cylinders running its whole length. Their `x/X0`
+along `z` is 0.012 at the interaction point and 0.074 at the far end -- averaged
+whole, they hand the barrel the endcap's services, which is the entire `eta = 0`
+excess. Endcap discs have the mirror problem in `r`: the outermost radial bin of
+a ring layer carries five to ten times the plateau, so the average of a
+44 mm-wide surface is twice what its 40 mm of silicon actually sees.
+
+Four further bugs only became visible once the profile was there:
+
+- **The ITk's shipped beam pipe was the pixel volume boundary.** The beam pipe
+  is at `r = 23.9` and uniform at 0.0065 `x/X0`; the boundary at `r = 25.3` was
+  nearer to the description's nominal 25 and carries a quarter of that. Picking
+  the *thickest* cylinder that is not already a barrel layer gets the right one.
+- **The ODD's beam pipe was diluted by its own length**: 0.164 mm of beryllium
+  averaged over `|z| < 4000` where the material only reaches to 800. Banded it
+  is 0.82 mm, the textbook wall, and the old to-do about it is answered.
+- **The reduction called the ITk's innermost endcap rings cylinders.** They are
+  20 mm wide in `r`, thin enough to pass the barrel test on their own; only
+  their `z` extent says otherwise. Five discs per side had no material at all.
+- **Material was matched to surfaces by reference coordinate.** The ITk keeps
+  three rings of one disc at the same `z` as separate layers, so all three got
+  whichever came last. It is matched in build order now, which is the only thing
+  that names a surface uniquely.
+
+The generic detector was building **two coincident discs at every endcap `z`**,
+a literal table and a leftover loop both filling `description.discs`. Every
+endcap crossing there gave two space points and twice the material.
+
+Bands cost little: merging neighbours that agree to within 20 % leaves the ITk
+at 1344 across 161 surfaces, eight lines of table per disc. The composition is
+*not* banded -- one slab per surface and a profile of thicknesses -- because
+along a mapped surface the amount runs over factors of thirty and the
+composition by under a fifth.
+
+### The closure test: fitted material against aggregated material
+
+The two secondary rates are *per radiation length* and *per nuclear interaction
+length*. Nothing about them is a property of a detector, so the same numbers
+have to come out of the ITk and out of the ODD -- and if they do not, the
+difference is the material each layout is carrying wrongly. That is the sharpest
+test there is on the material, because it is the data speaking and not the
+geometry twice.
+
+| | ITk | ODD | ITk / ODD |
+| --- | --- | --- | --- |
+| fitted `secondaryNuclearRate` | 6.888 | 5.433 | **1.268** |
+| fitted `secondaryElectronRate` | 2.948 | 2.325 | 1.268 |
+| shipped / geometry `x/L0`, \|eta\| < 3 | 0.912 | 1.119 | 0.815 |
+
+The product is **1.03**. The layouts disagree on the yield per nuclear length by
+27 %, and 23 of those 27 points are the ITk carrying 9 % less material than its
+own geometry while the ODD carries 12 % more. Read the other way: correct each
+layout onto its geometry and the two detectors agree on secondaries per `L0` to
+three percent, across two different full simulations with two different
+definitions of what a secondary is.
+
+`material_budget.py --closure-eta 3` prints the third row. The bound matters:
+past \|eta\| = 3.2 the ODD's map runs out of material while the shipped layout
+still has some, and the ratio there runs to three and four.
+
+This is what a fitted material *would* have told us, without the freedom to
+absorb everything else the model gets wrong. It is worth repeating whenever the
+reduction changes: it costs two fits, and it is the only figure that can tell a
+material error from a kinematics error.
+
 ## Still to do
 
 - **Fit the spectrum over reference particles below 100 MeV**, which both
@@ -636,11 +735,11 @@ nuclear emulsion. A kick about the parent cannot make one at any scale.
   forward reach rather than its material. `production_rz` is the plot for it.
 - **The ITk's non-primary shape (0.175) and mean secondary hits (0.90)**
   regressed against the fitted yield weight that used to hide them.
-- **One averaged slab per surface may not be enough.** A mapped surface varies
-  by a factor six along itself, and a cylinder running the length of the ITk is
-  light in the barrel and heavy where it passes the endcap services. A cylinder
-  already has eta-module layers and a disc has rings, so both could carry a
-  profile instead of a single slab.
+- **Carry each layout's residual material error into its rate.** The closure
+  below says the ITk is 9 % light and the ODD 12 % heavy against their own
+  geometries, which is the whole of the 27 % their fitted rates disagree by.
+  Fixing that is a matter of where the reduction still loses material, not of
+  the model.
 - **The ODD's decay channel is starved**: `decayYield` fits to 0.012 against the
   ITk's 0.132, and the \|d0\| > 100 mm tail is 0.022 of the secondary space
   points against the reference's 0.083. V0s at large radius are what fill that
@@ -650,9 +749,6 @@ nuclear emulsion. A kick about the parent cannot make one at any scale.
   turns through many layers; a real one stops in centimetres. Likely the cause
   of the mean secondary hits sitting at 1.04 and 1.09 and of the one-cluster bin
   being under-filled.
-- **The ODD's beam pipe reads 0.205 mm of beryllium** where the generic
-  detector's is the textbook 0.8 mm, so its map may split the wall across
-  surfaces. Worth checking before trusting the small-\|d0\| end there.
 - **The fit does not carry `stubRate`.** It builds from a fresh `EventConfig`
   where it is zero while the presets carry 1.267 and 1.800, so the rates are
   solved without the stub channel and then shipped with it. It moves only `sp`
@@ -661,6 +757,10 @@ nuclear emulsion. A kick about the parent cannot make one at any scale.
   the figures it scores. The yield profile and the rapidity edge were re-measured
   above; its baseline arguments were also stale, saying one and two turns where
   the presets carry three. The yield-profile term is gone from its list.
+- **`test_odd_pixel_layout_matches_real_geometry` fails on the first barrel
+  radius**, 33.27 out of the reduction against the 32.21 the preset carries.
+  It predates the material work and is a drift between the transcribed ODD
+  positions and the geometry ACTS now builds, not a material question.
 - **Split the ITk 250/250.** Its two fifty-event halves differ by a flat 5.2 %
   across every component, so its validation ratios read about that pessimistic.
   The dump has five hundred events; the ODD shard has a hundred and cannot.
