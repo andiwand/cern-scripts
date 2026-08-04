@@ -126,11 +126,55 @@ def measure(name: str, services: bool = True):
     return syn.makeLayoutFromTrackingGeometry(geometry, gctx, options)
 
 
-def slab_literal(slab) -> str:
-    """@return the C++ that reconstructs a slab"""
+#: Significant figures the emitted tables carry. The generator reproduces its
+#: reference to about a percent, so four is already well past what it can use
+#: and the rest is noise that only makes the tables longer.
+SIG_FIGS = 4
+
+
+def num(value: float) -> str:
+    """@return the C++ float literal for a number, at `SIG_FIGS`"""
+    if value == 0:
+        return "0.f"
+    text = "%.*g" % (SIG_FIGS, value)
+    if "e" in text:
+        mantissa, exponent = text.split("e")
+        if "." not in mantissa:
+            mantissa += "."
+        return "%se%df" % (mantissa, int(exponent))
+    if "." not in text:
+        text += "."
+    return text + "f"
+
+
+def composition_of(slab):
+    """What the bands of a surface share, from the slab they were quoted at.
+
+    @param slab the average slab
+    @return the `BandComposition`
+    """
     m = slab.material
-    return ("materialSlab(%.4ff, %.4ff, %.4ff, %.1ff, %.10ff, %.6ff)"
-            % (m.X0, m.L0, m.Ar, m.Z, m.molarDensity, slab.thickness))
+    return syn.BandComposition(m.Ar, m.Z, m.molarDensity * m.X0, slab.thickness)
+
+
+def composition_literal(material) -> str:
+    """What the bands of a surface share, read back off one of them.
+
+    Not off the surface average: that combines the empty bands in too, which
+    drags `Z` towards a beam hole. Every band the reduction made carries the
+    same composition by construction, so any one that holds something has it
+    exactly.
+
+    @param material the `SurfaceMaterial`
+    @return the C++ that reconstructs its composition
+    """
+    for band in material.bands:
+        if band.thicknessInX0 > 0:
+            m = band.material
+            return ("BandComposition{%s, %s, %s, %s}"
+                    % (num(m.Ar), num(m.Z), num(m.molarDensity * m.X0),
+                       num(band.thickness)))
+    return "BandComposition{}"
 
 
 def material_literal(material, indent: str = "       ") -> str:
@@ -146,14 +190,14 @@ def material_literal(material, indent: str = "       ") -> str:
     """
     if material is None:
         return "{}"
-    out = "{%s" % slab_literal(material.average())
+    out = "{%s" % composition_literal(material)
     if material.bounds:
         lengths = [(b.material.X0, b.material.L0) if b.thicknessInX0 > 0
                    else (0.0, 0.0) for b in material.bands]
         out += (",\n%s{%s},\n%s{%s},\n%s{%s}"
-                % (indent, ", ".join("%.1ff" % b for b in material.bounds),
-                   indent, ", ".join("%.2ff" % x0 for x0, _ in lengths),
-                   indent, ", ".join("%.2ff" % l0 for _, l0 in lengths)))
+                % (indent, ", ".join(num(b) for b in material.bounds),
+                   indent, ", ".join(num(x0) for x0, _ in lengths),
+                   indent, ", ".join(num(l0) for _, l0 in lengths)))
     return out + "}"
 
 
@@ -228,7 +272,8 @@ def profile(edges: list, bands: list):
         x0s.append(mean.thickness / slab.thicknessInX0)
         l0s.append(mean.thickness / slab.thicknessInL0
                    if slab.thicknessInL0 > 0 else 0.0)
-    return syn.SurfaceMaterial(mean, [float(e) for e in edges[1:]], x0s, l0s)
+    return syn.SurfaceMaterial(composition_of(mean),
+                               [float(e) for e in edges[1:]], x0s, l0s)
 
 
 def bands_of(material, edges: list) -> list:
@@ -436,9 +481,10 @@ def main() -> None:
                     "unbounded passive surface at %.1f: the reduction did not "
                     "give it an extent" % s.refCoord)
             emitted.append(("service at %.1f" % abs(s.refCoord), s.material))
-            print("      {SurfaceShape::%s, %.1ff, %.1ff, %.1ff,\n       %s},"
-                  % ("Cylinder" if cylinder else "Disc", abs(s.refCoord),
-                     lo, hi, material_literal(s.material)))
+            print("      {SurfaceShape::%s, %s, %s, %s,\n       %s},"
+                  % ("Cylinder" if cylinder else "Disc",
+                     num(abs(s.refCoord)), num(lo), num(hi),
+                     material_literal(s.material)))
         print("  };")
 
     print("  description.discs = {")
@@ -447,10 +493,10 @@ def main() -> None:
         slab = fill_rings(byZ.get(disc.absZ), disc.rings)
         emitted.append(("disc z = %.1f" % disc.absZ, slab))
         unmatched += slab is None
-        rings = ", ".join("{%.2ff, %.2ff}" % (r.rMin, r.rMax)
+        rings = ", ".join("{%s, %s}" % (num(r.rMin), num(r.rMax))
                           for r in disc.rings)
-        print("      {%.2ff, {%s},\n       %s},"
-              % (disc.absZ, rings, material_literal(slab)))
+        print("      {%s, {%s},\n       %s},"
+              % (num(disc.absZ), rings, material_literal(slab)))
     print("  };")
     print("  // %d of %d discs matched a measured surface"
           % (len(description.discs) - unmatched, len(description.discs)))
