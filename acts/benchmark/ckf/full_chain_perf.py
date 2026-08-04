@@ -29,6 +29,7 @@ from acts.examples.reconstruction import (
 from acts.examples.odd import getOpenDataDetector, getOpenDataDetectorDirectory
 
 import argparse
+import os
 
 parser = argparse.ArgumentParser()
 parser.add_argument("outputDir", help="Output directory", type=Path)
@@ -61,6 +62,8 @@ runs = 50
 if args.ttbar:
     events = 3
     runs = 30
+runs = int(os.environ.get("CKF_RUNS", runs))
+events = int(os.environ.get("CKF_EVENTS", events))
 
 if args.geant4 is not None:
     events = 1
@@ -99,7 +102,7 @@ def create_sequencer():
             addPythia8(
                 s,
                 hardProcess=["Top:qqbar2ttbar=on"],
-                npileup=200,
+                npileup=int(os.environ.get("CKF_PILEUP", 200)),
                 vtxGen=acts.examples.GaussianVertexGenerator(
                     mean=acts.Vector4(0, 0, 0, 0),
                     stddev=acts.Vector4(
@@ -226,7 +229,16 @@ def create_sequencer():
             numMeasurementsCutOff=1,
             seedDeduplication=True,
             stayOnSeed=True,
+            # only passed when set, so builds without the option still work
+            **(
+                {"recordMaterialStates": os.environ["CKF_RECORD_MATERIAL_STATES"] == "1"}
+                if "CKF_RECORD_MATERIAL_STATES" in os.environ
+                else {}
+            ),
         ),
+        logLevel=getattr(acts.logging, os.environ["CKF_LOG_LEVEL"])
+        if "CKF_LOG_LEVEL" in os.environ
+        else None,
         # writeCovMat=True,
         # outputDirCsv=outputDir,
         # outputDirRoot=outputDir,
