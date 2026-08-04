@@ -568,21 +568,13 @@ def _d0_mismatch(fast, target: Target) -> float:
 #: the measured 0.21 by a factor three either way.
 KICK_GRID = (0.13, 0.16, 0.20, 0.24, 0.30, 0.38, 0.48)
 
-#: Shares of the secondaries emitted radially to try alongside it, bracketing
-#: the 0.24 of the secondary space points the dump's neutral parents make.
-RADIAL_GRID = (0.0, 0.10, 0.20, 0.25, 0.30, 0.40)
-
 
 def solve_secondary_kick(layout, config, target: Target, seeds: int = 3,
                          kicks=None):
-    """Find the emission model that reproduces the secondary |d0| and |eta|.
+    """Find the kick that reproduces the secondary |d0| and |eta|.
 
-    Two parameters on one grid, neither readable without the other:
-    `secondaryRadialFraction` is the share of daughters that point back at the
-    beam line and fills the small-|d0| end, `secondaryKt` is how wide the rest
-    come off their parent and fills the large one.
-
-    The kick reaches |d0| only through the opening angle it implies against the
+    `secondaryKt` is how wide a daughter comes off its parent, and it fills the
+    large-|d0| end. The kick reaches |d0| only through the opening angle it implies against the
     longitudinal momentum, so it cannot put a hard secondary at a wide angle or
     a soft one at a narrow one.
 
@@ -605,33 +597,30 @@ def solve_secondary_kick(layout, config, target: Target, seeds: int = 3,
     @param target what to match
     @param seeds events to average each grid point over
     @param kicks the kick scales to try, `KICK_GRID` by default. Pass a single
-           value to fit the radial share alone against a measured kick, which is
-           what the shipped presets do: left free, the kick runs to the top of
-           any grid it is given and pays for it in a secondary momentum this
-           objective does not see.
-    @return (secondaryKt, secondaryRadialFraction, the mismatch at them)
+           value to score a measured kick rather than fit one, which is what the
+           shipped presets do: left free, the kick runs to the top of any grid it
+           is given and pays for it in a secondary momentum this objective does
+           not see.
+    @return (secondaryKt, the mismatch at it)
     """
-    best = (config.secondaryKt, config.secondaryRadialFraction)
+    best = config.secondaryKt
     best_score = float("inf")
     for kt in (KICK_GRID if kicks is None else kicks):
-        for radial in RADIAL_GRID:
-            trial = _with(config, {"secondaryKt": kt,
-                                   "secondaryRadialFraction": radial})
-            # re-solved once per grid point rather than per seed: the rate is
-            # what makes the count right, and it barely moves between
-            # realisations
-            trial = _with(trial, solve_secondary_rate(layout, trial, target))
-            scores = []
-            for i in range(seeds):
-                fast = reduce_event(
-                    syn.generateEvent(layout, _with(trial, {"seed": 4000 + i})),
-                    target)
-                scores.append(_d0_mismatch(fast, target)
-                              + _eta_mismatch(fast, target))
-            score = float(np.mean(scores))
-            if score < best_score:
-                best, best_score = (float(kt), float(radial)), score
-    return best[0], best[1], best_score
+        trial = _with(config, {"secondaryKt": kt})
+        # re-solved once per grid point rather than per seed: the rate is what
+        # makes the count right, and it barely moves between realisations
+        trial = _with(trial, solve_secondary_rate(layout, trial, target))
+        scores = []
+        for i in range(seeds):
+            fast = reduce_event(
+                syn.generateEvent(layout, _with(trial, {"seed": 4000 + i})),
+                target)
+            scores.append(_d0_mismatch(fast, target)
+                          + _eta_mismatch(fast, target))
+        score = float(np.mean(scores))
+        if score < best_score:
+            best, best_score = float(kt), score
+    return best, best_score
 
 
 def solve_secondary_momentum_scale(layout, config, target: Target) -> float:
@@ -846,7 +835,7 @@ def _with(config, values: dict):
                  "decayYield", "decayLength",
                  "secondaryMinPt", "secondaryMomentumScale",
                  "secondaryMomentumExponent", "secondaryMomentumSpread",
-                 "secondaryKt", "secondaryRadialFraction",
+                 "secondaryKt",
                  "secondaryEvaporationFraction", "secondaryEvaporationScale",
                  "secondaryElectronScale",
                  "secondaryElectronExponent", "secondaryElectronSpread",
@@ -1020,15 +1009,9 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         # longitudinal momentum, so the two cannot be fitted apart: at half the
         # momentum the same kick is twice the angle. The old free opening angle
         # could be, which is why it used to sit outside.
-        if fit_kick:
-            # a kick pinned with `--set` is fitted around rather than over, the
-            # radial share being the only free parameter of the emission model
-            kt, radial, _ = solve_secondary_kick(
-                layout, config, target,
-                kicks=([overrides["secondaryKt"]]
-                       if "secondaryKt" in overrides else None))
-            config = _with(config, {"secondaryKt": kt,
-                                    "secondaryRadialFraction": radial})
+        if fit_kick and "secondaryKt" not in overrides:
+            kt, _ = solve_secondary_kick(layout, config, target)
+            config = _with(config, {"secondaryKt": kt})
         if not no_decays:
             config = _with(config, {
                 "decayYield": solve_decay_yield(layout, config, target)})
@@ -1047,12 +1030,12 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
         if verbose:
             print("    round %d: chargedPerUnitRapidity=%.3f rates=%.3f/%.3f "
                   "rapidityEdge=%.2f/%.2f decayYield=%.3f momentumScale=%.3f "
-                  "kt=%.3f radial=%.2f"
+                  "kt=%.3f"
                   % (round_, config.chargedPerUnitRapidity,
                      config.secondaryElectronRate, config.secondaryNuclearRate,
                      config.rapidityEdge, config.rapidityEdgeWidth,
                      config.decayYield, config.secondaryMomentumScale,
-                     config.secondaryKt, config.secondaryRadialFraction))
+                     config.secondaryKt))
     return config, layout
 
 
@@ -1153,7 +1136,6 @@ def as_cpp(config, name: str, provenance: str) -> str:
                        ("secondaryKt", "%.3ff"),
                        ("secondaryEvaporationFraction", "%.3ff"),
                        ("secondaryEvaporationScale", "%.3ff"),
-                       ("secondaryRadialFraction", "%.3ff"),
                        ("maxDiscPathLength", "%.2ff"),
                        ("maxCylinderPathLength", "%.2ff"),
                        ("materialScale", "%.3ff"),

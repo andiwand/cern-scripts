@@ -15,7 +15,7 @@ python3 dump_fastsim.py odd -o /tmp/fastsim-odd --events 50
 
 # ITk, against a local GNN4ITk dump, on the events the fit did not see
 ./validate.py itk --fullsim '~/Downloads/user.avallier.*.DumpGNNITk_v9.root' \
-    --fastsim /tmp/fastsim-itk --events 50 --skip-events 50 -o plots
+    --fastsim /tmp/fastsim-itk --events 250 --skip-events 250 -o plots
 
 # ODD, against ColliderML ttbar at a pile-up of 200; the shard is downloaded
 # from HuggingFace on first use and cached
@@ -36,7 +36,7 @@ the same two files faster, where the benchmark is built.
 The two shipped presets came out of
 
 ```sh
-./fit_event_config.py itk --fullsim '<dump>*.root' --events 50 \
+./fit_event_config.py itk --fullsim '<dump>*.root' --events 250 \
     --path-length 4 --turns 3 --set secondaryKt=0.319 \
     --set stubRate=1.267 --set stubClusters=2.1 --set stubReach=4.0
 ./fit_event_config.py odd --events 50 --path-length 4 --turns 3 \
@@ -45,10 +45,12 @@ The two shipped presets came out of
 ```
 
 which print `EventConfig::itkPixelTtbarPu200` and
-`EventConfig::openDataDetectorTtbarPu200` as C++ to paste. Fifty events either
-side, the same number the validation gets, and the two halves disjoint:
-`--events 50` takes the front of each ITk file and of the ODD shard,
-`--events 50 --skip-events 50` in `validate.py` takes what follows. The stub
+`EventConfig::openDataDetectorTtbarPu200` as C++ to paste. The two halves are
+disjoint and the validation gets the same number the fit did: `--events N` takes
+the front of each ITk file and of the ODD shard, `--events N --skip-events N` in
+`validate.py` takes what follows. The ITk splits its five hundred events 250/250
+- at fifty a half its two halves differed by a flat 5 %, which was the whole of
+its apparent deficit. The ODD shard holds a hundred and cannot. The stub
 channel and the kick are passed in because they are measured elsewhere and this
 fit does not touch them; left out they would silently go to zero and to the
 fit's own answer. The fit is deterministic - rerunning it on the same reference
@@ -139,39 +141,49 @@ every band, and the two agree to six percent on the ITk and twelve on the ODD.
 
 ## Where it stands
 
-Fitted on one half of a reference sample and read on the other, fifty events
-each, per event and normalised to the reference:
+`scorecard.py` on the half the fit never saw - 250 events for the ITk, 50 for the
+ODD - averaged over five realisations. A mismatch wants to be zero, a ratio one.
+
+| | shape | prod z | sec eta | prim eta | \|d0\| | sp | prim sp | decays | sec pt | sec hits |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ITk | 0.075 | 0.096 | 0.032 | 0.002 | 0.023 | 0.99 | 0.97 | 0.94 | 1.01 | 0.97 |
+| ODD | 0.018 | 0.422 | 0.010 | 0.002 | 0.431 | 0.99 | 1.02 | 0.92 | 1.24 | 1.09 |
+
+Before the propagation defects below were fixed and the presets refitted, the
+same two rows read 0.109 / 0.085 / 0.029 / 0.002 / 0.051 / 0.97 / 0.96 / 0.96 /
+1.01 / 0.96 and 0.027 / 0.463 / 0.014 / 0.002 / 0.526 / 1.00 / 1.02 / 1.00 /
+1.24 / 1.09. The spatial shape and \|d0\| carry the change; the ITk's `prod z`
+and `sec eta` gave a little back, which is the fit trading them for a count that
+now lands on one.
+
+Know the noise before reading any of it: see the first item under "How the
+objective has to be built". Roughly 0.01 on the ITk's \|d0\|, 0.03 on the ODD's,
+0.005 on `prod z`, and `shape` reproduces to three decimals.
+
+`validate.py` on the same halves, per event and normalised to the reference:
 
 | | ITk | ODD |
 | --- | --- | --- |
-| space points | 0.94 | 1.00 |
-| &nbsp;&nbsp;primary, inside the generated acceptance | 0.94 | 1.02 |
-| &nbsp;&nbsp;primary, outside it | 1.04 | 1.29 |
-| &nbsp;&nbsp;non-primary | 0.94 | 0.94 |
-| primaries / event | 0.94 | 1.00 |
-| mean secondary pT | 1.01 | 1.22 |
-| mean secondary hits | 0.99 | 1.09 |
+| space points | 0.99 | 0.99 |
+| &nbsp;&nbsp;primary, inside the generated acceptance | 0.97 | 1.02 |
+| &nbsp;&nbsp;primary, outside it | 1.03 | 1.16 |
+| &nbsp;&nbsp;non-primary | 1.00 | 0.95 |
+| primaries / event | 0.98 | 1.00 |
+| mean primary hits | 0.99 | 1.02 |
+| mean secondary pT | 1.02 | 1.22 |
+| mean secondary hits | 0.97 | 1.10 |
 
-The ITk column reads a flat 6 % low because its two fifty-event halves differ by
-that much; see the last item under "Still to do".
+The ITk column used to read a flat 0.94 on every row. Half of that was the
+fifty-event split and half the propagation defects; the primary clusters
+*outside* the acceptance were 1.04 and the ODD's 1.29, and ranging out is what
+brought the ODD's to 1.16 - those are the sub-100-MeV curlers that used to run
+on through the whole detector.
 
 The truth-level secondary *count* is not quoted: the ITk dump lists only the
 secondaries it kept truth for, some 5 400 per event against the 147 000
 non-primary space points they cannot account for, so the ratio is a statement
 about the dump's threshold rather than about the model. Compare the non-primary
 space points.
-
-And the scored figures, which is what a fit moves:
-
-| | shape | prod z | sec eta | prim eta | \|d0\| | sp | sec hits |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| ITk | 0.108 | 0.082 | 0.028 | 0.002 | 0.067 | 0.99 | 0.96 |
-| ODD | 0.026 | 0.475 | 0.013 | 0.002 | 0.548 | 1.00 | 1.09 |
-
-Against the averaged material these were 0.175 / 0.103 / 0.036 / 0.030 / 1.03 /
-0.90 and 0.066 / **1.715** / 0.067 / 0.544 / 1.06 / 1.07. Everything improved
-except \|d0\| on the ITk, which doubled when its beam pipe stopped being the
-pixel volume boundary and gained its real four-times-thicker wall.
 
 Nothing about a surface is fitted. What the shipped presets carry:
 
@@ -184,23 +196,30 @@ Nothing about a surface is fitted. What the shipped presets carry:
   its offset, the secondary momentum and kick laws, the evaporation share and
   scale, the stub channel, the cluster resolution.
 - **Fitted**: `chargedPerUnitRapidity`, `ptScale`/`ptExponent`, `d0Sigma`,
-  `beamspotSigmaZ`, the two secondary rates, `decayYield`,
-  `secondaryRadialFraction` and `rapidityEdge`/`rapidityEdgeWidth`. Six fewer
-  than before: the endcap yield profile, its ring weights and the material
-  weights are all gone. `secondaryRadialFraction` now fits to zero on both
+  `beamspotSigmaZ`, one secondary rate (the second follows it at a measured
+  ratio), `decayYield` and `rapidityEdge`/`rapidityEdgeWidth`. Seven fewer than
+  before: the endcap yield profile, its ring weights, the material weights and
+  `secondaryRadialFraction` are all gone. The last fitted to zero on both
   detectors, having been 0.25 and 0.10 - it was standing in for material in the
-  wrong place.
+  wrong place, and the electron channel being radial is the physics that
+  remains.
 
-Three known gaps, in order of size:
+Four known gaps, in order of size:
 
 1. **The ODD's forward secondary production is still short** beyond
    \|z\| = 900, though banding the material took `prod z` from 1.7 to 0.49 and
    the 600-700 mm band from 0.32 to 0.91. What is left is 0.4 to 0.6 past a
    metre, which is where its geometry runs out of mapped material too.
-2. **The ITk's \|d0\| under 100 um runs at twice the reference**, which arrived
-   with the correct beam pipe. Either the wall is now overstated or the dump's
-   barcode convention does not count what is made there.
-3. **The soft end of the spectrum runs high** below 100 MeV, the invariant
+2. **The ODD's V0 channel is starved.** `decayYield` fits to 0.015 against the
+   ITk's 0.185, and its \|d0\| > 100 mm tail holds 0.025 of the secondary space
+   points against the reference's 0.083. Scaling the decay length with the parent
+   momentum closed that gap on the ITk - 0.066 against 0.070 - but there is
+   almost nothing on the ODD to scale, so this is a yield to be measured on
+   ColliderML truth rather than fitted.
+3. **The ODD's mean secondary momentum is a fifth high** at 1.24, unmoved by
+   anything tried. One spread cannot span the reference's 0.56 to 2.08; see
+   "Still to do".
+4. **The soft end of the spectrum runs high** below 100 MeV, the invariant
    Hagedorn form over-extrapolating below the range it was fitted in.
 
 ### What the fit is sensitive to
@@ -221,7 +240,6 @@ on another's layout is wrong by more than the generator's own coarseness.
 | mean secondary pT | `secondaryMomentumScale`, `secondaryMomentumExponent` |
 | secondaries born inside the beam pipe | `decayYield` |
 | where the secondaries are produced, in \|z\| and r | the *material* of the layout, which is read and not fitted |
-| secondary \|d0\| in its innermost decades | `secondaryRadialFraction` |
 | the backward hemisphere and the central `dN/deta` | `secondaryEvaporationFraction` |
 
 ### How the objective has to be built
@@ -254,6 +272,14 @@ Four constraints, each of which was learned by getting it wrong first.
   six-event scan read against a fifty-event baseline is not a measurement at
   all: production-profile differences below about 0.3 are noise at that size.
 
+- **Know the scorecard's own noise before reading it.** Removing
+  `secondaryRadialFraction`, which was zero in both presets, is behaviour-neutral
+  and changes only the random stream. It moved the ITk's `|d0|` from 0.012 to
+  0.021 and the ODD's from 0.416 to 0.384. That is the floor: anything smaller
+  than about 0.01 on the ITk's `|d0|` or 0.03 on the ODD's is a realisation and
+  not a result. `shape` was identical to three decimals across the same change
+  and is the most trustworthy figure of the set.
+
 `chargedPerUnitRapidity` needs a note. The familiar minimum-bias 6.6 per unit of
 pseudorapidity is the density at *central* eta, while the generator spreads it
 flat over \|y\| < 4.3 where the real distribution falls off forward. Both
@@ -272,13 +298,20 @@ the material, because it is the data speaking and not the geometry twice.
 
 | | ITk | ODD | ITk / ODD |
 | --- | --- | --- | --- |
-| fitted `secondaryNuclearRate` | 6.869 | 5.531 | **1.242** |
-| fitted `secondaryElectronRate` | 2.940 | 2.367 | 1.242 |
+| fitted `secondaryNuclearRate` | 7.483 | 6.410 | **1.167** |
 | shipped / geometry `x/L0`, \|eta\| < 3 | 0.942 | 1.124 | 0.838 |
 
-The product is **1.04**: correct each layout onto its own geometry and the two
-detectors agree on secondaries per `L0` to four percent, across two full
-simulations with two different definitions of what a secondary is.
+Only the nuclear rate is quoted, and deliberately. `solve_secondary_rate` scales
+both rates by one factor - the ratio between them is measured from the electron
+share of the daughters, not fitted - so `secondaryElectronRate` would give the
+same 1.242 by construction and adding its row would dress one degree of freedom
+up as two.
+
+The product is **0.98**: correct each layout onto its own geometry and the two
+detectors agree on secondaries per `L0` to two percent, across two full
+simulations with two different definitions of what a secondary is. It was 1.04
+before the propagation defects were fixed, so the residual disagreement is now
+smaller than either layout's own material error.
 `material_budget.py --closure-eta 3` prints the third row, and the bound matters
 - past \|eta\| = 3.2 the ODD's map runs out of material while the shipped layout
 still has some. Worth repeating whenever the reduction changes; it costs two fits
@@ -342,6 +375,12 @@ radiation length and is gone.
 - **The generic detector was building two coincident discs at every endcap `z`**,
   a literal table and a leftover loop both filling `description.discs`. Every
   endcap crossing there gave two space points and twice the material.
+- **Material is matched to surfaces in build order, not by coordinate.**
+  `makeLayout` compared reference coordinates with `==`, so two surfaces at the
+  same one - which is what an endcap layer split into rings staggered in z is -
+  both took whichever description came last. It bit twice before, in the
+  reduction and in the generic detector's coincident discs; the layout builder
+  now records what each surface carries as it adds it.
 - **The ODD layout is exact to a millimetre**, checked cluster by cluster against
   ColliderML, including the 1.8 mm offset between a barrel module's envelope and
   its silicon. **Rings cost 12 % of generation time** and nothing else, so there
@@ -405,8 +444,18 @@ radiation length and is gone.
   *both* lengths agree to 20 % leaves the ITk at 743 bands over 161 surfaces.
 - **Multiple scattering and energy loss displace the hit, not the helix.** Both
   are linearisations accumulated as running sums along the track. That is what
-  gives a seed its impact parameter and curvature spread. `maxTurns` still has
-  to be bounded by hand because the helix itself never loses energy.
+  gives a seed its impact parameter and curvature spread.
+- **A track that cannot pay for the next surface stops there.** Energy loss now
+  runs to the end rather than being capped, and a crossing costing more than the
+  kinetic energy left ends the track after the cluster it made. That is ranging
+  out, off the material the layout already carries and with no parameter of its
+  own, and it is what `maxTurns` and part of the stub channel were standing in
+  for. Worth 0.093 to 0.069 on the ITk's spatial shape and 0.027 to 0.017 on the
+  ODD's, the largest single move since the material was banded.
+- **Highland's logarithm is a function of the whole path, not of the slab in
+  front.** Read per crossing it sits at 0.74 for a pixel layer where the
+  accumulated path asks for about 0.9, so the model under-scattered by a fifth
+  on exactly the layers that matter.
 
 **The secondary model**
 
@@ -446,6 +495,22 @@ radiation length and is gone.
   secondaries go backward, a quarter below 600 MeV and essentially none above
   two GeV - the quasi-isotropic evaporation product, the `grey tracks` of
   nuclear emulsion. A kick about the parent cannot make one at any scale.
+- **Every inward-going secondary was propagated as its mirror image.**
+  `makeHelixFromPoint` took `minGamma` from `helixGammaAtRadius`, which is always
+  the *outgoing* crossing of the production radius; a daughter emitted back
+  towards the beam axis is on the inbound leg at `2 pi - gamma`. The circle was
+  right and the particle was started at the wrong point on it, so it travelled
+  outwards where it should have gone in, at the wrong azimuth, with `z0`
+  displaced by `cotTheta * radius * (2 pi - 2 gamma)` - of order 100 mm for a
+  soft daughter. It hit 13 % of propagated secondaries at `eta` 0.3, 24 % at 1.5
+  and 34 % at 3.0, worst forward. `RebuildFromPoint` never caught it because it
+  took its test point *from* `helixGammaAtRadius`, so the direction it derived
+  was outbound by construction.
+- **A V0's flight length scales with its momentum.** `decayLength` was
+  documented as the K0S length at a GeV and then used flat, so a 5 GeV parent
+  decayed where a soft one did and the far end of the secondary `|d0|` could not
+  fill: `P(r > 300 mm)` was 0.7 %. Scaling it costs no parameter and took the
+  ITk's `|d0|` mismatch from 0.039 to 0.018.
 - **Half the secondaries have a neutral parent.** 49.5 % of secondary space
   points come from a daughter of a converted photon or a neutral hadron, born at
   r = 0, which does not bend and leaves nothing on the way. Those daughters are
@@ -567,14 +632,6 @@ radiation length and is gone.
   points against the reference's 0.083. V0s at large radius are what fill that
   tail. `measure_secondary_populations.py` already reads ColliderML truth, so
   measure it instead.
-- **Range out the soft secondaries.** A 50 MeV daughter is propagated for three
-  turns through many layers; a real one stops in centimetres. Likely the cause
-  of the mean secondary hits sitting at 1.04 and 1.09 and of the one-cluster bin
-  being under-filled.
-- **The fit does not carry `stubRate`.** It builds from a fresh `EventConfig`
-  where it is zero while the presets carry 1.267 and 1.800, so the rates are
-  solved without the stub channel and then shipped with it. It moves only `sp`
-  (about 4 %), but it should be passed in like the kick is.
 - **Carry each layout's residual material error into its rate.** The closure
   test above says the ITk is 6 % light and the ODD 12 % heavy against their own
   geometries, which is the whole of the 24 % their fitted rates disagree by.
@@ -585,6 +642,8 @@ radiation length and is gone.
 - **Re-measure the rest of `ablate.py`**, whose table predates the presets and
   the figures it scores. Its baseline arguments are also stale, saying one and
   two turns where the presets carry three.
-- **Split the ITk 250/250.** Its two fifty-event halves differ by a flat 5.2 %
-  across every component, so its validation ratios read about that pessimistic.
-  The dump has five hundred events; the ODD shard has a hundred and cannot.
+- **Revisit the stub channel now that tracks range out.** `stubRate` was
+  measured as what a full simulation has beyond the interaction-product law
+  continued downwards. Part of that population the model now produces itself,
+  the soft daughters stopping after a crossing or two, so the two may be double
+  counting.
