@@ -238,14 +238,12 @@ def main() -> None:
     print("  description.barrelHalfLengthsZ = {%s};"
           % ", ".join("%.1ff" % c[1] for c in layout.cylinders))
     print("  description.barrelModules = 1;")
-    print("  // clang-format off")
     print("  description.disks = {")
     for absZ, annuli in disks:
         print("      {%.1ff, {%s}},"
               % (absZ, ", ".join("{%.1ff, %.1ff}" % (a[0], a[1])
                                  for a in annuli)))
     print("  };")
-    print("  // clang-format on")
     print()
     print("// from ITKLayouts %s" % _describe(root))
     print("// %d barrel cylinders, %d disks per side carrying %d rings"

@@ -441,7 +441,6 @@ def main() -> None:
                      lo, hi, material_literal(s.material)))
         print("  };")
 
-    print("  // clang-format off")
     print("  description.discs = {")
     unmatched = 0
     for disc in description.discs:
@@ -453,7 +452,6 @@ def main() -> None:
         print("      {%.2ff, {%s},\n       %s},"
               % (disc.absZ, rings, material_literal(slab)))
     print("  };")
-    print("  // clang-format on")
     print("  // %d of %d discs matched a measured surface"
           % (len(description.discs) - unmatched, len(description.discs)))
     report_composition(emitted)

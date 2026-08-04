@@ -123,13 +123,11 @@ def main() -> None:
     print("  description.barrelMaterialWeights = {%s};"
           % ", ".join("%.2ff" % c[2] for c in cylinders))
     print("  description.barrelModules = 1;")
-    print("  // clang-format off")
     print("  description.disks = {")
     for absZ, rings, weight in disks:
         print("      {%.2ff, {%s}, %.2ff},"
               % (absZ, ", ".join("{%.2ff, %.2ff}" % r for r in rings), weight))
     print("  };")
-    print("  // clang-format on")
     print()
     print("// %d barrel cylinders, %d disks per side carrying %d rings"
           % (len(cylinders), len(disks), sum(len(r) for _, r, _w in disks)))
