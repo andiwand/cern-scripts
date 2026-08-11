@@ -120,18 +120,64 @@ def unitLabel(param, unit):
     return f"{param} [{unit}]" if unit else param
 
 
-def resolutionPage(pdf, data, pt, variants, estimator):
-    fig, axes = plt.subplots(2, len(PARAMS), figsize=(11, 6.5), sharex=True)
+def setRatioRange(ax, ratios):
+    """Scale a ratio panel to its bulk and flag what runs off the top.
+
+    The forward eta bins are an order of magnitude worse than the barrel, and
+    letting them set the range leaves the barrel a flat line at one.
+    """
+    pooled = np.concatenate([r for _, r, _ in ratios]) if ratios else np.array([])
+    pooled = pooled[np.isfinite(pooled)]
+    if pooled.size == 0:
+        return
+
+    high = max(2.0, 1.15 * float(np.percentile(pooled, 80)))
+    low = max(0.0, 0.9 * min(0.95, float(np.percentile(pooled, 5))))
+    ax.set_ylim(low, high)
+
+    for eta, ratio, color in ratios:
+        offScale = np.isfinite(ratio) & (ratio > high)
+        if np.any(offScale):
+            ax.plot(
+                eta[offScale],
+                np.full(np.count_nonzero(offScale), high),
+                marker="^",
+                markersize=4,
+                linestyle="none",
+                color=color,
+                clip_on=False,
+                zorder=3,
+            )
+
+
+def resolutionPage(pdf, data, pt, variants, estimator, reference):
+    fig, axes = plt.subplots(
+        3,
+        len(PARAMS),
+        figsize=(13.5, 10.5),
+        sharex=True,
+        gridspec_kw=dict(height_ratios=[3.0, 1.6, 1.9]),
+    )
+    referenceName = VARIANTS[reference][0]
     fig.suptitle(
         f"Seed parameter performance at the perigee, "
         f"single muons, $p_\\mathrm{{T}} = {pt}$ GeV, ODD pixels",
-        fontsize=12,
-        y=0.98,
+        fontsize=13,
+        y=0.985,
     )
 
     handles = []
     for col, (param, (label, unit)) in enumerate(PARAMS.items()):
-        top, bottom = axes[0][col], axes[1][col]
+        top, middle, bottom = axes[0][col], axes[1][col], axes[2][col]
+        ratios = []
+
+        referenceHist = data.get((reference, pt, param))
+        referenceSigma = referenceSigmaErr = None
+        if referenceHist is not None:
+            _, _, referenceSigma, referenceSigmaErr, _, _, _ = resolutionVsEta(
+                referenceHist, estimator
+            )
+
         for variant in variants:
             hist = data.get((variant, pt, param))
             if hist is None:
@@ -159,30 +205,70 @@ def resolutionPage(pdf, data, pt, variants, estimator):
                 marker=marker,
                 **MARKER_STYLE,
             )
+
+            if referenceSigma is not None and variant != reference:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    ratio = sigma / referenceSigma
+                    # the variants run over the same muons, so the fluctuations
+                    # partly cancel and adding the errors in quadrature is
+                    # conservative
+                    ratioErr = ratio * np.hypot(
+                        sigmaErr / sigma, referenceSigmaErr / referenceSigma
+                    )
+                middle.errorbar(
+                    eta,
+                    ratio,
+                    yerr=ratioErr,
+                    xerr=etaErr,
+                    color=color,
+                    marker=marker,
+                    **MARKER_STYLE,
+                )
+                ratios.append((eta, ratio, color))
             if col == 0:
                 handles.append(point)
 
+        setRatioRange(middle, ratios)
+
+        if referenceSigma is not None:
+            # the reference sits at one by construction; its own error is the
+            # band every point above is measured against
+            relative = np.nan_to_num(referenceSigmaErr / referenceSigma)
+            etaRef, etaRefErr = resolutionVsEta(referenceHist, estimator)[:2]
+            middle.bar(
+                etaRef,
+                height=2 * relative,
+                bottom=1 - relative,
+                width=2 * etaRefErr,
+                color=VARIANTS[reference][1],
+                alpha=0.25,
+                linewidth=0,
+                zorder=1,
+            )
+
         biasName = "fitted mean" if estimator == "fit" else "median"
         top.set_yscale("log")
-        top.set_title(label, fontsize=10, color="#0b0b0b")
+        top.set_title(label, fontsize=11, color="#0b0b0b")
         top.set_ylabel(f"resolution {unitLabel('', unit)}".strip(), fontsize=9)
+        middle.set_ylabel(f"ratio to\n{referenceName}", fontsize=9)
+        middle.axhline(1.0, color="#8a8a85", linewidth=0.8, zorder=2)
         bottom.set_ylabel(
             f"bias ({biasName}) {unitLabel('', unit)}".strip(), fontsize=9
         )
         bottom.axhline(0.0, color="#8a8a85", linewidth=0.8, zorder=1)
-        bottom.set_xlabel("$\\eta$", fontsize=10)
-        styleAxes(top)
-        styleAxes(bottom)
+        bottom.set_xlabel("$\\eta$", fontsize=11)
+        for ax in (top, middle, bottom):
+            styleAxes(ax)
 
     fig.legend(
         handles=handles,
         loc="lower center",
         ncol=len(handles),
         frameon=False,
-        fontsize=9,
-        bbox_to_anchor=(0.5, -0.005),
+        fontsize=10,
+        bbox_to_anchor=(0.5, -0.004),
     )
-    fig.tight_layout(rect=(0, 0.05, 1, 0.96))
+    fig.tight_layout(rect=(0, 0.04, 1, 0.97))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -367,6 +453,12 @@ def main():
         default="fit",
     )
     parser.add_argument(
+        "--reference",
+        help="Variant the ratio panels divide by",
+        choices=list(VARIANTS),
+        default="truth_all",
+    )
+    parser.add_argument(
         "--png", help="Also write a PNG per page", action="store_true"
     )
     args = parser.parse_args()
@@ -386,7 +478,7 @@ def main():
     with PdfPages(output) as pdfFile:
         pdf = PageSink(pdfFile, str(output.with_suffix("")) if args.png else None)
         for pt in pts:
-            resolutionPage(pdf, data, pt, variants, args.estimator)
+            resolutionPage(pdf, data, pt, variants, args.estimator, args.reference)
         distributionPage(pdf, data, pts, variants, args.estimator)
         coveragePage(pdf, data, pts, variants)
 

@@ -34,6 +34,13 @@ python plot.py results               # -> results/seed_parameter_resolution.pdf
 `--estimator quantile` swaps in the half width of the central 68.27% interval
 of the raw residual histogram as a cross-check.
 
+One page per pT with the variants overlaid: resolution, the ratio to
+`--reference` (`truth_all` by default, its own error drawn as the band at one),
+and the bias. The ratio panels are scaled to the bulk of their points, and what
+runs off the top is flagged with a triangle at the edge rather than dropped.
+Since all variants run over the same muons their fluctuations partly cancel, so
+the ratio errors, added in quadrature, are conservative.
+
 Every point runs twice. A short calibration pass on wide asinh axes measures
 the residual widths, then the production pass puts regular axes around them at
 `--residual-range-sigmas` times the 90th percentile over eta. This is not
@@ -78,8 +85,12 @@ Resolution averaged over `|eta| < 1`:
   enter the histograms - the truth variants contribute one each. That is the
   population a CKF actually starts from, but it is not a like-for-like
   comparison of one estimate per track; the last PDF page shows the counts.
-- z0 is flat across the variants except at 1 GeV. It is set by the innermost
-  space point and the theta estimate, and none of the variants moves either.
+- z0 inverts the ordering at 1 GeV, which the ratio panel shows and the log
+  axis hides: `truth_inner3` matches the all-points reference to within its
+  error, while `truth_spread3` and `triplet` are 1.3-1.5x worse. Reaching for
+  the outer layers costs z0 there, because the scattering picked up on the way
+  out is extrapolated back to the beam line. Above 10 GeV the effect is gone
+  and all variants agree to 25%.
 
 ## Caveats
 
