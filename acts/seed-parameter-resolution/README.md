@@ -24,9 +24,15 @@ in d0 and a factor 16 in q/pT.
 ## Running
 
 ```sh
-python run.py results                # 10k muons at 1, 10 and 100 GeV, 4 variants
+python run.py results                # 100k muons at 1, 10 and 100 GeV, 4 variants
 python plot.py results               # -> results/seed_parameter_resolution.pdf
 ```
+
+1.2M muons in under two minutes on 12 cores. The event loop is threaded
+(`--threads`, all cores by default) but only reaches ~300% CPU: a single-muon
+event is small enough that the serial parts, the writer's fill mutex above all,
+set the pace. Shorter runs scale worse still, since the ~2 s of ODD geometry
+building is paid per point.
 
 `run.py` writes `performance_<variant>_pt<pt>.root` per point, each a
 `RootTrackParameterPerformanceWriter` output. `plot.py` reads the
@@ -53,29 +59,32 @@ drags the fitted sigma up by a factor of a few.
 
 ## Findings
 
-Resolution averaged over `|eta| < 1`:
+Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
+`truth_all` in brackets:
 
 | pT [GeV] | variant | d0 [um] | z0 [um] | q/pT [%] |
 |---:|---|---:|---:|---:|
-| 1 | truth_all | 55 | 69 | 3.3 |
-| 1 | truth_spread3 | 60 | 93 | 3.4 |
-| 1 | truth_inner3 | 68 | 72 | 5.7 |
-| 1 | triplet | 73 | 101 | 4.4 |
-| 10 | truth_all | 30 | 20 | 11.4 |
-| 10 | truth_spread3 | 32 | 21 | 13.4 |
-| 10 | truth_inner3 | 53 | 22 | 37.5 |
-| 10 | triplet | 47 | 24 | 20.2 |
-| 100 | truth_all | 29 | 18 | 106 |
-| 100 | truth_spread3 | 31 | 19 | 131 |
-| 100 | truth_inner3 | 53 | 21 | 379 |
-| 100 | triplet | 48 | 21 | 213 |
+| 1 | truth_all | 55 | 70 | 3.5 |
+| 1 | truth_spread3 | 60 (1.08) | 93 (1.32) | 3.6 (1.03) |
+| 1 | truth_inner3 | 68 (1.23) | 74 (1.05) | 6.0 (1.70) |
+| 1 | triplet | 74 (1.34) | 101 (1.44) | 4.4 (1.26) |
+| 10 | truth_all | 30 | 19 | 11.4 |
+| 10 | truth_spread3 | 32 (1.06) | 21 (1.13) | 13.5 (1.18) |
+| 10 | truth_inner3 | 52 (1.72) | 22 (1.16) | 36.3 (3.18) |
+| 10 | triplet | 48 (1.59) | 24 (1.25) | 20.6 (1.81) |
+| 100 | truth_all | 30 | 18 | 108 |
+| 100 | truth_spread3 | 31 (1.06) | 19 (1.10) | 130 (1.21) |
+| 100 | truth_inner3 | 51 (1.73) | 21 (1.18) | 362 (3.35) |
+| 100 | triplet | 50 (1.70) | 21 (1.20) | 218 (2.01) |
 
-- At 1 GeV multiple scattering swamps the geometry and all four variants land
-  within 30% of each other. The lever arm only starts to pay at 10 GeV and
-  above, where the ordering is all > spread > triplet > innermost throughout.
-- Fitting every space point buys little over three well spread ones: 5-10% in
-  d0 and z0, ~15% in q/pT. Almost all of the gain is in the spread, not in the
-  number of points. Reaching the outermost pixel layer is what matters.
+- At 1 GeV multiple scattering compresses the differences to 5-45%, and in
+  q/pT the three spread points already match the all-points fit exactly. The
+  lever arm only pays from 10 GeV up, where the ordering is all > spread >
+  triplet > innermost in d0 and q/pT.
+- Fitting every space point buys little over three well spread ones: 6% in d0,
+  10-13% in z0, 18-21% in q/pT above 1 GeV. Almost all of the gain is in the
+  spread, not in the number of points. Reaching the outermost pixel layer is
+  what matters.
 - q/pT from a pixel-only seed is not a momentum measurement above ~10 GeV. At
   100 GeV the sagitta over the pixel lever arm is comparable to the hit
   resolution, and even the best variant is 100% wrong. Whatever consumes a seed
@@ -86,11 +95,11 @@ Resolution averaged over `|eta| < 1`:
   population a CKF actually starts from, but it is not a like-for-like
   comparison of one estimate per track; the last PDF page shows the counts.
 - z0 inverts the ordering at 1 GeV, which the ratio panel shows and the log
-  axis hides: `truth_inner3` matches the all-points reference to within its
-  error, while `truth_spread3` and `triplet` are 1.3-1.5x worse. Reaching for
-  the outer layers costs z0 there, because the scattering picked up on the way
-  out is extrapolated back to the beam line. Above 10 GeV the effect is gone
-  and all variants agree to 25%.
+  axis hides: `truth_inner3` is within 5% of the all-points reference while
+  `truth_spread3` is 32% and `triplet` 44% worse - the reverse of their d0 and
+  q/pT ranking. Reaching for the outer layers costs z0 there, because the
+  scattering picked up on the way out is extrapolated back to the beam line.
+  Above 10 GeV the effect is gone and all variants agree to 25%.
 
 ## Caveats
 

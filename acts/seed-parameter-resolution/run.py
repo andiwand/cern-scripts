@@ -290,9 +290,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("outputDir", help="Output directory", type=Path)
     parser.add_argument(
-        "--events", help="Number of muons per point", type=int, default=10000
+        "--events", help="Number of muons per point", type=int, default=100000
     )
-    parser.add_argument("--threads", help="Number of threads", type=int, default=-1)
+    parser.add_argument(
+        "--threads", help="Number of threads, -1 for all", type=int, default=-1
+    )
     parser.add_argument("--seed", help="Random seed", type=int, default=42)
     parser.add_argument(
         "--pt",
