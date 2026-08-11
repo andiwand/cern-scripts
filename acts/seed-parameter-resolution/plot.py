@@ -39,23 +39,46 @@ PARAMS = {
 MIN_ENTRIES = 25
 QUANTILES = (0.158655, 0.5, 0.841345)
 
+# markers with error bars and nothing joining them: neighbouring eta bins are
+# independent measurements, and a line between them would suggest otherwise
+MARKER_STYLE = dict(
+    linestyle="none",
+    markersize=3.5,
+    elinewidth=0.9,
+    capsize=0,
+)
+
 
 def resolutionVsEta(hist, estimator="fit"):
-    """Resolution, its error and the bias per eta bin, plus the entry count."""
-    etaEdges, resEdges, counts, width, widthErr, mean = hist
+    """Resolution and bias with their errors per eta bin, plus the entry count.
+
+    Returns eta, the half width of the eta bins, the resolution and its error,
+    the bias and its error, and the number of entries.
+    """
+    etaEdges, resEdges, counts, width, widthErr, mean, meanErr = hist
 
     eta = 0.5 * (etaEdges[1:] + etaEdges[:-1])
+    etaErr = 0.5 * np.diff(etaEdges)
     n = counts.sum(axis=1)
 
     if estimator == "fit":
         # the profile carries a zero width where the iterative fit did not
         # converge, which has to read as a gap rather than as a resolution
-        sigma = np.where(width > 0, width, np.nan)
-        return eta, sigma, np.where(width > 0, widthErr, np.nan), mean, n
+        converged = width > 0
+        return (
+            eta,
+            etaErr,
+            np.where(converged, width, np.nan),
+            np.where(converged, widthErr, np.nan),
+            np.where(converged, mean, np.nan),
+            np.where(converged, meanErr, np.nan),
+            n,
+        )
 
     sigma = np.full(len(eta), np.nan)
     sigmaErr = np.full(len(eta), np.nan)
     median = np.full(len(eta), np.nan)
+    medianErr = np.full(len(eta), np.nan)
     for i, row in enumerate(counts):
         if n[i] < MIN_ENTRIES:
             continue
@@ -66,8 +89,10 @@ def resolutionVsEta(hist, estimator="fit"):
         sigma[i] = 0.5 * (hi - lo)
         median[i] = mid
         sigmaErr[i] = sigma[i] / np.sqrt(2 * n[i])
+        # the median of a Gaussian core is sqrt(pi/2) noisier than its mean
+        medianErr[i] = 1.2533 * sigma[i] / np.sqrt(n[i])
 
-    return eta, sigma, sigmaErr, median, n
+    return eta, etaErr, sigma, sigmaErr, median, medianErr, n
 
 
 def residualProjection(hist):
@@ -112,29 +137,30 @@ def resolutionPage(pdf, data, pt, variants, estimator):
             if hist is None:
                 continue
             name, color, marker = VARIANTS[variant]
-            eta, sigma, sigmaErr, median, _ = resolutionVsEta(hist, estimator)
-            (line,) = top.plot(
+            eta, etaErr, sigma, sigmaErr, bias, biasErr, _ = resolutionVsEta(
+                hist, estimator
+            )
+            point = top.errorbar(
                 eta,
                 sigma,
+                yerr=sigmaErr,
+                xerr=etaErr,
                 color=color,
                 marker=marker,
-                markersize=3.5,
-                linewidth=1.6,
                 label=name,
+                **MARKER_STYLE,
             )
-            top.fill_between(
+            bottom.errorbar(
                 eta,
-                sigma - sigmaErr,
-                sigma + sigmaErr,
+                bias,
+                yerr=biasErr,
+                xerr=etaErr,
                 color=color,
-                alpha=0.18,
-                linewidth=0,
-            )
-            bottom.plot(
-                eta, median, color=color, marker=marker, markersize=3.5, linewidth=1.6
+                marker=marker,
+                **MARKER_STYLE,
             )
             if col == 0:
-                handles.append(line)
+                handles.append(point)
 
         biasName = "fitted mean" if estimator == "fit" else "median"
         top.set_yscale("log")
@@ -215,7 +241,7 @@ def coreRange(data, pt, param, variants, estimator):
         hist = data.get((variant, pt, param))
         if hist is None:
             continue
-        _, sigma, _, _, _ = resolutionVsEta(hist, estimator)
+        _, _, sigma, _, _, _, _ = resolutionVsEta(hist, estimator)
         if np.any(np.isfinite(sigma)):
             widest = max(widest, np.nanmax(sigma))
     widest = widest or 1.0
@@ -239,13 +265,19 @@ def coveragePage(pdf, data, pts, variants):
             if hist is None:
                 continue
             name, color, marker = VARIANTS[variant]
-            eta, _, _, _, n = resolutionVsEta(hist, "quantile")
-            (line,) = ax.plot(
-                eta, n, color=color, marker=marker, markersize=3.5, linewidth=1.6,
+            eta, etaErr, _, _, _, _, n = resolutionVsEta(hist, "quantile")
+            point = ax.errorbar(
+                eta,
+                n,
+                yerr=np.sqrt(n),
+                xerr=etaErr,
+                color=color,
+                marker=marker,
                 label=name,
+                **MARKER_STYLE,
             )
             if col == 0:
-                handles.append(line)
+                handles.append(point)
         ax.set_yscale("log")
         ax.set_title(f"$p_\\mathrm{{T}} = {pt}$ GeV", fontsize=10)
         ax.set_xlabel("$\\eta$", fontsize=10)
@@ -308,6 +340,7 @@ def load(inputDir):
                     width.values(),
                     width.errors(),
                     mean.values(),
+                    mean.errors(),
                 )
         pts.add(pt)
         if variant not in variants:
