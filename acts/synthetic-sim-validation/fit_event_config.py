@@ -789,7 +789,13 @@ def solve_secondary_rate(layout, config, target: Target) -> dict:
     # smaller part.
     for _ in range(6 if step == 1.0 else 10):
         trial = _with(config, rates(scale))
-        summary = syn.summarize(syn.generateEvent(layout, trial), 1.0)
+        # Pixel, explicitly. `target.space_points` is the dump's pixel clusters
+        # and `reduce_event` reads `event.spacePoints`, so counting both
+        # collections here would solve the rate against a target half of it is
+        # not in. The strip density is a prediction of this fit rather than an
+        # input to it; `measure_strip_spectrum.py` is what checks it.
+        summary = syn.summarize(syn.generateEvent(layout, trial), 1.0,
+                                syn.SpacePointSelection.Pixel)
         if summary.secondaryHits == 0:
             break
         wanted = target.space_points - summary.primaryHits
