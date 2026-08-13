@@ -1,0 +1,677 @@
+./geant4.sh: line 59: cd: /Users/andreas/cern/source/spack/opt/spack/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__sp/darwin-aarch64/geant4-11.3.2-sg3bwrxh2ce7ji44z6haxtvkxejubhn7/bin/../share/Geant4/data: No such file or directory
+INFO:    Found OpenDataDetector and set it up
+INFO:    Acts Python 3.14 bindings setup complete.
+DD4hep           WARN  ++ STD conditions NOT defined by client. NTP defaults taken.
+Warning in <TGeoMixture::ComputeDerivedQuantities>: Mixture PE: sum of weights is: 6
+Compact          WARN  ++ Overwriting/updating Header structure is very dangerous. Try to avoid this.
+Compact          WARN  ++     Header definition in: file:///Users/andreas/cern/build/acts/acts/perf2/_deps/odd-src/xml/OpenDataECal.xml
+Compact          WARN  ++ Overwriting/updating Header structure is very dangerous. Try to avoid this.
+Compact          WARN  ++     Header definition in: file:///Users/andreas/cern/build/acts/acts/perf2/_deps/odd-src/xml/OpenDataHCal.xml
+Detector         WARN  +++ Object 'compact_checksum' is already defined. New value will be ignored
+16:15:12    DD4hepDetect   INFO      Translating DD4hep geometry into Acts geometry
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: BeamPipe
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: Pixels
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: PST
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: ShortStrips
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: LongStrips
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: Solenoid
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: ECal
+16:15:12    DD4hepDetect   INFO      Translating DD4hep sub detector: HCal
+16:15:12    D2A_V:ECal     INFO      No layers present, returning nullptr
+16:15:12    TrackingGeom   INFO      Received nullptr volume from builder, keeping previous highest volume
+16:15:12    D2A_V:HCal     INFO      No layers present, returning nullptr
+16:15:12    TrackingGeom   INFO      Received nullptr volume from builder, keeping previous highest volume
+16:15:13    Sequencer      INFO      Create Sequencer (single-threaded)
+16:15:13    Pythia8Gener   INFO      Pythia8Generator: init
+16:15:13    Pythia8Gener   INFO      Pythia8Generator: init
+16:15:16    Sequencer      INFO      Add Reader 'EventGenerator'
+16:15:16    Sequencer      INFO      -> OutputEvent 'pythia8-event':
+16:15:16    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+16:15:16    Sequencer      INFO      Add Algorithm 'HepMC3InputConverter'
+16:15:16    Sequencer      INFO      <- InputEvent 'pythia8-event':
+16:15:16    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+16:15:16    Sequencer      INFO      -> OutputParticles 'particles_generated':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      -> OutputVertices 'vertices_generated':
+16:15:16    Sequencer      INFO         flat_set<SimVertex, detail::CompareVertexId, void>
+16:15:16    Sequencer      INFO      Key 'particles_generated' aliased to 'particles'
+16:15:16    Sequencer      INFO      Key 'vertices_generated' aliased to 'vertices_truth'
+16:15:16    Sequencer      INFO      Key 'particles_generated' aliased to 'particles_generated_selected'
+16:15:16    Sequencer      INFO      Add Algorithm 'ParticleSelector'
+16:15:16    Sequencer      INFO      <- InputParticles 'particles_generated':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      -> OutputParticles 'tmp_particles_generated_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      Key 'tmp_particles_generated_selected' aliased to 'particles_selected'
+16:15:16    Sequencer      INFO      Key 'tmp_particles_generated_selected' aliased to 'particles_generated_selected'
+16:15:16    Sequencer      INFO      Add Algorithm 'FatrasSimulation'
+16:15:16    Sequencer      INFO      <- InputParticles 'particles_generated_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      -> OutputSimHits 'simhits':
+16:15:16    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+16:15:16    Sequencer      INFO      -> OutputParticles 'particles_simulated':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles'
+16:15:16    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles_simulated_selected'
+16:15:16    Sequencer      INFO      Add Algorithm 'DigitizationAlgorithm'
+16:15:16    Sequencer      INFO      <- InputHits 'simhits':
+16:15:16    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+16:15:16    Sequencer      INFO      -> OutputMeasurements 'measurements':
+16:15:16    Sequencer      INFO         MeasurementContainer
+16:15:16    Sequencer      INFO      -> OutputMeasurementSubset 'measurement_subset':
+16:15:16    Sequencer      INFO         MeasurementSubset
+16:15:16    Sequencer      INFO      -> OutputClusters 'clusters':
+16:15:16    Sequencer      INFO         vector<Cluster>
+16:15:16    Sequencer      INFO      -> OutputMeasurementParticlesMap 'measurement_particles_map':
+16:15:16    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+16:15:16    Sequencer      INFO      -> OutputMeasurementSimHitsMap 'measurement_simhits_map':
+16:15:16    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, less<unsigned int>, void>
+16:15:16    Sequencer      INFO      -> OutputParticleMeasurementsMap 'particle_measurements_map':
+16:15:16    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+16:15:16    Sequencer      INFO      -> OutputSimHitMeasurementsMap 'simhit_measurements_map':
+16:15:16    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, less<unsigned int>, void>
+16:15:16    Sequencer      INFO      Add Algorithm 'ParticleSelector'
+16:15:16    Sequencer      INFO      <- InputParticles 'particles_simulated_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      <- InputParticleMeasurementsMap 'particle_measurements_map':
+16:15:16    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+16:15:16    Sequencer      INFO      <- InputMeasurements 'measurements':
+16:15:16    Sequencer      INFO         MeasurementContainer
+16:15:16    Sequencer      INFO      -> OutputParticles 'tmp_particles_digitized_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_selected'
+16:15:16    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_digitized_selected'
+16:15:16    Sequencer      INFO      Add Algorithm 'SpacePointMaker'
+16:15:16    Sequencer      INFO      <- InputMeasurements 'measurement_subset':
+16:15:16    Sequencer      INFO         MeasurementSubset
+16:15:16    Sequencer      INFO      -> OutputSpacePoints 'spacepoints':
+16:15:16    Sequencer      INFO         SpacePointContainer
+16:15:16    addSeeding     INFO      Using grid triplet seeding
+16:15:16    Sequencer      INFO      Add Algorithm 'GridTripletSeedingAlgorithm'
+16:15:16    Sequencer      INFO      <- InputSpacePoints 'spacepoints':
+16:15:16    Sequencer      INFO         SpacePointContainer
+16:15:16    Sequencer      INFO      -> OutputSeeds 'seeds':
+16:15:16    Sequencer      INFO         SeedContainer
+16:15:16    Sequencer      INFO      Add Algorithm 'TrackParamsEstimationAlgorithm'
+16:15:16    Sequencer      INFO      <- InputSeeds 'seeds':
+16:15:16    Sequencer      INFO         SeedContainer
+16:15:16    Sequencer      INFO      -> OutputTrackParameters 'estimatedparameters':
+16:15:16    Sequencer      INFO         vector<BoundTrackParameters>
+16:15:16    Sequencer      INFO      -> OutputSeeds 'estimatedseeds':
+16:15:16    Sequencer      INFO         SeedContainer
+16:15:16    Sequencer      INFO      Add Algorithm 'SeedsToProtoTracks'
+16:15:16    Sequencer      INFO      <- InputSeeds 'estimatedseeds':
+16:15:16    Sequencer      INFO         SeedContainer
+16:15:16    Sequencer      INFO      -> OutputProtoTracks 'seed-protoTracks':
+16:15:16    Sequencer      INFO         vector<small_vector<unsigned int, 3ul, void, void>>
+16:15:16    Sequencer      INFO      Add Algorithm 'ProtoTracksToTracks'
+16:15:16    Sequencer      INFO      <- InputMeasurements 'measurement_subset':
+16:15:16    Sequencer      INFO         MeasurementSubset
+16:15:16    Sequencer      INFO      <- InputTrackParameters 'estimatedparameters':
+16:15:16    Sequencer      INFO         vector<BoundTrackParameters>
+16:15:16    Sequencer      INFO      <- InputProtoTracks 'seed-protoTracks':
+16:15:16    Sequencer      INFO         vector<small_vector<unsigned int, 3ul, void, void>>
+16:15:16    Sequencer      INFO      -> OutputTracks 'seed-tracks':
+16:15:16    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+16:15:16    Sequencer      INFO      Add Algorithm 'TrackTruthMatcher'
+16:15:16    Sequencer      INFO      <- InputTracks 'seed-tracks':
+16:15:16    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+16:15:16    Sequencer      INFO      <- InputParticles 'particles_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+16:15:16    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+16:15:16    Sequencer      INFO      -> OutputTrackParticleMatching 'seed_particle_matching':
+16:15:16    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+16:15:16    Sequencer      INFO      -> OutputParticleTrackMatching 'particle_seed_matching':
+16:15:16    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+16:15:16    Sequencer      INFO      Add Algorithm 'TrackFindingAlgorithm'
+16:15:16    Sequencer      INFO      <- InputMeasurements 'measurement_subset':
+16:15:16    Sequencer      INFO         MeasurementSubset
+16:15:16    Sequencer      INFO      <- InputInitialTrackParameters 'estimatedparameters':
+16:15:16    Sequencer      INFO         vector<BoundTrackParameters>
+16:15:16    Sequencer      INFO      <- InputSeeds 'estimatedseeds':
+16:15:16    Sequencer      INFO         SeedContainer
+16:15:16    Sequencer      INFO      -> OutputTracks 'ckf_tracks':
+16:15:16    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+16:15:16    Sequencer      INFO      Key 'ckf_tracks' aliased to 'tracks'
+16:15:16    Sequencer      INFO      Add Algorithm 'TrackTruthMatcher'
+16:15:16    Sequencer      INFO      <- InputTracks 'ckf_tracks':
+16:15:16    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+16:15:16    Sequencer      INFO      <- InputParticles 'particles_selected':
+16:15:16    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+16:15:16    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+16:15:16    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+16:15:16    Sequencer      INFO      -> OutputTrackParticleMatching 'ckf_track_particle_matching':
+16:15:16    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+16:15:16    Sequencer      INFO      -> OutputParticleTrackMatching 'ckf_particle_track_matching':
+16:15:16    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+16:15:16    Sequencer      INFO      Key 'ckf_track_particle_matching' aliased to 'track_particle_matching'
+16:15:16    Sequencer      INFO      Key 'ckf_particle_track_matching' aliased to 'particle_track_matching'
+start round 0
+16:15:16    Sequencer      INFO      Processing events [0, 3)
+16:15:16    Sequencer      INFO      Starting event loop with 1 threads
+16:15:16    Sequencer      INFO        0 context decorators
+16:15:16    Sequencer      INFO        14 sequence elements
+16:15:16    Sequencer      INFO        1 readers
+16:15:16    Sequencer      INFO        13 algorithms
+16:15:16    Sequencer      INFO        0 writers
+16:15:19    Sequencer      INFO      finished event 0
+16:15:21    Sequencer      INFO      finished event 1
+16:15:23    Sequencer      INFO      finished event 2
+16:15:23    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:23    TrackFinding   INFO      - total seeds: 112456
+16:15:23    TrackFinding   INFO      - deduplicated seeds: 16042
+16:15:23    TrackFinding   INFO      - failed seeds: 0
+16:15:23    TrackFinding   INFO      - failed smoothing: 0
+16:15:23    TrackFinding   INFO      - failed extrapolation: 0
+16:15:23    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:23    TrackFinding   INFO      - found tracks: 13105
+16:15:23    TrackFinding   INFO      - selected tracks: 3028
+16:15:23    TrackFinding   INFO      - stopped branches: 84007
+16:15:23    TrackFinding   INFO      - skipped second pass: 3
+16:15:23    Sequencer      INFO      Processed 3 events in 7.318663 s (wall clock)
+16:15:23    Sequencer      INFO      Average time per event: 2.423417 s/event
+16:15:23    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2407.13 |          802.38 |    33.1% |
+| Algorithm:HepMC3InputConverter           |         1766.13 |          588.71 |    24.3% |
+| Algorithm:FatrasSimulation               |         1162.51 |          387.50 |    16.0% |
+| Reader:EventGenerator                    |          906.44 |          302.15 |    12.5% |
+| Algorithm:DigitizationAlgorithm          |          500.29 |          166.76 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          409.69 |          136.56 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           32.22 |           10.74 |     0.4% |
+| Algorithm:TrackParamsEstimationAlgorithm |           26.02 |            8.67 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           20.85 |            6.95 |     0.3% |
+| Algorithm:SpacePointMaker                |           10.70 |            3.57 |     0.1% |
+| Algorithm:ParticleSelector               |           10.50 |            3.50 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            9.16 |            3.05 |     0.1% |
+| Algorithm:ParticleSelector               |            6.58 |            2.19 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            2.04 |            0.68 |     0.0% |
+| TOTAL                                    |         7270.25 |         2423.42 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.387504), 'seeding': np.float64(0.136562), 'ckf': np.float64(0.802376)}
+start round 1
+16:15:23    Sequencer      INFO      Processing events [0, 3)
+16:15:23    Sequencer      INFO      Starting event loop with 1 threads
+16:15:23    Sequencer      INFO        0 context decorators
+16:15:23    Sequencer      INFO        14 sequence elements
+16:15:23    Sequencer      INFO        1 readers
+16:15:23    Sequencer      INFO        13 algorithms
+16:15:23    Sequencer      INFO        0 writers
+16:15:25    Sequencer      INFO      finished event 0
+16:15:27    Sequencer      INFO      finished event 1
+16:15:30    Sequencer      INFO      finished event 2
+16:15:30    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:30    TrackFinding   INFO      - total seeds: 224912
+16:15:30    TrackFinding   INFO      - deduplicated seeds: 32084
+16:15:30    TrackFinding   INFO      - failed seeds: 0
+16:15:30    TrackFinding   INFO      - failed smoothing: 0
+16:15:30    TrackFinding   INFO      - failed extrapolation: 0
+16:15:30    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:30    TrackFinding   INFO      - found tracks: 26210
+16:15:30    TrackFinding   INFO      - selected tracks: 6056
+16:15:30    TrackFinding   INFO      - stopped branches: 168014
+16:15:30    TrackFinding   INFO      - skipped second pass: 6
+16:15:30    Sequencer      INFO      Processed 3 events in 6.526379 s (wall clock)
+16:15:30    Sequencer      INFO      Average time per event: 2.165309 s/event
+16:15:30    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2238.67 |          746.22 |    34.5% |
+| Algorithm:HepMC3InputConverter           |         1598.55 |          532.85 |    24.6% |
+| Algorithm:FatrasSimulation               |          891.57 |          297.19 |    13.7% |
+| Reader:EventGenerator                    |          861.65 |          287.22 |    13.3% |
+| Algorithm:DigitizationAlgorithm          |          443.39 |          147.80 |     6.8% |
+| Algorithm:GridTripletSeedingAlgorithm    |          363.94 |          121.31 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.53 |            9.84 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.33 |            7.78 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           12.49 |            4.16 |     0.2% |
+| Algorithm:ParticleSelector               |            9.11 |            3.04 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            9.10 |            3.03 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.90 |            2.63 |     0.1% |
+| Algorithm:ParticleSelector               |            4.94 |            1.65 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.75 |            0.58 |     0.0% |
+| TOTAL                                    |         6495.93 |         2165.31 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.297188), 'seeding': np.float64(0.121314), 'ckf': np.float64(0.746223)}
+start round 2
+16:15:30    Sequencer      INFO      Processing events [0, 3)
+16:15:30    Sequencer      INFO      Starting event loop with 1 threads
+16:15:30    Sequencer      INFO        0 context decorators
+16:15:30    Sequencer      INFO        14 sequence elements
+16:15:30    Sequencer      INFO        1 readers
+16:15:30    Sequencer      INFO        13 algorithms
+16:15:30    Sequencer      INFO        0 writers
+16:15:32    Sequencer      INFO      finished event 0
+16:15:34    Sequencer      INFO      finished event 1
+16:15:36    Sequencer      INFO      finished event 2
+16:15:36    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:36    TrackFinding   INFO      - total seeds: 337368
+16:15:36    TrackFinding   INFO      - deduplicated seeds: 48126
+16:15:36    TrackFinding   INFO      - failed seeds: 0
+16:15:36    TrackFinding   INFO      - failed smoothing: 0
+16:15:36    TrackFinding   INFO      - failed extrapolation: 0
+16:15:36    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:36    TrackFinding   INFO      - found tracks: 39315
+16:15:36    TrackFinding   INFO      - selected tracks: 9084
+16:15:36    TrackFinding   INFO      - stopped branches: 252021
+16:15:36    TrackFinding   INFO      - skipped second pass: 9
+16:15:36    Sequencer      INFO      Processed 3 events in 6.566166 s (wall clock)
+16:15:36    Sequencer      INFO      Average time per event: 2.178145 s/event
+16:15:36    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2235.72 |          745.24 |    34.2% |
+| Algorithm:HepMC3InputConverter           |         1585.52 |          528.51 |    24.3% |
+| Reader:EventGenerator                    |          920.33 |          306.78 |    14.1% |
+| Algorithm:FatrasSimulation               |          876.54 |          292.18 |    13.4% |
+| Algorithm:DigitizationAlgorithm          |          448.16 |          149.39 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          370.40 |          123.47 |     5.7% |
+| Algorithm:TrackTruthMatcher              |           30.32 |           10.11 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           22.82 |            7.61 |     0.3% |
+| Algorithm:ProtoTracksToTracks            |           11.59 |            3.86 |     0.2% |
+| Algorithm:ParticleSelector               |            9.34 |            3.11 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            8.91 |            2.97 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.99 |            2.66 |     0.1% |
+| Algorithm:ParticleSelector               |            5.14 |            1.71 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.66 |            0.55 |     0.0% |
+| TOTAL                                    |         6534.44 |         2178.15 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.29218), 'seeding': np.float64(0.123467), 'ckf': np.float64(0.745239)}
+start round 3
+16:15:36    Sequencer      INFO      Processing events [0, 3)
+16:15:36    Sequencer      INFO      Starting event loop with 1 threads
+16:15:36    Sequencer      INFO        0 context decorators
+16:15:36    Sequencer      INFO        14 sequence elements
+16:15:36    Sequencer      INFO        1 readers
+16:15:36    Sequencer      INFO        13 algorithms
+16:15:36    Sequencer      INFO        0 writers
+16:15:38    Sequencer      INFO      finished event 0
+16:15:41    Sequencer      INFO      finished event 1
+16:15:43    Sequencer      INFO      finished event 2
+16:15:43    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:43    TrackFinding   INFO      - total seeds: 449824
+16:15:43    TrackFinding   INFO      - deduplicated seeds: 64168
+16:15:43    TrackFinding   INFO      - failed seeds: 0
+16:15:43    TrackFinding   INFO      - failed smoothing: 0
+16:15:43    TrackFinding   INFO      - failed extrapolation: 0
+16:15:43    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:43    TrackFinding   INFO      - found tracks: 52420
+16:15:43    TrackFinding   INFO      - selected tracks: 12112
+16:15:43    TrackFinding   INFO      - stopped branches: 336028
+16:15:43    TrackFinding   INFO      - skipped second pass: 12
+16:15:43    Sequencer      INFO      Processed 3 events in 6.505434 s (wall clock)
+16:15:43    Sequencer      INFO      Average time per event: 2.158431 s/event
+16:15:43    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2251.32 |          750.44 |    34.8% |
+| Algorithm:HepMC3InputConverter           |         1573.67 |          524.56 |    24.3% |
+| Algorithm:FatrasSimulation               |          878.30 |          292.77 |    13.6% |
+| Reader:EventGenerator                    |          865.12 |          288.37 |    13.4% |
+| Algorithm:DigitizationAlgorithm          |          443.65 |          147.88 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          364.11 |          121.37 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.39 |            9.80 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.80 |            7.93 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           13.26 |            4.42 |     0.2% |
+| Algorithm:ParticleSelector               |            9.43 |            3.14 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            8.90 |            2.97 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.66 |            2.55 |     0.1% |
+| Algorithm:ParticleSelector               |            4.88 |            1.63 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.80 |            0.60 |     0.0% |
+| TOTAL                                    |         6475.29 |         2158.43 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.292767), 'seeding': np.float64(0.121371), 'ckf': np.float64(0.75044)}
+start round 4
+16:15:43    Sequencer      INFO      Processing events [0, 3)
+16:15:43    Sequencer      INFO      Starting event loop with 1 threads
+16:15:43    Sequencer      INFO        0 context decorators
+16:15:43    Sequencer      INFO        14 sequence elements
+16:15:43    Sequencer      INFO        1 readers
+16:15:43    Sequencer      INFO        13 algorithms
+16:15:43    Sequencer      INFO        0 writers
+16:15:45    Sequencer      INFO      finished event 0
+16:15:47    Sequencer      INFO      finished event 1
+16:15:50    Sequencer      INFO      finished event 2
+16:15:50    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:50    TrackFinding   INFO      - total seeds: 562280
+16:15:50    TrackFinding   INFO      - deduplicated seeds: 80210
+16:15:50    TrackFinding   INFO      - failed seeds: 0
+16:15:50    TrackFinding   INFO      - failed smoothing: 0
+16:15:50    TrackFinding   INFO      - failed extrapolation: 0
+16:15:50    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:50    TrackFinding   INFO      - found tracks: 65525
+16:15:50    TrackFinding   INFO      - selected tracks: 15140
+16:15:50    TrackFinding   INFO      - stopped branches: 420035
+16:15:50    TrackFinding   INFO      - skipped second pass: 15
+16:15:50    Sequencer      INFO      Processed 3 events in 6.617808 s (wall clock)
+16:15:50    Sequencer      INFO      Average time per event: 2.194977 s/event
+16:15:50    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2257.18 |          752.39 |    34.3% |
+| Algorithm:HepMC3InputConverter           |         1607.50 |          535.83 |    24.4% |
+| Algorithm:FatrasSimulation               |          906.17 |          302.06 |    13.8% |
+| Reader:EventGenerator                    |          896.55 |          298.85 |    13.6% |
+| Algorithm:DigitizationAlgorithm          |          450.24 |          150.08 |     6.8% |
+| Algorithm:GridTripletSeedingAlgorithm    |          367.33 |          122.44 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.75 |            9.92 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.38 |            7.79 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           13.58 |            4.53 |     0.2% |
+| Algorithm:ParticleSelector               |            9.38 |            3.13 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            9.14 |            3.05 |     0.1% |
+| Algorithm:SpacePointMaker                |            8.17 |            2.72 |     0.1% |
+| Algorithm:ParticleSelector               |            4.78 |            1.59 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.76 |            0.59 |     0.0% |
+| TOTAL                                    |         6584.93 |         2194.98 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.302057), 'seeding': np.float64(0.122445), 'ckf': np.float64(0.752394)}
+start round 5
+16:15:50    Sequencer      INFO      Processing events [0, 3)
+16:15:50    Sequencer      INFO      Starting event loop with 1 threads
+16:15:50    Sequencer      INFO        0 context decorators
+16:15:50    Sequencer      INFO        14 sequence elements
+16:15:50    Sequencer      INFO        1 readers
+16:15:50    Sequencer      INFO        13 algorithms
+16:15:50    Sequencer      INFO        0 writers
+16:15:52    Sequencer      INFO      finished event 0
+16:15:54    Sequencer      INFO      finished event 1
+16:15:57    Sequencer      INFO      finished event 2
+16:15:57    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:15:57    TrackFinding   INFO      - total seeds: 674736
+16:15:57    TrackFinding   INFO      - deduplicated seeds: 96252
+16:15:57    TrackFinding   INFO      - failed seeds: 0
+16:15:57    TrackFinding   INFO      - failed smoothing: 0
+16:15:57    TrackFinding   INFO      - failed extrapolation: 0
+16:15:57    TrackFinding   INFO      - failure ratio seeds: 0
+16:15:57    TrackFinding   INFO      - found tracks: 78630
+16:15:57    TrackFinding   INFO      - selected tracks: 18168
+16:15:57    TrackFinding   INFO      - stopped branches: 504042
+16:15:57    TrackFinding   INFO      - skipped second pass: 18
+16:15:57    Sequencer      INFO      Processed 3 events in 7.350909 s (wall clock)
+16:15:57    Sequencer      INFO      Average time per event: 2.433289 s/event
+16:15:57    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2367.89 |          789.30 |    32.4% |
+| Algorithm:HepMC3InputConverter           |         1634.83 |          544.94 |    22.4% |
+| Algorithm:FatrasSimulation               |         1387.22 |          462.41 |    19.0% |
+| Reader:EventGenerator                    |          962.46 |          320.82 |    13.2% |
+| Algorithm:DigitizationAlgorithm          |          456.96 |          152.32 |     6.3% |
+| Algorithm:GridTripletSeedingAlgorithm    |          375.24 |          125.08 |     5.1% |
+| Algorithm:TrackTruthMatcher              |           33.13 |           11.04 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           24.40 |            8.13 |     0.3% |
+| Algorithm:ProtoTracksToTracks            |           18.58 |            6.19 |     0.3% |
+| Algorithm:TrackTruthMatcher              |            9.56 |            3.19 |     0.1% |
+| Algorithm:SpacePointMaker                |            9.51 |            3.17 |     0.1% |
+| Algorithm:ParticleSelector               |            9.41 |            3.14 |     0.1% |
+| Algorithm:ParticleSelector               |            8.69 |            2.90 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.99 |            0.66 |     0.0% |
+| TOTAL                                    |         7299.87 |         2433.29 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.462408), 'seeding': np.float64(0.12508), 'ckf': np.float64(0.789297)}
+start round 6
+16:15:57    Sequencer      INFO      Processing events [0, 3)
+16:15:57    Sequencer      INFO      Starting event loop with 1 threads
+16:15:57    Sequencer      INFO        0 context decorators
+16:15:57    Sequencer      INFO        14 sequence elements
+16:15:57    Sequencer      INFO        1 readers
+16:15:57    Sequencer      INFO        13 algorithms
+16:15:57    Sequencer      INFO        0 writers
+16:15:59    Sequencer      INFO      finished event 0
+16:16:01    Sequencer      INFO      finished event 1
+16:16:04    Sequencer      INFO      finished event 2
+16:16:04    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:04    TrackFinding   INFO      - total seeds: 787192
+16:16:04    TrackFinding   INFO      - deduplicated seeds: 112294
+16:16:04    TrackFinding   INFO      - failed seeds: 0
+16:16:04    TrackFinding   INFO      - failed smoothing: 0
+16:16:04    TrackFinding   INFO      - failed extrapolation: 0
+16:16:04    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:04    TrackFinding   INFO      - found tracks: 91735
+16:16:04    TrackFinding   INFO      - selected tracks: 21196
+16:16:04    TrackFinding   INFO      - stopped branches: 588049
+16:16:04    TrackFinding   INFO      - skipped second pass: 21
+16:16:04    Sequencer      INFO      Processed 3 events in 6.658673 s (wall clock)
+16:16:04    Sequencer      INFO      Average time per event: 2.208778 s/event
+16:16:04    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2266.36 |          755.45 |    34.2% |
+| Algorithm:HepMC3InputConverter           |         1605.22 |          535.07 |    24.2% |
+| Algorithm:FatrasSimulation               |          922.39 |          307.46 |    13.9% |
+| Reader:EventGenerator                    |          875.37 |          291.79 |    13.2% |
+| Algorithm:DigitizationAlgorithm          |          476.77 |          158.92 |     7.2% |
+| Algorithm:GridTripletSeedingAlgorithm    |          377.76 |          125.92 |     5.7% |
+| Algorithm:TrackTruthMatcher              |           30.29 |           10.10 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           25.51 |            8.50 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           13.02 |            4.34 |     0.2% |
+| Algorithm:ParticleSelector               |            9.34 |            3.11 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            9.33 |            3.11 |     0.1% |
+| Algorithm:SpacePointMaker                |            8.24 |            2.75 |     0.1% |
+| Algorithm:ParticleSelector               |            5.01 |            1.67 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.73 |            0.58 |     0.0% |
+| TOTAL                                    |         6626.33 |         2208.78 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.307463), 'seeding': np.float64(0.125921), 'ckf': np.float64(0.755452)}
+start round 7
+16:16:04    Sequencer      INFO      Processing events [0, 3)
+16:16:04    Sequencer      INFO      Starting event loop with 1 threads
+16:16:04    Sequencer      INFO        0 context decorators
+16:16:04    Sequencer      INFO        14 sequence elements
+16:16:04    Sequencer      INFO        1 readers
+16:16:04    Sequencer      INFO        13 algorithms
+16:16:04    Sequencer      INFO        0 writers
+16:16:06    Sequencer      INFO      finished event 0
+16:16:08    Sequencer      INFO      finished event 1
+16:16:10    Sequencer      INFO      finished event 2
+16:16:10    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:10    TrackFinding   INFO      - total seeds: 899648
+16:16:10    TrackFinding   INFO      - deduplicated seeds: 128336
+16:16:10    TrackFinding   INFO      - failed seeds: 0
+16:16:10    TrackFinding   INFO      - failed smoothing: 0
+16:16:10    TrackFinding   INFO      - failed extrapolation: 0
+16:16:10    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:10    TrackFinding   INFO      - found tracks: 104840
+16:16:10    TrackFinding   INFO      - selected tracks: 24224
+16:16:10    TrackFinding   INFO      - stopped branches: 672056
+16:16:10    TrackFinding   INFO      - skipped second pass: 24
+16:16:10    Sequencer      INFO      Processed 3 events in 6.606039 s (wall clock)
+16:16:10    Sequencer      INFO      Average time per event: 2.191206 s/event
+16:16:10    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2269.59 |          756.53 |    34.5% |
+| Algorithm:HepMC3InputConverter           |         1579.23 |          526.41 |    24.0% |
+| Algorithm:FatrasSimulation               |          898.93 |          299.64 |    13.7% |
+| Reader:EventGenerator                    |          870.84 |          290.28 |    13.2% |
+| Algorithm:DigitizationAlgorithm          |          453.19 |          151.06 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          400.74 |          133.58 |     6.1% |
+| Algorithm:TrackTruthMatcher              |           30.35 |           10.12 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.43 |            7.81 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           14.17 |            4.72 |     0.2% |
+| Algorithm:ParticleSelector               |            9.49 |            3.16 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            9.06 |            3.02 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.98 |            2.66 |     0.1% |
+| Algorithm:ParticleSelector               |            4.76 |            1.59 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.84 |            0.61 |     0.0% |
+| TOTAL                                    |         6573.62 |         2191.21 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.299644), 'seeding': np.float64(0.133581), 'ckf': np.float64(0.756531)}
+start round 8
+16:16:10    Sequencer      INFO      Processing events [0, 3)
+16:16:10    Sequencer      INFO      Starting event loop with 1 threads
+16:16:10    Sequencer      INFO        0 context decorators
+16:16:10    Sequencer      INFO        14 sequence elements
+16:16:10    Sequencer      INFO        1 readers
+16:16:10    Sequencer      INFO        13 algorithms
+16:16:10    Sequencer      INFO        0 writers
+16:16:12    Sequencer      INFO      finished event 0
+16:16:14    Sequencer      INFO      finished event 1
+16:16:17    Sequencer      INFO      finished event 2
+16:16:17    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:17    TrackFinding   INFO      - total seeds: 1012104
+16:16:17    TrackFinding   INFO      - deduplicated seeds: 144378
+16:16:17    TrackFinding   INFO      - failed seeds: 0
+16:16:17    TrackFinding   INFO      - failed smoothing: 0
+16:16:17    TrackFinding   INFO      - failed extrapolation: 0
+16:16:17    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:17    TrackFinding   INFO      - found tracks: 117945
+16:16:17    TrackFinding   INFO      - selected tracks: 27252
+16:16:17    TrackFinding   INFO      - stopped branches: 756063
+16:16:17    TrackFinding   INFO      - skipped second pass: 27
+16:16:17    Sequencer      INFO      Processed 3 events in 6.476661 s (wall clock)
+16:16:17    Sequencer      INFO      Average time per event: 2.148598 s/event
+16:16:17    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2222.53 |          740.84 |    34.5% |
+| Algorithm:HepMC3InputConverter           |         1571.96 |          523.99 |    24.4% |
+| Algorithm:FatrasSimulation               |          888.06 |          296.02 |    13.8% |
+| Reader:EventGenerator                    |          856.37 |          285.46 |    13.3% |
+| Algorithm:DigitizationAlgorithm          |          445.12 |          148.37 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          362.84 |          120.95 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.59 |            9.86 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.66 |            7.89 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           13.02 |            4.34 |     0.2% |
+| Algorithm:ParticleSelector               |            9.09 |            3.03 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            8.93 |            2.98 |     0.1% |
+| Algorithm:SpacePointMaker                |            8.15 |            2.72 |     0.1% |
+| Algorithm:ParticleSelector               |            4.75 |            1.58 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.74 |            0.58 |     0.0% |
+| TOTAL                                    |         6445.80 |         2148.60 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.296019), 'seeding': np.float64(0.120947), 'ckf': np.float64(0.740843)}
+start round 9
+16:16:17    Sequencer      INFO      Processing events [0, 3)
+16:16:17    Sequencer      INFO      Starting event loop with 1 threads
+16:16:17    Sequencer      INFO        0 context decorators
+16:16:17    Sequencer      INFO        14 sequence elements
+16:16:17    Sequencer      INFO        1 readers
+16:16:17    Sequencer      INFO        13 algorithms
+16:16:17    Sequencer      INFO        0 writers
+16:16:19    Sequencer      INFO      finished event 0
+16:16:21    Sequencer      INFO      finished event 1
+16:16:23    Sequencer      INFO      finished event 2
+16:16:23    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:23    TrackFinding   INFO      - total seeds: 1124560
+16:16:23    TrackFinding   INFO      - deduplicated seeds: 160420
+16:16:23    TrackFinding   INFO      - failed seeds: 0
+16:16:23    TrackFinding   INFO      - failed smoothing: 0
+16:16:23    TrackFinding   INFO      - failed extrapolation: 0
+16:16:23    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:23    TrackFinding   INFO      - found tracks: 131050
+16:16:23    TrackFinding   INFO      - selected tracks: 30280
+16:16:23    TrackFinding   INFO      - stopped branches: 840070
+16:16:23    TrackFinding   INFO      - skipped second pass: 30
+16:16:23    Sequencer      INFO      Processed 3 events in 6.512017 s (wall clock)
+16:16:23    Sequencer      INFO      Average time per event: 2.159027 s/event
+16:16:23    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2225.29 |          741.76 |    34.4% |
+| Algorithm:HepMC3InputConverter           |         1564.58 |          521.53 |    24.2% |
+| Reader:EventGenerator                    |          888.71 |          296.24 |    13.7% |
+| Algorithm:FatrasSimulation               |          882.13 |          294.04 |    13.6% |
+| Algorithm:DigitizationAlgorithm          |          453.69 |          151.23 |     7.0% |
+| Algorithm:GridTripletSeedingAlgorithm    |          365.40 |          121.80 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.53 |            9.84 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.12 |            7.71 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           12.19 |            4.06 |     0.2% |
+| Algorithm:ParticleSelector               |            9.13 |            3.04 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            8.96 |            2.99 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.74 |            2.58 |     0.1% |
+| Algorithm:ParticleSelector               |            4.81 |            1.60 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.79 |            0.60 |     0.0% |
+| TOTAL                                    |         6477.08 |         2159.03 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.294043), 'seeding': np.float64(0.121802), 'ckf': np.float64(0.741763)}
+start round 10
+16:16:23    Sequencer      INFO      Processing events [0, 3)
+16:16:23    Sequencer      INFO      Starting event loop with 1 threads
+16:16:23    Sequencer      INFO        0 context decorators
+16:16:23    Sequencer      INFO        14 sequence elements
+16:16:23    Sequencer      INFO        1 readers
+16:16:23    Sequencer      INFO        13 algorithms
+16:16:23    Sequencer      INFO        0 writers
+16:16:25    Sequencer      INFO      finished event 0
+16:16:27    Sequencer      INFO      finished event 1
+16:16:30    Sequencer      INFO      finished event 2
+16:16:30    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:30    TrackFinding   INFO      - total seeds: 1237016
+16:16:30    TrackFinding   INFO      - deduplicated seeds: 176462
+16:16:30    TrackFinding   INFO      - failed seeds: 0
+16:16:30    TrackFinding   INFO      - failed smoothing: 0
+16:16:30    TrackFinding   INFO      - failed extrapolation: 0
+16:16:30    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:30    TrackFinding   INFO      - found tracks: 144155
+16:16:30    TrackFinding   INFO      - selected tracks: 33308
+16:16:30    TrackFinding   INFO      - stopped branches: 924077
+16:16:30    TrackFinding   INFO      - skipped second pass: 33
+16:16:30    Sequencer      INFO      Processed 3 events in 6.482988 s (wall clock)
+16:16:30    Sequencer      INFO      Average time per event: 2.150918 s/event
+16:16:30    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2229.20 |          743.07 |    34.5% |
+| Algorithm:HepMC3InputConverter           |         1568.80 |          522.93 |    24.3% |
+| Algorithm:FatrasSimulation               |          890.83 |          296.94 |    13.8% |
+| Reader:EventGenerator                    |          859.26 |          286.42 |    13.3% |
+| Algorithm:DigitizationAlgorithm          |          443.96 |          147.99 |     6.9% |
+| Algorithm:GridTripletSeedingAlgorithm    |          363.47 |          121.16 |     5.6% |
+| Algorithm:TrackTruthMatcher              |           29.32 |            9.77 |     0.5% |
+| Algorithm:TrackParamsEstimationAlgorithm |           24.53 |            8.18 |     0.4% |
+| Algorithm:ProtoTracksToTracks            |           11.03 |            3.68 |     0.2% |
+| Algorithm:ParticleSelector               |            9.11 |            3.04 |     0.1% |
+| Algorithm:TrackTruthMatcher              |            8.99 |            3.00 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.88 |            2.63 |     0.1% |
+| Algorithm:ParticleSelector               |            4.73 |            1.58 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.64 |            0.55 |     0.0% |
+| TOTAL                                    |         6452.76 |         2150.92 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.296943), 'seeding': np.float64(0.121156), 'ckf': np.float64(0.743066)}
+start round 11
+16:16:30    Sequencer      INFO      Processing events [0, 3)
+16:16:30    Sequencer      INFO      Starting event loop with 1 threads
+16:16:30    Sequencer      INFO        0 context decorators
+16:16:30    Sequencer      INFO        14 sequence elements
+16:16:30    Sequencer      INFO        1 readers
+16:16:30    Sequencer      INFO        13 algorithms
+16:16:30    Sequencer      INFO        0 writers
+16:16:32    Sequencer      INFO      finished event 0
+16:16:34    Sequencer      INFO      finished event 1
+16:16:37    Sequencer      INFO      finished event 2
+16:16:37    TrackFinding   INFO      TrackFindingAlgorithm statistics:
+16:16:37    TrackFinding   INFO      - total seeds: 1349472
+16:16:37    TrackFinding   INFO      - deduplicated seeds: 192504
+16:16:37    TrackFinding   INFO      - failed seeds: 0
+16:16:37    TrackFinding   INFO      - failed smoothing: 0
+16:16:37    TrackFinding   INFO      - failed extrapolation: 0
+16:16:37    TrackFinding   INFO      - failure ratio seeds: 0
+16:16:37    TrackFinding   INFO      - found tracks: 157260
+16:16:37    TrackFinding   INFO      - selected tracks: 36336
+16:16:37    TrackFinding   INFO      - stopped branches: 1008084
+16:16:37    TrackFinding   INFO      - skipped second pass: 36
+16:16:37    Sequencer      INFO      Processed 3 events in 6.979387 s (wall clock)
+16:16:37    Sequencer      INFO      Average time per event: 2.309271 s/event
+16:16:37    Sequencer      INFO      Timing breakdown:
+| Algorithm                                | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:TrackFindingAlgorithm          |         2565.41 |          855.14 |    37.0% |
+| Algorithm:HepMC3InputConverter           |         1675.77 |          558.59 |    24.2% |
+| Algorithm:FatrasSimulation               |          918.40 |          306.13 |    13.3% |
+| Reader:EventGenerator                    |          848.66 |          282.89 |    12.3% |
+| Algorithm:DigitizationAlgorithm          |          449.18 |          149.73 |     6.5% |
+| Algorithm:GridTripletSeedingAlgorithm    |          364.38 |          121.46 |     5.3% |
+| Algorithm:TrackTruthMatcher              |           30.11 |           10.04 |     0.4% |
+| Algorithm:TrackParamsEstimationAlgorithm |           23.73 |            7.91 |     0.3% |
+| Algorithm:ProtoTracksToTracks            |           15.15 |            5.05 |     0.2% |
+| Algorithm:TrackTruthMatcher              |           12.77 |            4.26 |     0.2% |
+| Algorithm:ParticleSelector               |            9.06 |            3.02 |     0.1% |
+| Algorithm:SpacePointMaker                |            7.90 |            2.63 |     0.1% |
+| Algorithm:ParticleSelector               |            5.48 |            1.83 |     0.1% |
+| Algorithm:SeedsToProtoTracks             |            1.81 |            0.60 |     0.0% |
+| TOTAL                                    |         6927.81 |         2309.27 |   100.0% |
+
+finished and got times {'fatras': np.float64(0.306133), 'seeding': np.float64(0.12146), 'ckf': np.float64(0.855136)}

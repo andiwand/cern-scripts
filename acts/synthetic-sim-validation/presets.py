@@ -52,17 +52,23 @@ def path(detector: str, suffix: str) -> Path:
     return data_dir() / (detector + suffix)
 
 
-def description(detector: str, *, material: bool = True):
+def description(detector: str, *, material: bool = True,
+                sensors: bool = True):
     """A shipped detector, read as a description.
 
     @param detector the detector, or a path prefix its files share
     @param material whether to decorate it with the material file beside it
+    @param sensors whether to decorate it with the sensor file beside it, where
+           there is one; a detector of nothing but pixels ships without
     @return the description
     """
     out = syn.readDetectorDescription(str(path(detector, "-description.json")))
     if material:
         syn.decorate(out, syn.readMaterialDecoration(
             str(path(detector, "-material.json"))))
+    if sensors and path(detector, "-sensors.json").exists():
+        syn.decorate(out, syn.readSensorDecoration(
+            str(path(detector, "-sensors.json"))))
     return out
 
 
@@ -93,21 +99,28 @@ def write_description(detector: str, value, *, split: bool = True) -> list:
 
     @param detector the detector, or a path prefix to write to
     @param value the description
-    @param split whether to put the material in its own file, which is how they
-           ship; False leaves it inline in the description
+    @param split whether to put the material and the sensors in their own
+           files, which is how they ship; False leaves them in the description
     @return the paths written
     """
     syn.assignLayerIndices(value)
     written = []
     if split:
-        # `stripMaterial` works in place, so the description handed in is left
-        # holding only its geometry -- deliberate, the material having been taken
-        # off it a line earlier.
+        # `stripMaterial` and `clearSensors` work in place, so the description
+        # handed in is left holding only its geometry -- deliberate, the two
+        # decorations having been taken off it a line earlier.
         decoration = syn.extractMaterial(value)
         syn.stripMaterial(value)
         material = path(detector, "-material.json")
         syn.writeMaterialDecoration(str(material), decoration)
         written.append(material)
+
+        readout = syn.extractSensors(value)
+        syn.clearSensors(value)
+        if readout:
+            sensors = path(detector, "-sensors.json")
+            syn.writeSensorDecoration(str(sensors), readout)
+            written.append(sensors)
     where = path(detector, "-description.json")
     syn.writeDetectorDescription(str(where), value)
     written.append(where)

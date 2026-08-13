@@ -31,6 +31,7 @@ Note the `python x.py` invocation: DD4hep needs the spack view on
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 import numpy as np
@@ -40,9 +41,10 @@ from acts.fatras import synthetic as syn
 
 import presets
 
-#: Pixel volumes per detector, and how to build it.
+#: Sensitive volumes per detector, and how to build it. The ITk's are the ten
+#: pixel volumes and the three strip ones, 22, 23 and 24.
 DETECTORS = {
-    "itk": {"volumes": {8, 9, 10, 13, 14, 15, 16, 18, 19, 20}},
+    "itk": {"volumes": {8, 9, 10, 13, 14, 15, 16, 18, 19, 20, 22, 23, 24}},
     "odd": {"volumes": {16, 17, 18}},
     "generic": {"volumes": {7, 8, 9}},
 }
@@ -315,6 +317,69 @@ def fill_rings(material, rings):
     return profile(edges, bands) or material
 
 
+def clip(material, lo: float, hi: float):
+    """Keep only the part of a surface's material between two coordinates.
+
+    Two subsystems may put a layer at the same place -- the ITk pixel and strip
+    endcaps both end at |z| = 2850 -- and the match is by reference coordinate
+    alone, so each of them takes the whole measured disc. A track crossing the
+    plane then picks the same material up twice, once on either surface.
+
+    The empty bands outside the window are dropped rather than kept at vacuum:
+    a surface is bounded by what its material spans, so leaving them would
+    stretch the pixel disc across the strip endcap and put it back in the way.
+
+    @param material the material to clip, or None
+    @param lo the lower bound to keep, in the coordinate the surface extends in
+    @param hi the upper bound
+    @return the clipped material, or None if there was none to start with
+    """
+    if material is None or not material.bounds:
+        return material
+    edges = sorted(e for e in set(material.bounds) | {lo, hi} if lo <= e <= hi)
+    bands = bands_of(material, edges)
+    while bands and bands[0] is None:
+        bands.pop(0)
+        edges.pop(0)
+    while bands and bands[-1] is None:
+        bands.pop()
+        edges.pop()
+    if not bands:
+        return material
+    return profile(edges, bands) or material
+
+
+def assign_discs(measured: list, spans: dict, tolerance: float) -> dict:
+    """Hand every measured disc to the described disc whose rings it covers.
+
+    Same nearest assignment as `assign`, except that where two subsystems put a
+    disc at one |z| -- the ITk pixel and strip endcaps both end at 2850 -- the
+    two are told apart by radius. Merging them instead averages each into the
+    other over radii it does not reach, and `merge` divides by the number of
+    materials it was given, so the pixel disc comes out at half its thickness.
+
+    @param measured pairs of reference coordinate and material
+    @param spans the radial extent of each described disc, by its |z|
+    @param tolerance how far a measured disc may sit from the one it goes to
+    @return the merged material per (|z|, index into that |z|'s spans)
+    """
+    out: dict = {}
+    for coord, material in measured:
+        if not spans:
+            break
+        closest = min(spans, key=lambda w: abs(w - coord))
+        if abs(closest - coord) > tolerance:
+            continue
+        here = spans[closest]
+        index = 0
+        if len(here) > 1 and material.bounds:
+            lo, hi = material.bounds[0], material.bounds[-1]
+            index = max(range(len(here)),
+                        key=lambda k: min(hi, here[k][1]) - max(lo, here[k][0]))
+        out.setdefault((closest, index), []).append(material)
+    return {k: merge(v) for k, v in out.items()}
+
+
 def assign(measured: list, wanted: list, tolerance: float) -> dict:
     """Hand every measured surface to the shipped one it belongs to.
 
@@ -410,8 +475,22 @@ def main() -> None:
     for layer_id, layer in presets.layers(shipped):
         positions.setdefault(_kind_of(layer_id, layer), []).append(
             presets.position(layer))
+    # Discs of two subsystems can land on one measured plane; see `clip`. Each
+    # keeps the radii up to halfway to whatever the next one covers, rather than
+    # its own rings exactly: a disc carries support out past its last ring.
+    spans, disc_index = {}, {}
+    for layer_id, layer in presets.layers(shipped):
+        if _kind_of(layer_id, layer) != "endcap" or not layer.rings:
+            continue
+        where = presets.position(layer)
+        here = spans.setdefault(where, [])
+        disc_index[(layer_id.subsystem, layer_id.placement, layer_id.layer)] = (
+            where, len(here))
+        here.append((min(r.rMin for r in layer.rings),
+                     max(r.rMax for r in layer.rings)))
+
     by_radius = assign(cylinders, positions.get("barrel", []), args.tolerance)
-    by_z = assign(discs, positions.get("endcap", []), args.tolerance)
+    by_z = assign_discs(discs, spans, args.tolerance)
     by_service = assign(services, positions.get("passive", []), args.tolerance)
 
     decoration = []
@@ -422,10 +501,24 @@ def main() -> None:
         if kind == "barrel":
             material = by_radius.get(where)
         elif kind == "endcap":
+            key = disc_index[(layer_id.subsystem, layer_id.placement,
+                              layer_id.layer)]
+            material = by_z.get(key)
+            here = spans.get(where, [])
+            if len(here) > 1 and layer.rings:
+                # Halfway to whatever the next disc covers, rather than at its
+                # own rings: a disc carries support out past its last ring.
+                mine = here[key[1]]
+                material = clip(
+                    material,
+                    max((0.5 * (other[1] + mine[0]) for other in here
+                         if other[1] <= mine[0]), default=0.0),
+                    min((0.5 * (other[0] + mine[1]) for other in here
+                         if other[0] >= mine[1]), default=math.inf))
             # the description and the geometry do not always agree on which
             # rings share a disc, so a ring with nothing measured over it takes
             # what the rest of its disc carries
-            material = fill_rings(by_z.get(where), layer.rings)
+            material = fill_rings(material, layer.rings)
         else:
             material = by_service.get(where)
             if material is None and not layer_id.subsystem:
