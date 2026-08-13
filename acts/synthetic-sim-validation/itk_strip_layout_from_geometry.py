@@ -16,6 +16,10 @@ disc without the supports that make the pixel endcap's gaps.
     python itk_strip_layout_from_geometry.py -o /tmp/itk
     python itk_strip_layout_from_geometry.py -o itk     # overwrite what ships
 
+The module types the strip layers are built of go in with them, named in the
+description's own `sensors` table: two barrel modules and one endcap module for
+ten layers, so that the two short-strip layers are provably the same thing.
+
 Material is not written here. Run `material_from_geometry.py itk` afterwards: it
 matches the geometry's material onto whatever layers the description has, so it
 picks the strips up once they are in it.
@@ -27,7 +31,10 @@ Note the `python x.py` invocation: the ITk geometry needs the spack view on
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
+
+import numpy as np
 
 import acts
 import acts.examples.itk
@@ -60,30 +67,51 @@ DISC_OVERLAP_OFFSET = 5.0
 #: be gone before it could cross it.
 ESCAPE_RADIUS = 1100.0
 
-#: What the two sensors of a strip module look like, per barrel layer and for
-#: the endcap. Not measured off the geometry: ACTS builds the strip modules as
-#: single planes, so the stereo pair is not in there to read.
+#: The module types the ITk strips are built of, and which layer is built of
+#: which. Not measured off the geometry: ACTS builds the strip modules as single
+#: planes, so the stereo pair is not in there to read.
 #:
 #: The ITk numbers, from the strip TDR: 75.5 um pitch throughout, 26 mrad
 #: between the two sides of a barrel stave and 20 mrad in the endcap, and strips
 #: of 24.1 mm on the two short-strip barrel layers against 48.2 mm on the two
-#: long-strip ones. The 2 mm between the sensors is the stave core, which is the
-#: one number here that is a round guess rather than a specification.
-BARREL_STRIP_LENGTHS = (24.1, 24.1, 48.2, 48.2)
-BARREL_STEREO_ANGLE = 26e-3
-ENDCAP_STEREO_ANGLE = 20e-3
+#: long-strip ones. The endcap strips fan out and run 15 to 60 mm depending on
+#: the ring; the discs reduce to one ring each, so they get one length.
+#:
+#: The separation between the two sensors of a stereo pair *is* in the geometry
+#: -- the two faces of a stave are two rings of modules at different radii --
+#: so it is measured rather than stated; see `measure_gaps`. It matters more
+#: than anything else here: the beam-spot vertex walks a resolved space point
+#: along the strip by `(kappa r / 2) * gap / sin(stereo)`, in proportion to it.
+STRIP_PITCH = 0.0755
+#: name -> (strip length, which region to measure the pair of). The lengths are
+#: the module extent along the strips, `2 * hlX` of the ACTS surfaces: 24.41 mm
+#: on the two short-strip barrel layers and 48.81 mm on the two long-strip ones.
 #: The endcap strips fan out and run 15 to 60 mm depending on the ring; the
 #: discs reduce to one ring each, so they get one length.
-ENDCAP_STRIP_LENGTH = 30.0
-STRIP_PITCH = 0.0755
-MODULE_GAP = 2.0
+SENSORS = {
+    "itk-strip-short": (24.41, "barrel"),
+    "itk-strip-long": (48.81, "barrel"),
+    "itk-strip-endcap": (30.0, "endcap"),
+}
+
+#: The endcap stereo angle, which the geometry will not give up: an annulus
+#: module's local frame is the fan's focal frame, so the tilt it reports is
+#: where the module sits in its ring and not how its strips are rotated. The
+#: strip TDR's 20 mrad, doubled because the two faces are tilted the opposite
+#: way by that much each -- which is what the barrel measurement shows.
+ENDCAP_STEREO_ANGLE = 40e-3
+
+#: which module each barrel layer is built of, outwards
+BARREL_SENSORS = ("itk-strip-short", "itk-strip-short",
+                  "itk-strip-long", "itk-strip-long")
+ENDCAP_SENSOR = "itk-strip-endcap"
 
 
 def reduce_strips(tolerance: float = 1.0):
     """Reduce the ITk strip volumes to a subsystem description.
 
     @param tolerance how far two mirrored discs may sit apart, in mm
-    @return the subsystem
+    @return the subsystem and the module types its layers reference
     """
     detector = acts.examples.itk.buildITkGeometry(
         Path.home() / "cern/source/acts/acts-itk")
@@ -106,6 +134,7 @@ def reduce_strips(tolerance: float = 1.0):
 
     description = syn.makeDescriptionFromTrackingGeometry(
         geometry, gctx, options)
+    table = sensors(measure_modules(geometry, gctx))
     if len(description.subsystems) != 1:
         raise SystemExit("expected one strip subsystem, got %d"
                          % len(description.subsystems))
@@ -122,35 +151,120 @@ def reduce_strips(tolerance: float = 1.0):
 
     _sensors(subsystem)
     _mirror(subsystem, tolerance)
-    return subsystem
+    return subsystem, table
 
 
-def _sensor(stereo_angle: float, half_length: float):
-    """@return one module's two sensors"""
-    out = syn.StripSensor()
-    out.stereoAngle = stereo_angle
-    out.pitch = STRIP_PITCH
-    out.moduleGap = MODULE_GAP
-    out.halfLength = half_length
+def _rotation(surface, gctx):
+    """@return the 3x3 rotation of a surface's local frame, as a numpy array"""
+    rows = str(surface.localToGlobalTransform(gctx)).strip().splitlines()
+    return np.array([[float(v) for v in row.split()] for row in rows])[:3, :3]
+
+
+def measure_modules(geometry, gctx) -> dict:
+    """Measure what a stereo pair is, off the geometry that has it.
+
+    Two things, neither of them written down anywhere else:
+
+    - **How far apart the two sensors sit.** A stave carries modules on both
+      faces, so the pair a space point is formed from is two rings of modules at
+      different radii. This is what decides how far the beam-spot vertex walks a
+      resolved point along its strip: `(kappa r / 2) * gap / sin(stereo)`.
+    - **The angle between them.** The two faces are tilted the opposite way by
+      the same amount, so the angle between the strips is *twice* the tilt of
+      either. Quoting the tilt as the stereo angle halves the resolution along
+      the strip and doubles that walk, which is worth an order of magnitude in
+      how many pairs resolve at all.
+
+    @param geometry the ITk tracking geometry
+    @param gctx the geometry context
+    @return `gap` and `stereo` per region, in mm and rad
+    """
+    planes = {}
+
+    def visit(surface):
+        if surface is None:
+            return
+        volume = surface.geometryId.volume
+        if volume not in STRIP_VOLUMES:
+            return
+        centre = surface.center(gctx)
+        x, y, z = float(centre[0]), float(centre[1]), float(centre[2])
+        r = math.hypot(x, y)
+        phi = math.atan2(y, x)
+        # the coordinate along the module normal: r in the barrel, z in an
+        # endcap
+        along = r if volume == 23 else z
+
+        # the tilt of the strips out of the direction they nominally run in
+        rotation = _rotation(surface, gctx)
+        nominal = np.array([0.0, 0.0, 1.0]) if volume == 23 \
+            else np.array([math.cos(phi), math.sin(phi), 0.0])
+        across = np.array([-math.sin(phi), math.cos(phi), 0.0])
+        axes = [rotation[:, 0], rotation[:, 1]]
+        axis = max(axes, key=lambda a: abs(float(np.dot(a, nominal))))
+        if float(np.dot(axis, nominal)) < 0:
+            axis = -axis
+        tilt = math.atan2(float(np.dot(axis, across)),
+                          float(np.dot(axis, nominal)))
+        planes.setdefault((volume, surface.geometryId.layer), []).append(
+            (along, tilt))
+
+    geometry.visitSurfaces(visit)
+
+    out = {}
+    for (volume, _), values in planes.items():
+        values.sort()
+        groups = [[values[0]]]
+        for value in values[1:]:
+            if value[0] - groups[-1][-1][0] > 1.0:
+                groups.append([])
+            groups[-1].append(value)
+        centres = [sum(v[0] for v in g) / len(g) for g in groups]
+        tilts = [sum(v[1] for v in g) / len(g) for g in groups]
+        gaps = [centres[i + 1] - centres[i] for i in range(len(centres) - 1)]
+        if not gaps:
+            continue
+        # A stave face carries one plane, and the pair is the closest two: the
+        # smallest separation, not the step from one pair to the next.
+        pair = min(range(len(gaps)), key=lambda i: gaps[i])
+        region = "barrel" if volume == 23 else "endcap"
+        out.setdefault(region, []).append(
+            (gaps[pair], abs(tilts[pair + 1] - tilts[pair])))
+    return {region: {"gap": sum(v[0] for v in values) / len(values),
+                     "stereo": sum(v[1] for v in values) / len(values)}
+            for region, values in out.items()}
+
+
+def sensors(modules: dict) -> dict:
+    """@param modules what a pair is, per region; see `measure_modules`
+    @return the module types, by the name a layer references them under"""
+    out = {}
+    for name, (length, region) in SENSORS.items():
+        sensor = syn.StripSensor()
+        sensor.stereoAngle = (modules[region]["stereo"] if region == "barrel"
+                              else ENDCAP_STEREO_ANGLE)
+        sensor.pitch = STRIP_PITCH
+        sensor.moduleGap = modules[region]["gap"]
+        sensor.halfLength = 0.5 * length
+        out[name] = sensor
     return out
 
 
 def _sensors(subsystem) -> None:
-    """Say how each layer is read out, which is what makes it a strip layer.
+    """Name the module each layer is built of, which is what makes it a strip
+    layer.
 
-    @param subsystem the subsystem to decorate in place
+    @param subsystem the subsystem to name in place
     """
     index = 0
     for barrel in subsystem.barrels:
         for cylinder in barrel.cylinders:
-            length = BARREL_STRIP_LENGTHS[
-                min(index, len(BARREL_STRIP_LENGTHS) - 1)]
-            cylinder.sensor = _sensor(BARREL_STEREO_ANGLE, 0.5 * length)
+            cylinder.sensor = BARREL_SENSORS[
+                min(index, len(BARREL_SENSORS) - 1)]
             index += 1
     for endcap in subsystem.endcaps:
         for disc in endcap.discs:
-            disc.sensor = _sensor(ENDCAP_STEREO_ANGLE,
-                                  0.5 * ENDCAP_STRIP_LENGTH)
+            disc.sensor = ENDCAP_SENSOR
 
 
 def _same_disc(a, b, tolerance: float) -> bool:
@@ -195,9 +309,9 @@ def report(subsystem) -> None:
     """
     for barrel in subsystem.barrels:
         for cylinder in barrel.cylinders:
-            print("cylinder  r=%8.2f  halfZ=%8.2f  layer=%-4s strip %.1f mm"
+            print("cylinder  r=%8.2f  halfZ=%8.2f  layer=%-4s %s"
                   % (cylinder.radius, cylinder.halfLengthZ, cylinder.layer,
-                     2.0 * cylinder.sensor.halfLength))
+                     cylinder.sensor))
     for endcap in subsystem.endcaps:
         side = str(endcap.placement).split(".")[-1].lower()
         for disc in endcap.discs:
@@ -220,8 +334,13 @@ def main() -> None:
                         help="how far two mirrored discs may sit apart, in mm")
     args = parser.parse_args()
 
-    subsystem = reduce_strips(args.mirror_tolerance)
+    subsystem, table = reduce_strips(args.mirror_tolerance)
     if args.report:
+        for name, sensor in sorted(table.items()):
+            print("sensor %-20s stereo %.4f rad  pitch %.4f  gap %.2f  "
+                  "strip %.1f mm"
+                  % (name, sensor.stereoAngle, sensor.pitch, sensor.moduleGap,
+                     2.0 * sensor.halfLength))
         report(subsystem)
         return
 
@@ -235,6 +354,10 @@ def main() -> None:
     # outermost of them is a surface at r = 1000, a track has to be allowed past
     # it before it counts as gone.
     description.escapeRadius = ESCAPE_RADIUS
+    merged = dict(description.sensors)
+    merged.update(table)
+    description.sensors = merged
+
     for written in presets.write_description(args.out or "itk", description):
         print("wrote %s" % written)
 
