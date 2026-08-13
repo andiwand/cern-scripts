@@ -78,6 +78,60 @@ def _same_disc(a, b, tolerance: float) -> bool:
                for x, y in zip(a.rings, b.rings))
 
 
+def _same_material(a, b, tolerance: float = 1e-3) -> bool:
+    """@return whether two surfaces are made of the same thing, band for band"""
+    if len(a.bounds) != len(b.bounds) or len(a.bands) != len(b.bands):
+        return False
+    if any(abs(x - y) > tolerance * max(1.0, abs(x))
+           for x, y in zip(a.bounds, b.bounds)):
+        return False
+    for x, y in zip(a.bands, b.bands):
+        for u, v in ((x.thicknessInX0, y.thicknessInX0),
+                     (x.thicknessInL0, y.thicknessInL0)):
+            if abs(u - v) > tolerance * max(1e-9, abs(u)):
+                return False
+    return True
+
+
+def mirror_passives(passives, tolerance: float) -> list:
+    """Fold pairs of one-sided passive discs into single mirrored ones.
+
+    The reduction finds a service disc on either side of the interaction point
+    and measures each; where the two agree, the description says it once, which
+    is the form the shipped files are in.
+
+    @param passives the passive surfaces to fold
+    @param tolerance how far two mirrored surfaces may sit apart, in mm
+    @return the folded list, in the order the positive sides came in
+    """
+    out, used = [], set()
+    for i, one in enumerate(passives):
+        if i in used:
+            continue
+        if one.shape == syn.SurfaceShape.Cylinder:
+            out.append(one)
+            continue
+        partner = None
+        for j in range(i + 1, len(passives)):
+            other = passives[j]
+            if (j in used or other.shape != one.shape
+                    or other.placement == one.placement
+                    or abs(other.refCoord - one.refCoord) > tolerance
+                    or abs(other.minBound - one.minBound) > tolerance
+                    or abs(other.maxBound - one.maxBound) > tolerance
+                    or not _same_material(one.material, other.material)):
+                continue
+            partner = j
+            break
+        if partner is None:
+            out.append(one)
+            continue
+        used.add(partner)
+        one.placement = syn.EndcapPlacement.Mirrored
+        out.append(one)
+    return out
+
+
 def mirror(description, tolerance: float) -> int:
     """Fold a subsystem's two one-sided endcaps into one mirrored one.
 
@@ -90,7 +144,9 @@ def mirror(description, tolerance: float) -> int:
     @return how many subsystems were folded
     """
     folded = 0
+    description.passives = mirror_passives(description.passives, tolerance)
     for subsystem in description.subsystems:
+        subsystem.passives = mirror_passives(subsystem.passives, tolerance)
         sides = {endcap.placement: endcap for endcap in subsystem.endcaps}
         if len(subsystem.endcaps) != 2 or set(sides) != {
                 syn.EndcapPlacement.Positive, syn.EndcapPlacement.Negative}:
@@ -112,13 +168,17 @@ def mirror(description, tolerance: float) -> int:
 
 
 def reduce_geometry(name: str, *, mirrored: bool = True,
-                    tolerance: float = 1.0, disc_z_tolerance=None,
-                    ring_r_tolerance=None):
+                    tolerance: float = 1.0, services: bool = True,
+                    disc_z_tolerance=None, ring_r_tolerance=None):
     """Reduce a built detector to a description of it.
 
     @param name the detector
     @param mirrored whether to fold symmetric endcaps onto one side
     @param tolerance how far two mirrored discs may sit apart, in mm
+    @param services also take the material the geometry carries away from any
+           sensitive layer. On by default: the ODD's outer service disc is worth
+           half a radiation length to a forward track, and no material on a
+           layer can stand in for it.
     @param disc_z_tolerance surfaces of a layer within this many mm are one disc
     @param ring_r_tolerance radial gap below which two rings count as one
     @return the description
@@ -136,6 +196,7 @@ def reduce_geometry(name: str, *, mirrored: bool = True,
     # pixel volumes of these two are one system as far as anything reading the
     # description is concerned.
     options.setSubsystemName(lambda s: setup["subsystem"])
+    options.includeMaterialSurfaces = services
     options.passiveBeamPipeRadius = setup["beamPipeRadius"]
     options.escapeRadius = setup["escapeRadius"]
     options.escapeHalfZ = setup["escapeHalfZ"]
@@ -206,6 +267,9 @@ def main() -> None:
                         help="print what was found rather than writing it")
     parser.add_argument("--no-mirror", action="store_true",
                         help="write both endcaps out even where they agree")
+    parser.add_argument("--no-services", action="store_true",
+                        help="leave out the material the geometry carries away "
+                             "from any sensitive layer")
     parser.add_argument("--mirror-tolerance", type=float, default=1.0,
                         help="how far two mirrored discs may sit apart, in mm")
     parser.add_argument("--disc-z-tolerance", type=float, default=None,
@@ -217,7 +281,7 @@ def main() -> None:
 
     description = reduce_geometry(
         args.detector, mirrored=not args.no_mirror,
-        tolerance=args.mirror_tolerance,
+        tolerance=args.mirror_tolerance, services=not args.no_services,
         disc_z_tolerance=args.disc_z_tolerance,
         ring_r_tolerance=args.ring_r_tolerance)
 

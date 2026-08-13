@@ -390,8 +390,21 @@ def main() -> None:
         if len(group) > 1:
             print("# %d coincident services at %s %.1f, taking the first"
                   % (len(group), key[0].rsplit(".", 1)[-1], key[1]))
+    # A measured cylinder at the beam pipe's radius is the volume boundary just
+    # outside the pipe, not the pipe. Left in, it wins the match on distance --
+    # 25.3 is nearer the description's 25.0 than the pipe's own 23.9 is -- and
+    # `measure_beam_pipe` is then never asked, which costs the ITk two thirds of
+    # its beam pipe and most of the secondaries at small |d0|.
+    beam_pipes = [presets.position(layer)
+                  for layer_id, layer in presets.layers(shipped)
+                  if layer_id.kind == syn.LayerKind.Passive
+                  and not layer_id.subsystem
+                  and layer.shape == syn.SurfaceShape.Cylinder]
     services = [(abs(group[0].refCoord), group[0].material)
-                for group in coincident.values()]
+                for group in coincident.values()
+                if group[0].shape != syn.SurfaceShape.Cylinder
+                or not any(abs(abs(group[0].refCoord) - b) <= args.tolerance
+                           for b in beam_pipes)]
 
     positions = {}
     for layer_id, layer in presets.layers(shipped):
