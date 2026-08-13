@@ -26,10 +26,9 @@ import acts
 from acts.fatras import synthetic as syn
 
 import material_from_geometry as mfg
+import presets
 
-PRESET = {"itk": syn.makeItkPixelLayout,
-          "odd": syn.makeOpenDataDetectorPixelLayout,
-          "generic": syn.makeGenericDetectorPixelLayout}
+
 #: Path length a crossing is worth is clamped the way the propagator clamps it.
 MAX_CYLINDER_PATH = 100.0
 MAX_DISC_PATH = 4.0
@@ -71,7 +70,7 @@ def collect(layout, eta: float):
             on = any(layout.layers[i].minBound <= (z if cylinder else r)
                      <= layout.layers[i].maxBound for i in s.layers)
         else:
-            on = s.passiveMinBound <= along <= s.passiveMaxBound
+            on = s.minBound <= along <= s.maxBound
         band = s.material.at(along)
         if not on or band.thicknessInX0 <= 0.0:
             continue
@@ -102,7 +101,7 @@ def reduce_geometry(detector: str, bands: int):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("detector", choices=sorted(PRESET))
+    parser.add_argument("detector", choices=("itk", "odd", "generic-pixel"))
     parser.add_argument("--bands", type=int, default=200,
                         help="bands the reference reduction keeps per surface")
     parser.add_argument("--max-eta", type=float, default=4.0)
@@ -113,7 +112,7 @@ def main() -> None:
     args = parser.parse_args()
 
     etas = np.linspace(0.0, args.max_eta, args.steps)
-    shipped = PRESET[args.detector]()
+    shipped = presets.layout(args.detector)
     reference = reduce_geometry(args.detector, args.bands)
     # the beam pipe sits in a volume the pixel selector excludes, so the
     # reference has to be told about it the same way the description is

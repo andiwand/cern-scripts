@@ -2,11 +2,12 @@
 """Generate synthetic events and write the CSV pairs `validate.py` reads.
 
 This is the fast-simulation half of the comparison. It generates from the
-*preset* - `EventConfig::itkPixelTtbarPu200` and its ODD counterpart - rather
-than from a configuration built up here, so that what gets validated is what a
-user of the generator gets, tuning and all. `fit_event_config.py` is the other
-way round: it builds a configuration from scratch and prints the preset that
-should hold the result.
+detector and configuration that *ship* - `itk-description.json` and
+`itk-ttbar-pu200.json`, or their ODD counterparts - rather than from a
+configuration built up here, so that what gets validated is what a user of the
+generator gets, tuning and all. `fit_event_config.py` is the other way round: it
+builds a configuration from scratch and writes the file that should hold the
+result.
 
     ./dump_fastsim.py itk -o /tmp/fastsim-itk --events 20
     ./dump_fastsim.py odd -o /tmp/fastsim-odd --events 20
@@ -24,18 +25,16 @@ import argparse
 
 from acts.fatras import synthetic as syn
 
-LAYOUTS = {
-    "itk": (syn.makeItkPixelLayout, syn.EventConfig.itkPixelTtbarPu200),
-    "odd": (syn.makeOpenDataDetectorPixelLayout,
-            syn.EventConfig.openDataDetectorTtbarPu200),
-}
+import presets
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("detector", choices=sorted(LAYOUTS))
+    parser.add_argument("detector",
+                        help="a shipped detector, or the path prefix its "
+                             "description, material and configuration share")
     parser.add_argument("-o", "--out", required=True,
                         help="prefix for `<out>_spacepoints.csv` and "
                              "`<out>_particles.csv`")
@@ -48,22 +47,21 @@ def main() -> None:
                              "last, written as one numbered CSV pair each")
     args = parser.parse_args()
 
-    make_layout, make_config = LAYOUTS[args.detector]
-    layout = make_layout()
-    config = make_config()
+    layout = presets.layout(args.detector)
+    config = presets.config(args.detector)
     if args.pileup is not None:
-        config.pileup = args.pileup
+        presets.set(config, "pileup", args.pileup)
     if args.seed is not None:
-        config.seed = args.seed
+        presets.set(config, "seed", args.seed)
 
-    seed = config.seed
+    seed = presets.get(config, "seed")
     for i in range(args.events):
-        config.seed = seed + i
+        presets.set(config, "seed", seed + i)
         # a single event keeps the unnumbered name it has always had
         prefix = args.out if args.events == 1 else "%s-%03d" % (args.out, i)
 
         event = syn.generateEvent(layout, config)
-        summary = syn.summarize(event, config.minPt)
+        summary = syn.summarize(event, presets.get(config, "minPt"))
         print("%s: %d space points, %d primaries, %d secondaries"
               % (prefix, summary.spacePoints, summary.primaries,
                  summary.secondaries))

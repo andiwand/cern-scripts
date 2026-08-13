@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Read the material of a shipped synthetic layout off the real geometry.
+"""Read the material of a shipped synthetic detector off the real geometry.
 
-`layout_from_geometry.py` reduces a geometry into a layout wholesale. This does
-only the material half: it reduces the geometry, then matches what it measured
-onto the *shipped* description by reference coordinate, so a layout whose
-positions were transcribed -- the ITk's, from ITKLayouts -- keeps its surfaces
-and gains their material.
+`layout_from_geometry.py` reduces a geometry into a description wholesale, which
+is all a detector ACTS can build needs. This does only the material half: it
+reduces the geometry, then matches what it measured onto the layers of the
+*shipped* description by reference coordinate, so a detector whose positions came
+from somewhere else -- the ITk's, from ITKLayouts -- keeps its layers and gains
+their material.
+
+It writes `<detector>-material.json`, keyed by the layers of the description it
+was matched against. A description that is renumbered afterwards therefore has
+to be re-matched, which `decorate` will say rather than silently mis-key.
 
 Emits real slabs, not weights in sensors. A weight fixes only `x/X0`, and the
 nuclear length drives the hadronic half of the yield: forcing silicon's `L0/X0`
@@ -15,8 +20,12 @@ Service surfaces -- material the geometry carries away from any sensitive layer
 -- come out too. They are where a mapped geometry keeps what no weight on a
 layer can express.
 
-    ./material_from_geometry.py itk
-    ./material_from_geometry.py odd
+    python material_from_geometry.py itk --report
+    python material_from_geometry.py itk -o /tmp/itk
+    python material_from_geometry.py itk -o itk      # overwrite what ships
+
+Note the `python x.py` invocation: DD4hep needs the spack view on
+`DYLD_LIBRARY_PATH`, which a shebang run through `/usr/bin/env` strips.
 """
 
 from __future__ import annotations
@@ -29,12 +38,17 @@ import numpy as np
 import acts
 from acts.fatras import synthetic as syn
 
+import presets
+
 #: Pixel volumes per detector, and how to build it.
 DETECTORS = {
     "itk": {"volumes": {8, 9, 10, 13, 14, 15, 16, 18, 19, 20}},
     "odd": {"volumes": {16, 17, 18}},
     "generic": {"volumes": {7, 8, 9}},
 }
+
+#: What each of them ships as, i.e. the prefix of its files in `Fatras/data`.
+SHIPS_AS = {"itk": "itk", "odd": "odd", "generic": "generic-pixel"}
 
 
 def build(name: str):
@@ -126,27 +140,6 @@ def measure(name: str, services: bool = True):
     return syn.makeLayoutFromTrackingGeometry(geometry, gctx, options)
 
 
-#: Significant figures the emitted tables carry. The generator reproduces its
-#: reference to about a percent, so four is already well past what it can use
-#: and the rest is noise that only makes the tables longer.
-SIG_FIGS = 4
-
-
-def num(value: float) -> str:
-    """@return the C++ float literal for a number, at `SIG_FIGS`"""
-    if value == 0:
-        return "0.f"
-    text = "%.*g" % (SIG_FIGS, value)
-    if "e" in text:
-        mantissa, exponent = text.split("e")
-        if "." not in mantissa:
-            mantissa += "."
-        return "%se%df" % (mantissa, int(exponent))
-    if "." not in text:
-        text += "."
-    return text + "f"
-
-
 def composition_of(slab):
     """What the bands of a surface share, from the slab they were quoted at.
 
@@ -155,50 +148,6 @@ def composition_of(slab):
     """
     m = slab.material
     return syn.BandComposition(m.Ar, m.Z, m.molarDensity * m.X0, slab.thickness)
-
-
-def composition_literal(material) -> str:
-    """What the bands of a surface share, read back off one of them.
-
-    Not off the surface average: that combines the empty bands in too, which
-    drags `Z` towards a beam hole. Every band the reduction made carries the
-    same composition by construction, so any one that holds something has it
-    exactly.
-
-    @param material the `SurfaceMaterial`
-    @return the C++ that reconstructs its composition
-    """
-    for band in material.bands:
-        if band.thicknessInX0 > 0:
-            m = band.material
-            return ("BandComposition{%s, %s, %s, %s}"
-                    % (num(m.Ar), num(m.Z), num(m.molarDensity * m.X0),
-                       num(band.thickness)))
-    return "BandComposition{}"
-
-
-def material_literal(material, indent: str = "       ") -> str:
-    """The C++ that reconstructs a surface's material.
-
-    Every band is quoted at the thickness of the shared slab, so what a band
-    states is its own two lengths and nothing else. Zero is a band holding
-    nothing.
-
-    @param material the `SurfaceMaterial`
-    @param indent what to put in front of the continuation lines
-    @return the literal
-    """
-    if material is None:
-        return "{}"
-    out = "{%s" % composition_literal(material)
-    if material.bounds:
-        lengths = [(b.material.X0, b.material.L0) if b.thicknessInX0 > 0
-                   else (0.0, 0.0) for b in material.bands]
-        out += (",\n%s{%s},\n%s{%s},\n%s{%s}"
-                % (indent, ", ".join(num(b) for b in material.bounds),
-                   indent, ", ".join(num(x0) for x0, _ in lengths),
-                   indent, ", ".join(num(l0) for _, l0 in lengths)))
-    return out + "}"
 
 
 #: `L0/X0` of the lightest and heaviest thing a tracker is built out of:
@@ -222,23 +171,23 @@ def report_composition(materials: list) -> None:
     for label, material in materials:
         if material is None:
             continue
-        for bound, band in zip(material.bounds, material.bands):
+        for lo, band in zip(material.bounds, material.bands):
             if band.thicknessInX0 <= 0:
                 continue
             ratio = band.material.L0 / band.material.X0
             ratios.append(ratio)
             if not PHYSICAL_L0_OVER_X0[0] <= ratio <= PHYSICAL_L0_OVER_X0[1]:
-                bad.append((label, bound, ratio))
+                bad.append((label, lo, ratio))
     if not ratios:
         return
     ratios.sort()
-    print("  // L0/X0 over %d bands: %.2f to %.2f, median %.2f"
+    print("  L0/X0 over %d bands: %.2f to %.2f, median %.2f"
           % (len(ratios), ratios[0], ratios[-1], ratios[len(ratios) // 2]))
-    for label, bound, ratio in bad[:10]:
-        print("  // NOT A MATERIAL: %s below %.1f has L0/X0 = %.2f"
-              % (label, bound, ratio))
+    for label, lo, ratio in bad[:10]:
+        print("  NOT A MATERIAL: %s from %.1f has L0/X0 = %.2f"
+              % (label, lo, ratio))
     if len(bad) > 10:
-        print("  // ... and %d more" % (len(bad) - 10))
+        print("  ... and %d more" % (len(bad) - 10))
 
 
 def profile(edges: list, bands: list):
@@ -272,8 +221,9 @@ def profile(edges: list, bands: list):
         x0s.append(mean.thickness / slab.thicknessInX0)
         l0s.append(mean.thickness / slab.thicknessInL0
                    if slab.thicknessInL0 > 0 else 0.0)
+    # every edge, the first one included: a band is the gap between two of them
     return syn.SurfaceMaterial(composition_of(mean),
-                               [float(e) for e in edges[1:]], x0s, l0s)
+                               [float(e) for e in edges], x0s, l0s)
 
 
 def bands_of(material, edges: list) -> list:
@@ -302,7 +252,9 @@ def merge(materials: list):
     """
     if len(materials) == 1:
         return materials[0]
-    edges = sorted({0.0} | {b for m in materials for b in m.bounds})
+    # the union of their edges; each already states where its own material
+    # starts, so nothing has to be prepended
+    edges = sorted({b for m in materials for b in m.bounds})
     bands = []
     for lo, hi in zip(edges, edges[1:]):
         here = []
@@ -339,7 +291,7 @@ def fill_rings(material, rings):
                if material.at(0.5 * (r.rMin + r.rMax)).thicknessInX0 <= 0]
     if not missing:
         return material
-    edges = sorted({0.0} | set(material.bounds)
+    edges = sorted(set(material.bounds)
                    | {r.rMin for r in missing} | {r.rMax for r in missing})
     bands = bands_of(material, edges)
 
@@ -387,8 +339,18 @@ def assign(measured: list, wanted: list, tolerance: float) -> dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("detector", choices=sorted(DETECTORS))
+    parser.add_argument("-o", "--out", default=None,
+                        help="what to write the material of: a shipped name, or "
+                             "a path prefix. Defaults to the detector itself.")
+    parser.add_argument("--against", default=None,
+                        help="the description to match onto; defaults to the "
+                             "one the detector ships with")
+    parser.add_argument("--report", action="store_true",
+                        help="print what was matched rather than writing it")
     parser.add_argument("--tolerance", type=float, default=6.0,
                         help="how far a measured surface may sit from the "
                              "shipped one it is matched to, in mm")
@@ -397,110 +359,107 @@ def main() -> None:
                              "layer")
     args = parser.parse_args()
 
+    shipped = presets.description(args.against or SHIPS_AS[args.detector],
+                                  material=False)
     layout = measure(args.detector, services=not args.no_services)
-    description = {"itk": syn.itkPixelDescription,
-                   "odd": syn.openDataDetectorPixelDescription,
-                   "generic": syn.genericDetectorPixelDescription}[
-                       args.detector]()
 
+    # What the reduction found, split the way the shipped layers are named: a
+    # sensitive cylinder or disc is matched by its reference coordinate, a
+    # service by its shape and position.
     cylinders, discs, passive = [], [], []
     for s in layout.surfaces:
         if s.material.average().thickness <= 0:
             continue
         if s.passive:
-            # one side only; the description mirrors a disc itself
+            # one side only; a description states a disc once and mirrors it
             if s.refCoord >= 0:
                 passive.append(s)
             continue
         (cylinders if s.shape == syn.SurfaceShape.Cylinder
          else discs).append((abs(s.refCoord), s.material))
 
-    radii = list(description.barrelRadii)
-    if description.beamPipeRadius is not None:
-        radii.append(description.beamPipeRadius)
-    byRadius = assign(cylinders, radii, args.tolerance)
-    byZ = assign(discs, [d.absZ for d in description.discs], args.tolerance)
-
-    emitted = []
-    print("  // Read off the geometry by "
-          "`material_from_geometry.py %s`." % args.detector)
-    print("  description.barrelMaterials = {")
-    for r in description.barrelRadii:
-        slab = byRadius.get(r)
-        emitted.append(("barrel r = %.1f" % r, slab))
-        print("      %s,%s" % (material_literal(slab),
-                               "" if slab else "  // nothing at r = %.1f" % r))
-    print("  };")
-
-    if description.beamPipeRadius is not None:
-        slab = (byRadius.get(description.beamPipeRadius)
-                or measure_beam_pipe(args.detector, description.beamPipeRadius,
-                                     description.barrelRadii))
-        if slab is None:
-            raise SystemExit("no beam pipe material found at r = %.1f; a "
-                             "vacuum beam pipe makes no secondaries at all"
-                             % description.beamPipeRadius)
-        emitted.append(("beam pipe", slab))
-        print("  description.beamPipeMaterial =\n      %s;"
-              % material_literal(slab, "      "))
-
     # Coincident services come from separate volume groups -- the same shell
     # seen from either side of a volume boundary -- and a track crosses that
     # position once. `materialOfGroup` does this within a group; across groups
     # it has to be done here.
-    merged = {}
+    coincident = {}
     for s in passive:
-        key = (str(s.shape), round(abs(s.refCoord), 1))
-        merged.setdefault(key, []).append(s)
-    passive = []
-    for group in merged.values():
+        coincident.setdefault((str(s.shape), round(abs(s.refCoord), 1)),
+                              []).append(s)
+    for key, group in sorted(coincident.items()):
         if len(group) > 1:
-            print("  // %d coincident services at %.1f, averaged"
-                  % (len(group), abs(group[0].refCoord)))
-        passive.append(group[0])
+            print("# %d coincident services at %s %.1f, taking the first"
+                  % (len(group), key[0].rsplit(".", 1)[-1], key[1]))
+    services = [(abs(group[0].refCoord), group[0].material)
+                for group in coincident.values()]
 
-    # the beam pipe is emitted on its own, so a service surface at the same
-    # radius is the same object and would be crossed twice
-    if description.beamPipeRadius is not None:
-        passive = [s for s in passive
-                   if s.shape != syn.SurfaceShape.Cylinder
-                   or abs(abs(s.refCoord) - description.beamPipeRadius)
-                   > args.tolerance]
+    positions = {}
+    for layer_id, layer in presets.layers(shipped):
+        positions.setdefault(_kind_of(layer_id, layer), []).append(
+            presets.position(layer))
+    by_radius = assign(cylinders, positions.get("barrel", []), args.tolerance)
+    by_z = assign(discs, positions.get("endcap", []), args.tolerance)
+    by_service = assign(services, positions.get("passive", []), args.tolerance)
 
-    if passive:
-        print("  // Services: material the geometry carries away from any")
-        print("  // sensitive layer, which no weight on a layer can express.")
-        print("  // The extent matters as much as the amount: a tube grazed at")
-        print("  // cosh(eta) is worth ten times its thickness forward.")
-        print("  description.passiveSurfaces = {")
-        for s in sorted(passive, key=lambda s: (str(s.shape), s.refCoord)):
-            cylinder = s.shape == syn.SurfaceShape.Cylinder
-            lo, hi = s.passiveMinBound, s.passiveMaxBound
-            if not np.isfinite(hi):
-                raise SystemExit(
-                    "unbounded passive surface at %.1f: the reduction did not "
-                    "give it an extent" % s.refCoord)
-            emitted.append(("service at %.1f" % abs(s.refCoord), s.material))
-            print("      {SurfaceShape::%s, %s, %s, %s,\n       %s},"
-                  % ("Cylinder" if cylinder else "Disc",
-                     num(abs(s.refCoord)), num(lo), num(hi),
-                     material_literal(s.material)))
-        print("  };")
+    decoration = []
+    emitted, missing = [], []
+    for layer_id, layer in presets.layers(shipped):
+        kind = _kind_of(layer_id, layer)
+        where = presets.position(layer)
+        if kind == "barrel":
+            material = by_radius.get(where)
+        elif kind == "endcap":
+            # the description and the geometry do not always agree on which
+            # rings share a disc, so a ring with nothing measured over it takes
+            # what the rest of its disc carries
+            material = fill_rings(by_z.get(where), layer.rings)
+        else:
+            material = by_service.get(where)
+            if material is None and not layer_id.subsystem:
+                # the beam pipe, which no pixel volume contains
+                material = measure_beam_pipe(args.detector, where,
+                                             positions.get("barrel", []))
+                if material is None:
+                    raise SystemExit(
+                        "no beam pipe material at r = %.1f; a vacuum beam pipe "
+                        "makes no secondaries at all" % where)
+        label = "%s %s %d at %.1f" % (layer_id.subsystem or "detector", kind,
+                                      layer_id.layer, where)
+        if material is None:
+            missing.append(label)
+            continue
+        emitted.append((label, material))
+        entry = syn.MaterialEntry()
+        entry.layer = layer_id
+        entry.material = material
+        decoration.append(entry)
 
-    print("  description.discs = {")
-    unmatched = 0
-    for disc in description.discs:
-        slab = fill_rings(byZ.get(disc.absZ), disc.rings)
-        emitted.append(("disc z = %.1f" % disc.absZ, slab))
-        unmatched += slab is None
-        rings = ", ".join("{%s, %s}" % (num(r.rMin), num(r.rMax))
-                          for r in disc.rings)
-        print("      {%s, {%s},\n       %s},"
-              % (num(disc.absZ), rings, material_literal(slab)))
-    print("  };")
-    print("  // %d of %d discs matched a measured surface"
-          % (len(description.discs) - unmatched, len(description.discs)))
+    print("# matched %d of %d layers of %s"
+          % (len(decoration), len(decoration) + len(missing), args.detector))
+    for label in missing:
+        print("# nothing measured over %s" % label)
     report_composition(emitted)
+
+    if args.report:
+        for label, material in emitted:
+            print("%-40s %8.4f x/X0  %3d band(s)"
+                  % (label, material.average().thicknessInX0,
+                     len(material.bands)))
+        return
+
+    where = presets.path(args.out or SHIPS_AS[args.detector],
+                         "-material.json")
+    syn.writeMaterialDecoration(str(where), decoration)
+    print("wrote %s" % where)
+
+
+def _kind_of(layer_id, layer) -> str:
+    """@return `barrel`, `endcap` or `passive` for one described layer"""
+    if layer_id.kind == syn.LayerKind.Barrel:
+        return "barrel"
+    if layer_id.kind == syn.LayerKind.Endcap:
+        return "endcap"
+    return "passive"
 
 
 if __name__ == "__main__":

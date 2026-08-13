@@ -30,6 +30,7 @@ import numpy as np
 from acts.fatras import synthetic as syn
 
 import fit_event_config as fit
+import presets
 
 
 @dataclass(frozen=True)
@@ -88,9 +89,7 @@ TERMS = (
 BASELINE = {"itk": {"path_length": 4.0, "turns": 3.0},
             "odd": {"path_length": 4.0, "turns": 3.0}}
 
-PRESET = {"itk": (syn.makeItkPixelLayout, syn.EventConfig.itkPixelTtbarPu200),
-          "odd": (syn.makeOpenDataDetectorPixelLayout,
-                  syn.EventConfig.openDataDetectorTtbarPu200)}
+
 
 
 def quick(term: Term, config, layout, description, target):
@@ -109,11 +108,11 @@ def quick(term: Term, config, layout, description, target):
     @param target what to score against
     @return the scorecard
     """
-    trial = fit._with(config, term.off)
-    trial = fit._with(trial, {"chargedPerUnitRapidity":
+    trial = presets.copy_with(config, term.off)
+    trial = presets.copy_with(trial, {"chargedPerUnitRapidity":
                               fit.solve_charged_per_unit_rapidity(layout, trial,
                                                              target)})
-    trial = fit._with(trial, fit.solve_secondary_rate(layout, trial, target))
+    trial = presets.copy_with(trial, fit.solve_secondary_rate(layout, trial, target))
     return fit.scorecard(trial, layout, target)
 
 
@@ -155,7 +154,7 @@ def noise(config, layout, target, seeds: int) -> dict:
     @param seeds how many events to score the untouched preset on
     @return the standard deviation of each figure over those events
     """
-    cards = [fit.scorecard(fit._with(config, {"seed": 12345 + i}), layout,
+    cards = [fit.scorecard(presets.copy_with(config, {"seed": 12345 + i}), layout,
                            target) for i in range(seeds)]
     return {key: float(np.std([c[key] for c in cards], ddof=1))
             for key, _, _ in fit.FIGURES}
@@ -192,8 +191,7 @@ def main() -> None:
     description, target, _ = fit.reference(args.detector, fullsim=args.fullsim,
                                            events=args.events,
                                            cache_dir=args.cache_dir)
-    make_layout, make_config = PRESET[args.detector]
-    config, layout = make_config(), make_layout()
+    config, layout = presets.config(args.detector), presets.layout(args.detector)
 
     print("\nwhat each term is, and what taking it out means")
     for term in terms:

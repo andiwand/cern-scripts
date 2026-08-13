@@ -29,11 +29,11 @@ the samples are comparable whatever number of events each holds - but give
 line carries several times the noise of the line it is read against.
 `fastsim.load` globs the prefix, so clear the old CSVs before a shorter run.
 
-`dump_fastsim.py` generates from the shipped preset through the Python bindings;
-`ActsBenchmarkSyntheticEventGeneration --layout itk-pixel --dump <prefix>` writes
-the same two files faster, where the benchmark is built.
+`dump_fastsim.py` generates from the shipped files through the Python bindings;
+`ActsBenchmarkSyntheticEventGeneration --layout itk --dump <prefix>` writes the
+same two files faster, where the benchmark is built.
 
-The two shipped presets came out of
+The two shipped configurations came out of
 
 ```sh
 ./fit_event_config.py itk --fullsim '<dump>*.root' --events 250 \
@@ -44,8 +44,10 @@ The two shipped presets came out of
     --set stubRate=1.800 --set stubClusters=2.1 --set stubReach=4.0
 ```
 
-which print `EventConfig::itkPixelTtbarPu200` and
-`EventConfig::openDataDetectorTtbarPu200` as C++ to paste. The two halves are
+which write `itk-ttbar-pu200.json` and `odd-ttbar-pu200.json` into
+`Fatras/data`; `--out <prefix>` writes them somewhere else and `--out -` writes
+nothing. Every field is stated in the file, so a change to a default cannot
+retune one. The two halves are
 disjoint and the validation gets the same number the fit did: `--events N` takes
 the front of each ITk file and of the ODD shard, `--events N --skip-events N` in
 `validate.py` takes what follows. The ITk splits its five hundred events 250/250
@@ -75,17 +77,18 @@ ITk loader asks uproot for `library="np"`.
 
 | | |
 | --- | --- |
+| `presets.py` | the shipped detectors and configurations as files, and the flat field names the fit talks in |
 | `sample.py` | the `Sample` every loader produces and `validate.py` plots |
 | `fullsim_itk.py`, `fullsim_colliderml.py`, `fastsim.py` | one loader per sample format, so a third full simulation means one more file |
-| `dump_fastsim.py` | generate an event from a preset and write the CSV pair |
+| `dump_fastsim.py` | generate an event from the shipped files and write the CSV pair |
 | `validate.py` | the comparison and its plots |
-| `scorecard.py` | the scored figures for a shipped preset, in a minute |
-| `fit_event_config.py` | fit `EventConfig` to a reference, print it as C++ |
+| `scorecard.py` | the scored figures for a shipped configuration, in a minute |
+| `fit_event_config.py` | fit `EventConfig` to a reference and write it as JSON |
 | `ablate.py` | remove one term of the model at a time and score what is left |
-| `itk_layout_from_xml.py` | the ITk layout, out of the ATLAS GeoModelXml |
-| `layout_from_geometry.py` | the ODD and Generic layouts, out of the ACTS geometry |
+| `itk_layout_from_xml.py` | the ITk description, out of the ATLAS GeoModelXml |
+| `layout_from_geometry.py` | the ODD and Generic descriptions, out of the ACTS geometry |
 | `material_from_geometry.py` | the material half of the same, matched onto a shipped description |
-| `material_budget.py` | what a ray collects in a shipped layout, against the geometry it was read from |
+| `material_budget.py` | what a ray collects in a shipped detector, against the geometry it was read from |
 | `measure_secondary_kinematics.py` | the secondary momentum and kick laws, off the dump's parent links |
 | `measure_secondary_populations.py` | the same on ColliderML, which has no truth-link threshold; also the stub channel |
 | `measure_overlaps.py` | module overlap, off the dump's own module identifiers |
@@ -95,11 +98,14 @@ ITk loader asks uproot for `library="np"`.
 The first seven are the pipeline; the rest each answer a question the fit cannot,
 and each produced a number that is now pinned in a preset rather than fitted.
 
-### Layouts and material are read, not fitted
+### Descriptions and material are read, not fitted
 
 A geometry is a known thing and should not be fitted to simulated data. Each
-shipped layout is read out of the authoritative description of its detector and
-pasted into `Fatras/src/Synthetic/DetectorLayout.cpp`:
+shipped detector is read out of the authoritative description of that detector
+and written into `Fatras/data` as three files sharing a prefix: the description
+(where its layers are), the material (what they are made of) and the
+configuration fitted to it. `--out <prefix>` writes them somewhere else, which is
+what to do before overwriting what ships.
 
 ```sh
 # the ITk, out of the official GeoModelXml. Needs a CERN account.
@@ -110,17 +116,20 @@ python itk_layout_from_xml.py ITKLayouts            # --report for the sections
 python layout_from_geometry.py odd
 python layout_from_geometry.py generic --report
 
-# the material of any of them, including the ITk's
+# the material of any of them, including the ITk's, matched onto the layers of
+# the description it is written beside
 python material_from_geometry.py itk
 
 # and what the result collects along a ray, against the geometry it came from
 python material_budget.py itk
 ```
 
-`layout_from_geometry.py` is just `makeLayoutFromTrackingGeometry`, so for a
+`layout_from_geometry.py` is just `makeDescriptionFromTrackingGeometry`, so for a
 detector ACTS can build there is nothing to transcribe, and
-`Python/Examples/tests/test_fatras_synthetic_layout.py` checks that the pasted
-numbers still match the geometry. The ITk has no ACTS geometry to reduce
+`Python/Examples/tests/test_fatras_synthetic_layout.py` checks that the shipped
+files still match the geometry. It folds the two endcaps the reduction measures
+into one mirrored one where they agree, which is what makes the file half the
+size; `--no-mirror` keeps both. The ITk has no ACTS geometry to reduce
 wholesale, hence the XML for its positions and `material_from_geometry.py` -
 which builds `acts.examples.itk` - for its material. Run these with
 `python <script>`, not the shebang: the shebang picks up a different interpreter

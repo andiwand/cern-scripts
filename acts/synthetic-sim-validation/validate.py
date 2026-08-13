@@ -8,8 +8,9 @@ produces are in the right place, which is the only claim it makes.
 Usage:
 
     # generate a fast-simulation event on the layout being validated
-    ActsBenchmarkSyntheticEventGeneration --layout itk-pixel --runs 2 --warmup 0 \\
+    ActsBenchmarkSyntheticEventGeneration --layout itk --runs 2 --warmup 0 \\
         --dump /tmp/fastsim-itk
+    # or, with no benchmark built: ./dump_fastsim.py itk -o /tmp/fastsim-itk
 
     # compare against an ITk full-simulation dump
     ./validate.py itk --fullsim <GNN4ITk dump>.root --fastsim /tmp/fastsim-itk \\

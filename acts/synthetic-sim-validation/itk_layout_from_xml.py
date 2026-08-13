@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Derive the ITk pixel layout from the official ITKLayouts geometry description.
+"""Derive the ITk pixel description from the official ITKLayouts geometry.
 
-The ITk has no description in ACTS, so the synthetic layout has to come from
+The ITk has no description in ACTS, so the synthetic detector has to come from
 somewhere else. It should not come from a fit to simulated data: the geometry is
 a known thing, published as GeoModelXml in
 
     ssh://git@gitlab.cern.ch:7999/Atlas-Inner-Tracking/ITKLayouts.git
 
 and every number the synthetic model needs is a named constant in the `*Defines.gmx`
-files of `ITKLayouts/data/Pixel`. This reads them and prints a
-`BarrelEndcapDescription` ready to paste into
-`Fatras/src/Synthetic/DetectorLayout.cpp`.
+files of `ITKLayouts/data/Pixel`. This reads them and writes
+`itk-description.json`: where the layers are, and nothing about what they are made
+of, which `material_from_geometry.py itk` measures off the ACTS ITk geometry and
+writes beside it.
 
 The nine sections of the ITk pixel detector, in the naming of those files:
 
@@ -36,6 +37,10 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from acts.fatras import synthetic as syn
+
+import presets
+
 #: The `*Defines.gmx` files holding the constants, in dependency order: a `var`
 #: may be an expression over the ones before it.
 DEFINES = [
@@ -48,9 +53,32 @@ DEFINES = [
 ]
 
 #: The ITk beam pipe is not part of ITKLayouts - Athena builds it in C++ - so it
-#: stays a hand-written number. It is passive here anyway: the layout only needs
-#: it as the material in front of layer 0.
+#: stays a hand-written number. It is passive here anyway: the description only
+#: needs it as the material in front of layer 0, and it belongs to the detector
+#: rather than to the pixels because that is where a real geometry keeps it.
 BEAM_PIPE_RADIUS = 25.0
+
+#: What the description says beyond the geometry, none of which is in the XML.
+#:
+#: The overlap numbers are measured on a GNN4ITk dump off the module identifiers
+#: its clusters carry (`measure_overlaps.py`): layer 0 is low because its staves
+#: do not alternate in radius the way the outer ones do. Adjacent staves are eight
+#: millimetres apart in radius and the modules of a ring five in z; the track's
+#: own slope covers the rest.
+#:
+#: The escape bounds are the whole inner detector's rather than the pixels': past
+#: this radius is the ITk's outer support and the calorimeter, and a track leaving
+#: the pixels curls back through the strips in the same field.
+BARREL_OVERLAP_PROBABILITIES = (0.02, 0.15, 0.16, 0.13, 0.13)
+DISC_OVERLAP_PROBABILITY = 0.15
+BARREL_OVERLAP_OFFSET = 7.9
+DISC_OVERLAP_OFFSET = 5.0
+ESCAPE_RADIUS = 1000.0
+ESCAPE_HALF_Z = 3050.0
+
+#: The subsystem the pixels are, and the prefix the files ship under.
+SUBSYSTEM = "itk-pixel"
+SHIPS_AS = "itk"
 
 
 def read_defines(pixel_dir: Path) -> dict[str, object]:
@@ -203,8 +231,11 @@ def main() -> None:
                         help="a checkout of the ITKLayouts repository")
     parser.add_argument("--z-tolerance", type=float, default=5.0,
                         help="rings within this many mm in z become one disk")
+    parser.add_argument("-o", "--out", default=None,
+                        help="what to write: a shipped name, or a path prefix. "
+                             "Defaults to what the ITk ships as.")
     parser.add_argument("--report", action="store_true",
-                        help="print the sections rather than the C++")
+                        help="print the sections rather than writing them")
     args = parser.parse_args()
 
     root = Path(args.itklayouts)
@@ -232,24 +263,78 @@ def main() -> None:
               % (len(layout.cylinders), len(layout.rings), len(disks)))
         return
 
-    print("  description.beamPipeRadius = %.0f.f;" % BEAM_PIPE_RADIUS)
-    print("  description.barrelRadii = {%s};"
-          % ", ".join("%.0f.f" % c[0] for c in layout.cylinders))
-    print("  description.barrelHalfLengthsZ = {%s};"
-          % ", ".join("%.1ff" % c[1] for c in layout.cylinders))
-    print("  description.barrelModules = 1;")
-    print("  description.disks = {")
-    for absZ, annuli in disks:
-        print("      {%.1ff, {%s}},"
-              % (absZ, ", ".join("{%.1ff, %.1ff}" % (a[0], a[1])
-                                 for a in annuli)))
-    print("  };")
-    print()
-    print("// from ITKLayouts %s" % _describe(root))
-    print("// %d barrel cylinders, %d disks per side carrying %d rings"
+    description = build_description(layout, disks)
+    for written in presets.write_description(args.out or SHIPS_AS, description,
+                                            split=False):
+        print("wrote %s" % written)
+    print("# from ITKLayouts %s" % _describe(root))
+    print("# %d barrel cylinders, %d discs per side carrying %d rings"
           % (len(layout.cylinders), len(disks), len(layout.rings)))
-    print("// %d of the disks carry more than one ring"
+    print("# %d of the discs carry more than one ring"
           % sum(1 for _, annuli in disks if len(annuli) > 1))
+    print("# no material: `material_from_geometry.py itk` reads that off the "
+          "ACTS ITk geometry and writes it beside this")
+
+
+def build_description(layout, disks):
+    """The description the reduction amounts to.
+
+    Only the geometry: the material is measured off the ACTS ITk geometry by
+    `material_from_geometry.py`, which matches it onto the layers this names.
+
+    @param layout the cylinders and rings read out of the XML
+    @param disks the rings grouped into z planes
+    @return the description
+    """
+    description = syn.DetectorDescription()
+    description.escapeRadius = ESCAPE_RADIUS
+    description.escapeHalfZ = ESCAPE_HALF_Z
+
+    beam_pipe = syn.PassiveSurfaceDescription()
+    beam_pipe.shape = syn.SurfaceShape.Cylinder
+    beam_pipe.refCoord = BEAM_PIPE_RADIUS
+    # the beam pipe ends where the detector does
+    beam_pipe.maxBound = max([c[1] for c in layout.cylinders]
+                             + [z for z, _ in disks])
+    description.passives = [beam_pipe]
+
+    barrel = syn.BarrelDescription()
+    cylinders = []
+    for index, (radius, half, _name) in enumerate(layout.cylinders):
+        cylinder = syn.CylinderDescription()
+        cylinder.radius = radius
+        cylinder.halfLengthZ = half
+        # coarser than the real detector, whose staves carry nine or twelve
+        # modules along z; only a seeder that reasons about eta modules sees it
+        cylinder.modules = 1
+        cylinder.overlapProbability = (
+            BARREL_OVERLAP_PROBABILITIES[index]
+            if index < len(BARREL_OVERLAP_PROBABILITIES) else 0.0)
+        cylinder.overlapOffset = BARREL_OVERLAP_OFFSET
+        cylinder.layer = index
+        cylinders.append(cylinder)
+    barrel.cylinders = cylinders
+
+    endcap = syn.EndcapDescription()
+    # the two sides of the ITk are the same, so it is stated once
+    endcap.placement = syn.EndcapPlacement.Mirrored
+    discs = []
+    for index, (absZ, annuli) in enumerate(disks):
+        disc = syn.DiscDescription()
+        disc.absZ = absZ
+        disc.rings = [syn.RingBounds(rMin, rMax) for rMin, rMax, _name in annuli]
+        disc.overlapProbability = DISC_OVERLAP_PROBABILITY
+        disc.overlapOffset = DISC_OVERLAP_OFFSET
+        disc.layer = index
+        discs.append(disc)
+    endcap.discs = discs
+
+    subsystem = syn.SubsystemDescription()
+    subsystem.name = SUBSYSTEM
+    subsystem.barrels = [barrel]
+    subsystem.endcaps = [endcap]
+    description.subsystems = [subsystem]
+    return description
 
 
 def _describe(root: Path) -> str:

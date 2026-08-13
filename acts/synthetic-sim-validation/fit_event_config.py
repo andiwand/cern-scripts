@@ -34,6 +34,8 @@ from acts.fatras import synthetic as syn
 from scipy.optimize import minimize
 
 import fastsim  # noqa: F401  (kept importable alongside the loaders)
+import presets
+
 
 def robust_sigma(values: np.ndarray) -> float:
     """Width of the core of a distribution, ignoring its tails.
@@ -507,7 +509,7 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
     import validate  # for the per-detector bands
 
     if detector == "itk":
-        description = syn.itkPixelDescription()
+        description = presets.description("itk")
         bands = validate.ITK_BANDS
         events = events or 5
         provenance = ("Fitted against %d events of a GNN4ITk ttbar pu200 dump."
@@ -518,7 +520,7 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
             return fullsim_itk.load(fullsim, num_events=events,
                                     skip_events=skip_events)
     else:
-        description = syn.openDataDetectorPixelDescription()
+        description = presets.description("odd")
         bands = validate.ODD_BANDS
         events = events or 20
         provenance = ("Fitted against %d events of ColliderML ttbar_pu200."
@@ -539,8 +541,11 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
                                   % (detector, events, skip_events,
                                      sample.CACHE_VERSION))
                if cache_dir else None)
-        return _reduce(sample.cached(raw, load), bands,
-                       description.beamPipeRadius)
+        # the beam pipe belongs to the detector rather than to a subsystem, so
+        # it is the first of the passives the description holds itself
+        beam_pipe = (description.passives[0].refCoord
+                     if description.passives else None)
+        return _reduce(sample.cached(raw, load), bands, beam_pipe)
 
     cache = Path(cache_dir) / ("target-%s-%d%s-v%d.pkl"
                                % (detector, events,
@@ -603,7 +608,7 @@ def solve_secondary_kick(layout, config, target: Target, seeds: int = 3,
            not see.
     @return (secondaryKt, the mismatch at it)
     """
-    best = config.secondaryKt
+    best = presets.get(config, "secondaryKt")
     best_score = float("inf")
     for kt in (KICK_GRID if kicks is None else kicks):
         trial = _with(config, {"secondaryKt": kt})
@@ -645,7 +650,7 @@ def solve_secondary_momentum_scale(layout, config, target: Target) -> float:
     @param target what to match
     @return the scale that lands on `target.secondary_mean_pt`
     """
-    scale = config.secondaryMomentumScale
+    scale = presets.get(config, "secondaryMomentumScale")
     for _ in range(10):
         trial = _with(config, {"secondaryMomentumScale": scale})
         fast = reduce_event(syn.generateEvent(layout, trial), target)
@@ -715,7 +720,7 @@ def solve_rapidity_edge(layout, config, target: Target, seeds: int = 3,
             for seed in range(seeds):
                 trial = _with(base, {"rapidityEdge": float(edge),
                                      "rapidityEdgeWidth": float(width),
-                                     "seed": config.seed + seed})
+                                     "seed": presets.get(config, "seed") + seed})
                 score += _primary_eta_mismatch(
                     reduce_event(syn.generateEvent(layout, trial), target),
                     target)
@@ -746,8 +751,8 @@ def solve_charged_per_unit_rapidity(layout, config, target: Target) -> float:
                     and p.pt > ACCEPTANCE_MIN_PT
                     and abs(p.eta) < ACCEPTANCE_MAX_ABS_ETA)
     if with_hits == 0:
-        return config.chargedPerUnitRapidity
-    return config.chargedPerUnitRapidity * target.primaries / with_hits
+        return presets.get(config, "chargedPerUnitRapidity")
+    return presets.get(config, "chargedPerUnitRapidity") * target.primaries / with_hits
 
 
 def solve_secondary_rate(layout, config, target: Target) -> dict:
@@ -771,8 +776,8 @@ def solve_secondary_rate(layout, config, target: Target) -> dict:
     scale = 1.0
 
     def rates(factor):
-        return {"secondaryElectronRate": config.secondaryElectronRate * factor,
-                "secondaryNuclearRate": config.secondaryNuclearRate * factor}
+        return {"secondaryElectronRate": presets.get(config, "secondaryElectronRate") * factor,
+                "secondaryNuclearRate": presets.get(config, "secondaryNuclearRate") * factor}
     # A cascade makes the count grow faster than the rate - a secondary that is
     # itself allowed to interact contributes a term in rate squared - so the
     # plain step overshoots and can oscillate. Damping the exponent costs a few
@@ -812,47 +817,17 @@ def solve_decay_yield(layout, config, target: Target) -> float:
     """
     fast = reduce_event(syn.generateEvent(layout, config), target)
     if fast["decay_fraction"] <= 0 or target.decay_fraction <= 0:
-        return config.decayYield
+        return presets.get(config, "decayYield")
     # the surface secondaries are the rest of the sample, so matching a fraction
     # rather than a count needs the ratio of the two odds
     odds = target.decay_fraction / (1 - target.decay_fraction)
     have = fast["decay_fraction"] / (1 - fast["decay_fraction"])
-    return config.decayYield * odds / have
+    return presets.get(config, "decayYield") * odds / have
 
 
-def _with(config, values: dict):
-    """Copy a configuration with some fields replaced.
-
-    `EventConfig` has no copy constructor exposed, so the fields are carried over
-    by hand. Only the ones this script touches are copied, which is why the base
-    configuration has to be the one everything else is taken from.
-    """
-    out = syn.EventConfig()
-    for name in ("pileup", "chargedPerUnitRapidity", "minPt", "ptScale",
-                 "ptExponent", "minRapidity", "maxRapidity", "rapidityEdge",
-                 "rapidityEdgeWidth", "beamspotSigmaZ", "d0Sigma",
-                 "secondaryElectronRate", "secondaryNuclearRate",
-                 "decayYield", "decayLength",
-                 "secondaryMinPt", "secondaryMomentumScale",
-                 "secondaryMomentumExponent", "secondaryMomentumSpread",
-                 "secondaryKt",
-                 "secondaryEvaporationFraction", "secondaryEvaporationScale",
-                 "secondaryElectronScale",
-                 "secondaryElectronExponent", "secondaryElectronSpread",
-                 "secondaryElectronKt",
-                 "maxDiscPathLength", "maxCylinderPathLength",
-                 "materialScale", "overlapScale",
-                 "multipleScattering",
-                 "energyLoss", "energyLossModel", "particlePdg",
-                 "maxEnergyLossFraction", "maxTurns",
-                 "stubRate", "stubClusters", "stubReach",
-                 "positionSmearing", "sensorThickness", "bFieldZ", "seed"):
-        setattr(out, name, getattr(config, name))
-    for name, value in values.items():
-        # cast to whatever the field already is: `pileup` and `seed` are
-        # integers, and pybind11 refuses a float for them
-        setattr(out, name, type(getattr(out, name))(value))
-    return out
+#: A copy of a configuration with some fields replaced; see
+#: `presets.copy_with`, which knows the flat names this script talks in.
+_with = presets.copy_with
 
 
 #: What a configuration is judged on, as ``key -> (heading, ideal)``. A
@@ -903,7 +878,8 @@ def scorecard(config, layout, target: Target) -> dict:
     }
 
 
-def fit_config(description, target: Target, *, pileup=200, no_decays=False,
+def fit_config(description, target: Target, *, base=None, pileup=200,
+               no_decays=False,
                no_rapidity_edge=False, rapidity_edge=None,
                path_length=1.0, turns=0.5,
                fit_momentum=False, fit_kick=False, rounds=3, overrides=None,
@@ -916,6 +892,9 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
            a crossing yields is its material and its path length, and there is
            no weight on top of either to fit
     @param target what to fit to
+    @param base the configuration to seed from, whose fields this does not fit
+           are carried over -- the single point resolution and the stub channel,
+           which are measured elsewhere. None starts from the defaults.
     @param pileup number of interactions to generate
     @param no_decays drop the decay component
     @param no_rapidity_edge leave the rapidity plateau flat over the whole range
@@ -937,36 +916,42 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     """
     overrides = dict(overrides or {})
 
-    config = syn.EventConfig()
-    config.pileup = pileup
-    config.beamspotSigmaZ = target.z0_sigma
-    config.d0Sigma = target.d0_sigma
+    # Seeded from the configuration that ships rather than from the defaults, so
+    # that what this does not fit is inherited instead of lost: the single point
+    # resolution is the detector's pitch and the stub channel is measured
+    # elsewhere, and neither has anything to do with the reference being fitted
+    # to here.
+    config = presets.copy_with(base, {}) if base is not None else syn.EventConfig()
+    presets.set(config, "pileup", pileup)
+    presets.set(config, "beamspotSigmaZ", target.z0_sigma)
+    presets.set(config, "d0Sigma", target.d0_sigma)
     # binned from the reference's own threshold, not the generator's: the
     # generator reaches below it and the reference lists nothing there
     scale, exponent = fit_pt_spectrum(target.primary_pt)
-    config.ptScale, config.ptExponent = scale, exponent
+    presets.set(config, "ptScale", scale)
+    presets.set(config, "ptExponent", exponent)
     # Physics rather than a fit: K0S and Lambda are what decay at this distance,
     # cTau being 27 and 79 mm and the typical boost of order two. It cannot be
     # measured off the reference, whose sample of decays inside the beam pipe is
     # truncated at the beam pipe.
-    config.decayLength = 60.0
+    presets.set(config, "decayLength", 60.0)
     # Physics rather than a fit: the layout carries the radiation lengths, so
     # the configuration only says that they are taken as they are.
-    config.materialScale = 1.0
-    config.multipleScattering = True
-    config.energyLoss = True
-    config.energyLossModel = syn.EnergyLossModel.Mode
+    presets.set(config, "materialScale", 1.0)
+    presets.set(config, "multipleScattering", True)
+    presets.set(config, "energyLoss", True)
+    presets.set(config, "energyLossModel", syn.EnergyLossModel.Mode)
     if no_decays:
-        config.decayYield = 0.0
-    config.maxDiscPathLength = path_length
-    config.maxTurns = turns
+        presets.set(config, "decayYield", 0.0)
+    presets.set(config, "maxDiscPathLength", path_length)
+    presets.set(config, "maxTurns", turns)
     config = _with(config, overrides)
     layout = syn.makeLayout(description)
     if verbose:
         print("determined directly: beamspotSigmaZ=%.1f d0Sigma=%.4f "
               "ptScale=%.3f ptExponent=%.3f"
-              % (config.beamspotSigmaZ, config.d0Sigma,
-                 config.ptScale, config.ptExponent))
+              % (presets.get(config, "beamspotSigmaZ"), presets.get(config, "d0Sigma"),
+                 presets.get(config, "ptScale"), presets.get(config, "ptExponent")))
 
     # The yield and the secondary rate each shift the other's target - more
     # primaries mean more secondaries, and both leave space points - so they are
@@ -974,8 +959,8 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
     # once and the later rounds are there to show that it has. The decay yield
     # comes after them because the shape it is a fraction of has to have
     # settled first.
-    span = config.maxRapidity - config.minRapidity
-    config.chargedPerUnitRapidity = target.primaries / (pileup * span)
+    span = presets.get(config, "maxRapidity") - presets.get(config, "minRapidity")
+    presets.set(config, "chargedPerUnitRapidity", target.primaries / (pileup * span))
     # The plateau's edge is fitted first in the round: it moves primaries from
     # the forward region into the central one, and every count below is taken
     # inside an acceptance those primaries cross.
@@ -1031,11 +1016,11 @@ def fit_config(description, target: Target, *, pileup=200, no_decays=False,
             print("    round %d: chargedPerUnitRapidity=%.3f rates=%.3f/%.3f "
                   "rapidityEdge=%.2f/%.2f decayYield=%.3f momentumScale=%.3f "
                   "kt=%.3f"
-                  % (round_, config.chargedPerUnitRapidity,
-                     config.secondaryElectronRate, config.secondaryNuclearRate,
-                     config.rapidityEdge, config.rapidityEdgeWidth,
-                     config.decayYield, config.secondaryMomentumScale,
-                     config.secondaryKt))
+                  % (round_, presets.get(config, "chargedPerUnitRapidity"),
+                     presets.get(config, "secondaryElectronRate"), presets.get(config, "secondaryNuclearRate"),
+                     presets.get(config, "rapidityEdge"), presets.get(config, "rapidityEdgeWidth"),
+                     presets.get(config, "decayYield"), presets.get(config, "secondaryMomentumScale"),
+                     presets.get(config, "secondaryKt")))
     return config, layout
 
 
@@ -1047,7 +1032,7 @@ REPORT_SEED_OFFSET = 9973
 def report(config, layout, target: Target, events: int = 1) -> None:
     """Print what the fitted configuration produces next to the target."""
     fast = reduce_events(layout, config, target, events,
-                         seed=config.seed + REPORT_SEED_OFFSET)
+                         seed=presets.get(config, "seed") + REPORT_SEED_OFFSET)
     print("\n%-28s %12s %12s %8s" % ("", "full sim", "fast sim", "ratio"))
     for label, a, b in (
         ("space points/event", target.space_points, fast["space_points"]),
@@ -1056,8 +1041,8 @@ def report(config, layout, target: Target, events: int = 1) -> None:
         ("  non-primary", target.space_points - target.primary_space_points,
          fast["space_points"] - fast["primary_space_points"]),
         ("primaries/event", target.primaries, fast["primaries"]),
-        ("z0 sigma [mm]", target.z0_sigma, config.beamspotSigmaZ),
-        ("d0 sigma [mm]", target.d0_sigma, config.d0Sigma),
+        ("z0 sigma [mm]", target.z0_sigma, presets.get(config, "beamspotSigmaZ")),
+        ("d0 sigma [mm]", target.d0_sigma, presets.get(config, "d0Sigma")),
         ("secondaries from a decay", target.decay_fraction,
          fast["decay_fraction"]),
         # both sides taken above the reference's truth-link threshold, which is
@@ -1108,51 +1093,10 @@ def report(config, layout, target: Target, events: int = 1) -> None:
             for i in range(len(bands) - 1) if both[i])))
 
 
-def as_cpp(config, name: str, provenance: str) -> str:
-    """Print the configuration as the body of a preset function."""
-    lines = [
-        "EventConfig EventConfig::%s() {" % name,
-        "  // %s" % provenance,
-        "  EventConfig config;",
-    ]
-    for field, fmt in (("chargedPerUnitRapidity", "%.2ff"),
-                       ("ptScale", "%.3ff"),
-                       ("ptExponent", "%.2ff"),
-                       ("rapidityEdge", "%.2ff"),
-                       ("rapidityEdgeWidth", "%.2ff"),
-                       # "%.0ff" would print 50 as "50f", which is not a literal
-                       ("beamspotSigmaZ", "%.0f.f"),
-                       ("d0Sigma", "%.4ff"),
-                       ("secondaryElectronRate", "%.3ff"),
-                       ("secondaryNuclearRate", "%.3ff"),
-                       ("decayYield", "%.3ff"),
-                       ("secondaryElectronScale", "%.3ff"),
-                       ("secondaryElectronExponent", "%.3ff"),
-                       ("secondaryElectronSpread", "%.3ff"),
-                       ("secondaryElectronKt", "%.3ff"),
-                       ("secondaryMomentumScale", "%.3ff"),
-                       ("secondaryMomentumExponent", "%.3ff"),
-                       ("secondaryMomentumSpread", "%.3ff"),
-                       ("secondaryKt", "%.3ff"),
-                       ("secondaryEvaporationFraction", "%.3ff"),
-                       ("secondaryEvaporationScale", "%.3ff"),
-                       ("maxDiscPathLength", "%.2ff"),
-                       ("maxCylinderPathLength", "%.2ff"),
-                       ("materialScale", "%.3ff"),
-                       ("overlapScale", "%.3ff"),
-                       ("stubRate", "%.3ff"),
-                       ("maxTurns", "%.2ff")):
-        lines.append(("  config.%s = " + fmt + ";") % (field,
-                                                       getattr(config, field)))
-    # the toggles, which are not fitted but are spelled out by a preset
-    lines.append("  config.multipleScattering = %s;"
-                 % ("true" if config.multipleScattering else "false"))
-    lines.append("  config.energyLoss = %s;"
-                 % ("true" if config.energyLoss else "false"))
-    lines.append("  config.energyLossModel = EnergyLossModel::%s;"
-                 % str(config.energyLossModel).rsplit(".", 1)[-1])
-    lines += ["  return config;", "}"]
-    return "\n".join(lines)
+def provenance_note(provenance: str, detector: str) -> str:
+    """@return what to say about where a configuration came from"""
+    return ("%s Written by `fit_event_config.py %s`; every field is stated, so "
+            "a change to a default cannot retune it." % (provenance, detector))
 
 
 def main() -> None:
@@ -1206,6 +1150,10 @@ def main() -> None:
                              "around it; repeatable. Pinning what `--fit-kick` "
                              "lands on and refitting is how the yields end up "
                              "consistent with it")
+    parser.add_argument("--out", default=None,
+                        help="where to write the fitted configuration: a shipped "
+                             "name, a path prefix, or `-` to write nothing. "
+                             "Defaults to what the detector ships as.")
     args = parser.parse_args()
 
     overrides = {}
@@ -1222,8 +1170,16 @@ def main() -> None:
         edge, _, width = args.rapidity_edge.partition(",")
         rapidity_edge = (float(edge), float(width))
 
+    try:
+        base = presets.config(args.detector)
+    except (RuntimeError, OSError) as error:
+        print("# no shipped configuration to seed from (%s); starting from the "
+              "defaults, so anything this does not fit will be one" % error)
+        base = None
+
     config, layout = fit_config(
-        description, target, pileup=args.pileup, no_decays=args.no_decays,
+        description, target, base=base, pileup=args.pileup,
+        no_decays=args.no_decays,
         no_rapidity_edge=args.no_rapidity_edge, rapidity_edge=rapidity_edge,
         path_length=args.path_length, turns=args.turns,
         fit_momentum=args.fit_momentum, fit_kick=args.fit_kick,
@@ -1231,9 +1187,12 @@ def main() -> None:
 
     report(config, layout, target, args.report_events)
 
-    name = ("itkPixelTtbarPu200" if args.detector == "itk"
-            else "openDataDetectorTtbarPu200")
-    print("\n" + as_cpp(config, name, provenance))
+    print("\n# " + provenance_note(provenance, args.detector))
+    if args.out == "-":
+        print("# not written; pass --out to write it")
+    else:
+        print("wrote %s" % presets.write_config(args.out or args.detector,
+                                                config))
 
 
 if __name__ == "__main__":

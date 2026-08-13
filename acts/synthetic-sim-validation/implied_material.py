@@ -5,16 +5,16 @@
     ./implied_material.py --fullsim ~/Downloads/'*DumpGNNITk_v9.root' \\
         --fastsim /tmp/fastsim-itk --events 5
 
-The generator's yield at a crossing is `secondaryRate * materialWeight *
+The generator's yield at a crossing is `secondaryRate * x/X0 *
 pathLength`. Divide the secondaries produced in a cell of (r, |z|) by the
 *primary space points* in that cell - the crossings that made them - and what is
-left is the yield per crossing, i.e. the material weight up to the overall
-normalisation. Do it for both samples and the ratio is the factor the model's
-weight is wrong by, cell by cell.
+left is the yield per crossing, i.e. the material a surface carries up to the
+overall normalisation. Do it for both samples and the ratio is the factor the
+description's material is wrong by, cell by cell.
 
-`fit_event_config.py` fits the two parameters of the profile; this says whether
-the shape it fits is the right shape at all, and what the residual looks like
-where it is not.
+`fit_event_config.py` fits the two rates the yield is normalised by; this says
+whether the material the description carries is in the right *places* at all, and
+what the residual looks like where it is not.
 
 Both yields use the fast simulation's primaries as the flux, so the denominator
 cancels out of the ratio and only its binning matters. Using the reference's
@@ -184,12 +184,12 @@ def main() -> None:
     # the overall factor is `secondaryRate`, which is solved for separately, so
     # what this table is about is the departure from it
     overall = reference.sum() / model.sum()
-    _print("correction to materialWeight, normalised to the overall %.3f"
+    _print("correction to the material carried, normalised to the overall %.3f"
            % overall, correction / overall, "%.2f")
-    print("\n  One means the profile is right in that cell. A trend along |z| "
-          "is the\n  profile's shape; a trend along r is not something a "
-          "weight per disc can\n  express at all, `materialWeight` being a "
-          "property of the surface.")
+    print("\n  One means the material is right in that cell. A trend along "
+          "|z| is the\n  shape of it along a surface, which the bands of a "
+          "description do carry; a\n  trend along r on a cylinder is not "
+          "something any of them can express.")
 
 
 if __name__ == "__main__":
