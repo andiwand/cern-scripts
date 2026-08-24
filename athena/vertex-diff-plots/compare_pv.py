@@ -28,6 +28,17 @@ def load(p):
     return dict(np.load(p, allow_pickle=True))
 
 
+def save(fig, outdir, fname):
+    """Write the figure as both PNG and PDF.
+
+    PNG for pasting into the MR thread, PDF because the pulls sit at 1e-6 and
+    only stay readable zoomed in.
+    """
+    stem = os.path.join(outdir, os.path.splitext(fname)[0])
+    for ext in ('png', 'pdf'):
+        fig.savefig('%s.%s' % (stem, ext), dpi=130, bbox_inches='tight')
+
+
 def evkeys(d):
     return list(zip(d['ev_run'].tolist(), d['ev_evt'].tolist()))
 
@@ -117,7 +128,7 @@ def block(outdir, label, deltas, fname, title):
     for r, (name, vals, unit) in enumerate(deltas):
         out[name] = two_panel(fig, [gs[r, 0], gs[r, 1]], vals, name, unit)
     fig.suptitle('%s - %s' % (label, title), fontsize=11)
-    fig.savefig(os.path.join(outdir, fname), dpi=130, bbox_inches='tight')
+    save(fig, outdir, fname)
     plt.close(fig)
     return out
 
@@ -215,7 +226,7 @@ def main():
     if np.isfinite(sz).any():
         axs[2].set_xscale('log')
     fig.suptitle('%s - is the shift correlated with anything?' % a.label)
-    fig.savefig(os.path.join(a.outdir, 'fig06_trends.png'), dpi=130, bbox_inches='tight')
+    save(fig, a.outdir, 'fig06_trends.png')
     plt.close(fig)
 
     # ---- fig 07 nVtx ------------------------------------------------------
@@ -232,7 +243,7 @@ def main():
     axs[1].set_title('events changed: %d / %d' % (S['events_nvtx_changed'], len(er)),
                      fontsize=9)
     fig.suptitle('%s - vertex multiplicity' % a.label)
-    fig.savefig(os.path.join(a.outdir, 'fig07_nvtx.png'), dpi=130, bbox_inches='tight')
+    save(fig, a.outdir, 'fig07_nvtx.png')
     plt.close(fig)
 
     # ---- fig 08 hard-scatter vertex ---------------------------------------
@@ -255,7 +266,7 @@ def main():
     axs[1].set_title('PV[0] moved by >1 mm in %d events' % S['hs_vertex_reassigned'],
                      fontsize=9)
     fig.suptitle('%s - hard-scatter vertex' % a.label)
-    fig.savefig(os.path.join(a.outdir, 'fig08_hs_vertex.png'), dpi=130, bbox_inches='tight')
+    save(fig, a.outdir, 'fig08_hs_vertex.png')
     plt.close(fig)
 
     # ---- fig 09 / 10 tau --------------------------------------------------
@@ -288,7 +299,7 @@ def main():
             axs[k].axis('off')
         fig.suptitle('%s - %s (reference on x, new on y)' % (a.label, title))
         fig.tight_layout(rect=[0, 0, 1, 0.95])
-        fig.savefig(os.path.join(a.outdir, fname), dpi=130, bbox_inches='tight')
+        save(fig, a.outdir, fname)
         plt.close(fig)
         return nch
 
@@ -324,7 +335,7 @@ def main():
         axs[1, c].set_xlabel(nm)
     fig.suptitle('%s - unpaired overlays (%d events; low stats by construction)'
                  % (a.label, S['events_matched']))
-    fig.savefig(os.path.join(a.outdir, 'fig11_overlays.png'), dpi=130, bbox_inches='tight')
+    save(fig, a.outdir, 'fig11_overlays.png')
     plt.close(fig)
 
     # ---- summary ----------------------------------------------------------
