@@ -48,14 +48,38 @@ Since all variants run over the same muons their fluctuations partly cancel, so
 the ratio errors, added in quadrature, are conservative.
 
 Every point runs twice. A short calibration pass on wide asinh axes measures
-the residual widths, then the production pass puts regular axes around them at
-`--residual-range-sigmas` times the 90th percentile over eta. This is not
-optional: the widths span more than an order of magnitude between the variants,
-so fixed axes either clip the wide ones or leave the narrow ones a few bins,
-and the writer's Gaussian core fit needs both the core resolved and the axis
-untruncated. Variable bin widths do not work either - the fit is on bin
-contents, not a density, so a wide tail bin reads as extra population and
-drags the fitted sigma up by a factor of a few.
+the 68% width of every residual in every eta bin, and the production pass puts
+a regular axis around them: `--residual-range-sigmas` times the 90th percentile
+over eta sets the half range, the 10th percentile over `--bins-per-sigma` sets
+the bin width, and `--residual-bins` clamps the count that falls out, which
+lands between 100 and 950 depending on the parameter.
+
+Both ends have to come from the data because both bite. Toys through the same
+iterative +-3 sigma fit put it within a percent of the truth between 2 and 10
+bins per sigma; below that it reads the bin width instead of the core, +4% at
+one bin per sigma and +8% at 0.7, and above ~20 it drifts 2 to 3% low as the
+chi square starts to see sparse bins. A fixed 200 bins left the 1 GeV triplet
+z0 core 0.9 bins wide at eta 0 and 18 at eta 3: the barrel came out 6% high on
+average and 10% at eta 0, and the eta dependence flattened with it. The same
+axis gave d0 15 bins per sigma, which cost a percent the other way.
+
+`--calibration-events` has to keep every eta bin above
+`--calibration-min-entries`, which is why it is 5000 and not the 1000 that
+looks like plenty for measuring a width. At 1000, three or four of the 24 eta
+bins of a one-seed-per-muon variant survived the cut, and they were wherever
+the Poisson fluctuations fell rather than the wide forward ones, so the range
+came out up to a factor three short and the forward z0 residuals were truncated
+by their own axis - 12% at eta 3 for `truth_inner3` at 100 GeV.
+
+Variable bin widths would sidestep the tension between the two ends, but the
+fit is on bin contents rather than a density, so a wide tail bin reads as extra
+population: on the calibration axes the same fit comes out 14% to 64% high, or
+43% low, depending on where the core falls. So the tension stays, and `run.py`
+warns about any point whose axis cannot serve every eta bin. z0 always trips
+it. Its width spans a factor 20 over eta, so bins fine enough for the barrel
+leave the forward bins at 50 to 100 per sigma and a couple of percent low.
+That is the better end to lose, and the quantile estimator does not have the
+problem at either end.
 
 ## Findings
 
@@ -64,25 +88,25 @@ Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
 
 | pT [GeV] | variant | d0 [um] | z0 [um] | q/pT [%] |
 |---:|---|---:|---:|---:|
-| 1 | truth_all | 55 | 70 | 3.5 |
-| 1 | truth_spread3 | 60 (1.08) | 93 (1.32) | 3.6 (1.03) |
-| 1 | truth_inner3 | 68 (1.23) | 74 (1.05) | 6.0 (1.70) |
-| 1 | triplet | 74 (1.34) | 101 (1.44) | 4.4 (1.26) |
-| 10 | truth_all | 30 | 19 | 11.4 |
-| 10 | truth_spread3 | 32 (1.06) | 21 (1.13) | 13.5 (1.18) |
-| 10 | truth_inner3 | 52 (1.72) | 22 (1.16) | 36.3 (3.18) |
-| 10 | triplet | 48 (1.59) | 24 (1.25) | 20.6 (1.81) |
-| 100 | truth_all | 30 | 18 | 108 |
-| 100 | truth_spread3 | 31 (1.06) | 19 (1.10) | 130 (1.21) |
-| 100 | truth_inner3 | 51 (1.73) | 21 (1.18) | 362 (3.35) |
-| 100 | triplet | 50 (1.70) | 21 (1.20) | 218 (2.01) |
+| 1 | truth_all | 56 | 69 | 3.5 |
+| 1 | truth_spread3 | 61 (1.08) | 92 (1.33) | 3.6 (1.03) |
+| 1 | truth_inner3 | 69 (1.24) | 73 (1.05) | 6.0 (1.70) |
+| 1 | triplet | 74 (1.32) | 95 (1.37) | 4.4 (1.25) |
+| 10 | truth_all | 30 | 19 | 11.5 |
+| 10 | truth_spread3 | 32 (1.05) | 21 (1.12) | 13.7 (1.18) |
+| 10 | truth_inner3 | 52 (1.71) | 22 (1.16) | 36.9 (3.20) |
+| 10 | triplet | 48 (1.58) | 23 (1.23) | 20.8 (1.80) |
+| 100 | truth_all | 30 | 18 | 110 |
+| 100 | truth_spread3 | 32 (1.05) | 19 (1.09) | 133 (1.21) |
+| 100 | truth_inner3 | 52 (1.72) | 21 (1.18) | 366 (3.33) |
+| 100 | triplet | 50 (1.68) | 21 (1.17) | 218 (1.99) |
 
-- At 1 GeV multiple scattering compresses the differences to 5-45%, and in
+- At 1 GeV multiple scattering compresses the differences to 5-37%, and in
   q/pT the three spread points already match the all-points fit exactly. The
   lever arm only pays from 10 GeV up, where the ordering is all > spread >
   triplet > innermost in d0 and q/pT.
-- Fitting every space point buys little over three well spread ones: 6% in d0,
-  10-13% in z0, 18-21% in q/pT above 1 GeV. Almost all of the gain is in the
+- Fitting every space point buys little over three well spread ones: 5% in d0,
+  9-12% in z0, 18-21% in q/pT above 1 GeV. Almost all of the gain is in the
   spread, not in the number of points. Reaching the outermost pixel layer is
   what matters.
 - q/pT from a pixel-only seed is not a momentum measurement above ~10 GeV. At
@@ -96,10 +120,10 @@ Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
   comparison of one estimate per track; the last PDF page shows the counts.
 - z0 inverts the ordering at 1 GeV, which the ratio panel shows and the log
   axis hides: `truth_inner3` is within 5% of the all-points reference while
-  `truth_spread3` is 32% and `triplet` 44% worse - the reverse of their d0 and
+  `truth_spread3` is 33% and `triplet` 37% worse - the reverse of their d0 and
   q/pT ranking. Reaching for the outer layers costs z0 there, because the
   scattering picked up on the way out is extrapolated back to the beam line.
-  Above 10 GeV the effect is gone and all variants agree to 25%.
+  Above 10 GeV the effect is gone and all variants agree to 23%.
 
 ## Caveats
 

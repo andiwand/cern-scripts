@@ -18,10 +18,11 @@ All variants are extrapolated to a perigee at the origin before the comparison
 with truth, so the numbers are on the same footing.
 
 Every point runs twice: a short calibration pass on wide axes measures the
-residual widths, then the production pass puts regular axes around them. The
-widths span more than an order of magnitude between the variants, and the
-Gaussian core fit the performance writer runs on the way out needs the core
-resolved and the axis untruncated at the same time.
+residual widths, then the production pass puts regular axes around them, wide
+enough for the tails of the worst eta bin and fine enough for the core of the
+best one. The widths span more than an order of magnitude between the variants
+and across eta, and the Gaussian core fit the performance writer runs on the
+way out needs the core resolved and the axis untruncated at the same time.
 """
 
 from pathlib import Path
@@ -91,6 +92,15 @@ RESIDUAL_AXES = {
 # Width at zero of the calibration axes, as a fraction of their half range.
 CALIBRATION_FINEST = 5e-5
 
+# Bins per sigma the writer's Gaussian core fit stays usable over. Measured on
+# Gaussian toys through the same iterative +-3 sigma fit at the entries per eta
+# bin this study has: unbiased to a percent from 2 to 10, and 2 to 3% low from
+# there to ~60 as the chi square starts to see sparse bins, but +4% at one bin
+# per sigma, +8% at 0.7, and beyond ~60 the fit runs away at the lower
+# statistics of the forward eta bins. Below the range the resolution is a
+# property of the axis rather than of the seed.
+FIT_BINS_PER_SIGMA = (2.0, 50.0)
+
 
 def asinhAxis(bins, half, finest, title):
     """Symmetric axis with `sinh` spaced edges, fine at zero, coarse in the tails.
@@ -120,13 +130,14 @@ def asinhAxis(bins, half, finest, title):
     return acts.Axis.variable(edges, title)
 
 
-def resPlotToolConfig(pt, args, halfRanges=None):
+def resPlotToolConfig(pt, args, axes=None):
     """Residual and pull binning.
 
-    Without `halfRanges` the residual axes are the wide asinh ones of the
-    calibration pass. With them they are regular, because the Gaussian core fit
-    the writer runs on the way out fits bin contents rather than a density and
-    would read a variable bin width as extra population in the tails.
+    Without `axes` the residual axes are the wide asinh ones of the calibration
+    pass. With them, a half range and a bin count each, they are regular,
+    because the Gaussian core fit the writer runs on the way out fits bin
+    contents rather than a density and would read a variable bin width as extra
+    population in the tails.
     """
     ptGeV = pt / u.GeV
 
@@ -139,7 +150,7 @@ def resPlotToolConfig(pt, args, halfRanges=None):
     }
     for name, spec in RESIDUAL_AXES.items():
         key = f"Residual_{name}"
-        if halfRanges is None:
+        if axes is None:
             half = spec["half"]
             if spec.get("perPt"):
                 half /= ptGeV
@@ -147,53 +158,103 @@ def resPlotToolConfig(pt, args, halfRanges=None):
                 args.calibrationBins, half, CALIBRATION_FINEST, spec["label"]
             )
         else:
-            half = halfRanges[name] * args.residualScale
-            binning[key] = acts.Axis.regular(
-                args.residualBins, -half, half, spec["label"]
-            )
+            half, bins = axes[name]
+            binning[key] = acts.Axis.regular(bins, -half, half, spec["label"])
     cfg.varBinning = binning
     return cfg
 
 
-def measureHalfRanges(path, pt, args):
-    """Half ranges for the production axes, from a calibration file.
+def etaWidths(handle, name, minEntries):
+    """Half width of the central 68.27% of a residual, per eta bin.
 
-    The width varies by an order of magnitude across eta, and one axis has to
-    serve all of it: sized on the widest eta bins the central ones lose their
-    core to a coarse binning, sized on the central ones the forward cores fall
-    off the axis. A high percentile splits the difference.
+    Read off the cumulative distribution rather than fitted, so it stays honest
+    on the coarse and variable axes it is used to judge.
+    """
+    hist = handle[f"res_{name}_vs_eta"]
+    edges = hist.axis(1).edges()
+    widths = []
+    for row in hist.values():
+        n = row.sum()
+        if n < minEntries:
+            continue
+        cumulative = np.concatenate([[0.0], np.cumsum(row)]) / n
+        lo, hi = np.interp([0.158655, 0.841345], cumulative, edges)
+        widths.append(0.5 * (hi - lo))
+    return np.array(widths)
+
+
+def measureAxes(path, pt, args):
+    """Half range and bin count of the production axes, from a calibration file.
+
+    The width varies by an order of magnitude across eta and one regular axis
+    has to serve all of it, so the two ends of the spread set one property
+    each. The widest eta bins set the range, or their tails fall off the axis.
+    The narrowest set the bin width, or their core spans a couple of bins and
+    the fit reads the binning instead of the resolution - a fixed 200 bins left
+    the 1 GeV triplet z0 core 0.84 bins wide at eta 0 and 18 at eta 3, which
+    inflated the barrel by 6%, 10% in the innermost eta bin, and flattened the
+    eta dependence with it. Symmetric
+    percentiles rather than the extremes, so one ragged eta bin cannot size the
+    axis.
+
+    Both ends need every eta bin measured, which is what sets
+    `--calibration-events`: at 1000 muons only three or four of the 24 eta bins
+    of a one-seed-per-muon variant cleared `--calibration-min-entries`, and
+    those few were wherever the Poisson fluctuations fell rather than the wide
+    forward ones, so the range came out up to a factor three short and the
+    forward residuals were truncated by their own axis.
     """
     import uproot
 
-    halfRanges = {}
+    axes = {}
     with uproot.open(path) as handle:
         for name, spec in RESIDUAL_AXES.items():
-            hist = handle[f"res_{name}_vs_eta"]
-            edges = hist.axis(1).edges()
-            widths = []
-            for row in hist.values():
-                n = row.sum()
-                if n < args.calibrationMinEntries:
-                    continue
-                cumulative = np.concatenate([[0.0], np.cumsum(row)]) / n
-                lo, hi = np.interp([0.158655, 0.841345], cumulative, edges)
-                widths.append(0.5 * (hi - lo))
-            if widths:
-                scale = np.percentile(widths, args.calibrationPercentile)
-            else:
-                scale = 0.0
-            if scale > 0:
-                halfRanges[name] = args.residualRangeSigmas * scale
+            widths = etaWidths(handle, name, args.calibrationMinEntries)
+            widths = widths[widths > 0]
+            if widths.size > 0:
+                wide = np.percentile(widths, args.calibrationPercentile)
+                narrow = np.percentile(widths, 100 - args.calibrationPercentile)
+                half = args.residualRangeSigmas * wide * args.residualScale
+                bins = int(np.ceil(2 * half * args.binsPerSigma / narrow))
             else:
                 # nothing to measure, e.g. the time residual of a seed
-                fallback = spec["half"]
+                half = spec["half"]
                 if spec.get("perPt"):
-                    fallback /= pt / u.GeV
-                halfRanges[name] = fallback
-    return halfRanges
+                    half /= pt / u.GeV
+                bins = args.residualBins[0]
+            axes[name] = (half, int(np.clip(bins, *args.residualBins)))
+    return axes
 
 
-def run(args, detector, field, variant, pt, outputDir, events, halfRanges, label):
+def checkBinning(path, args, label):
+    """Warn about eta bins the residual axis cannot describe.
+
+    The clamp on the bin count, or an eta spread too wide for any single
+    regular axis, can leave bins outside the range the fit is unbiased over.
+    Both ends matter, so this reports the spread rather than one end of it.
+    """
+    import uproot
+
+    lo, hi = FIT_BINS_PER_SIGMA
+    with uproot.open(path) as handle:
+        for name in RESIDUAL_AXES:
+            hist = handle[f"res_{name}_vs_eta"]
+            edges = hist.axis(1).edges()
+            widths = etaWidths(handle, name, args.calibrationMinEntries)
+            widths = widths[widths > 0]
+            if widths.size == 0:
+                continue
+            perSigma = widths / (edges[1] - edges[0])
+            if perSigma.min() < lo or perSigma.max() > hi:
+                print(
+                    f"warning: {label} {name} spans {perSigma.min():.1f} to "
+                    f"{perSigma.max():.1f} bins per sigma over eta, outside "
+                    f"the {lo:g} to {hi:g} the fit is usable over",
+                    flush=True,
+                )
+
+
+def run(args, detector, field, variant, pt, outputDir, events, axes, label):
     trackingGeometry = detector.trackingGeometry()
     geoDir = getOpenDataDetectorDirectory()
     seedingAlgorithm, spacePointSelection, estimateFromAllSpacePoints = VARIANTS[
@@ -278,7 +339,7 @@ def run(args, detector, field, variant, pt, outputDir, events, halfRanges, label
         particles="particles_selected",
         trackingGeometry=trackingGeometry,
         field=field,
-        resPlotToolConfig=resPlotToolConfig(pt, args, halfRanges),
+        resPlotToolConfig=resPlotToolConfig(pt, args, axes),
         outputName=label,
     )
 
@@ -314,7 +375,22 @@ def main():
         "--eta", help="Eta range", type=float, nargs=2, default=[-3.0, 3.0]
     )
     parser.add_argument("--eta-bins", dest="etaBins", type=int, default=24)
-    parser.add_argument("--residual-bins", dest="residualBins", type=int, default=200)
+    parser.add_argument(
+        "--residual-bins",
+        dest="residualBins",
+        help="Clamp on the bin count the calibration derives",
+        type=int,
+        nargs=2,
+        metavar=("MIN", "MAX"),
+        default=[100, 1000],
+    )
+    parser.add_argument(
+        "--bins-per-sigma",
+        dest="binsPerSigma",
+        help="Bins across the residual width of the narrowest eta bin",
+        type=float,
+        default=4.0,
+    )
     parser.add_argument(
         "--residual-scale",
         dest="residualScale",
@@ -332,7 +408,8 @@ def main():
     parser.add_argument(
         "--calibration-percentile",
         dest="calibrationPercentile",
-        help="Percentile over the eta bins that sets the residual axis scale",
+        help="Percentile over the eta bins that sets the residual axis range; "
+        "its complement sets the bin width",
         type=float,
         default=90.0,
     )
@@ -341,7 +418,7 @@ def main():
         dest="calibrationEvents",
         help="Muons in the pass that sizes the residual axes, 0 to reuse the wide axes",
         type=int,
-        default=1000,
+        default=5000,
     )
     parser.add_argument(
         "--calibration-bins", dest="calibrationBins", type=int, default=400
@@ -388,7 +465,7 @@ def main():
         for variant in args.variants:
             label = f"{variant}_pt{round(ptGeV)}"
 
-            halfRanges = None
+            axes = None
             if args.calibrationEvents > 0:
                 print(f"=== {label} (calibration) ===", flush=True)
                 path = run(
@@ -402,10 +479,10 @@ def main():
                     None,
                     label,
                 )
-                halfRanges = measureHalfRanges(path, pt, args)
+                axes = measureAxes(path, pt, args)
 
             print(f"=== {label} ===", flush=True)
-            run(
+            path = run(
                 args,
                 detector,
                 field,
@@ -413,9 +490,11 @@ def main():
                 pt,
                 args.outputDir,
                 args.events,
-                halfRanges,
+                axes,
                 label,
             )
+            if axes is not None:
+                checkBinning(path, args, label)
 
 
 if __name__ == "__main__":
