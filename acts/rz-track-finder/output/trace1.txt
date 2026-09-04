@@ -1,0 +1,31 @@
+TRACE seed 22 event 3 tracks so far 22
+ at stop 19 surface 79 shape 1 ref -2150
+  stop 19 layer 36 dim 2 chi2 1.77016e-05 s_mod 1.20689 r 946.328 z -2155.5 qop 0.22986 +- 3.46059 sigpos 3.11767 sigdir 1.03136 res -0
+  stop 19 layer 36 dim 2 chi2 0.860244 s_mod 1.00197 r 946.052 z -2152.5 qop 0.229918 +- 3.46059 sigpos 0.384943 sigdir 1.03136 res 0
+ at stop 18 surface 80 shape 1 ref -1975
+ at stop 17 surface 81 shape 1 ref -1800
+  stop 17 layer 37 dim 2 chi2 8.91706e-05 s_mod 3.20631 r 796.175 z -1794.5 qop 0.230516 +- 3.45024 sigpos 3.11775 sigdir 0.157915 res 0
+ at stop 16 surface 49 shape 1 ref -1500
+  stop 16 layer 22 dim 2 chi2 0.953375 s_mod 5.59371 r 666.256 z -1498.5 qop 0.233958 +- 0.0142936 sigpos 0.346547 sigdir 0.00198884 res -0
+ at stop 15 surface 50 shape 1 ref -1360
+ at stop 14 surface 51 shape 1 ref -1220
+  stop 14 layer 23 dim 2 chi2 2.51027 s_mod 0.864237 r 547.621 z -1224.5 qop 0.232939 +- 0.00766523 sigpos 0.303956 sigdir 0.00152334 res -0
+ at stop 13 surface 52 shape 1 ref -1182.66
+ at stop 12 surface 56 shape 0 ref 360.78
+  stop 12 layer 25 dim 2 chi2 0.480194 s_mod 0.769692 r 360.964 z -792.257 qop 0.22976 +- 0.00588327 sigpos 0.341155 sigdir 0.00140569 res 0.144649
+ at stop 11 surface 55 shape 0 ref 355.081
+ at stop 10 surface 54 shape 0 ref 261.079
+  stop 10 layer 24 dim 2 chi2 0.263186 s_mod 0.375603 r 257.986 z -554.71 qop 0.230298 +- 0.00484704 sigpos 0.319582 sigdir 0.00162351 res -0.0156789
+ at stop 9 surface 53 shape 0 ref 255.391
+ at stop 8 surface 39 shape 0 ref 200
+ at stop 7 surface 22 shape 0 ref 174.695
+ at stop 6 surface 23 shape 0 ref 172.201
+  stop 6 layer 10 dim 2 chi2 0.319783 s_mod 0.249871 r 171.789 z -355.602 qop 0.228904 +- 0.00407615 sigpos 0.0204991 sigdir 0.00163437 res -0.0475731
+ at stop 5 surface 20 shape 0 ref 118.79
+ at stop 4 surface 21 shape 0 ref 116.297
+  stop 4 layer 9 dim 2 chi2 0.0158027 s_mod 0.0311209 r 115.323 z -225.297 qop 0.229019 +- 0.00394107 sigpos 0.0204251 sigdir 0.00103042 res 0.00473065
+ at stop 3 surface 18 shape 0 ref 74.9644
+ at stop 2 surface 19 shape 0 ref 72.4779
+  stop 2 layer 8 dim 2 chi2 0.298085 s_mod 0.0941183 r 71.7587 z -124.876 qop 0.228917 +- 0.00387175 sigpos 0.0203002 sigdir 0.0010323 res -0.00395224
+ at stop 1 surface 16 shape 0 ref 35.5112
+ at stop 0 surface 17 shape 0 ref 32.9378

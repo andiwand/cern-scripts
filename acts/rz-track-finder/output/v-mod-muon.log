@@ -1,0 +1,343 @@
+20:34:35    GenericDetec   INFO      Building tracking geometry
+20:34:35    GenericDetec   INFO      Building tracking geometry for Generic Detector in Gen1 mode
+20:34:35    GenericDetec   INFO      Tracking geometry built
+20:34:36    Sequencer      INFO      Create Sequencer (single-threaded)
+20:34:36    Sequencer      INFO      Add Reader 'EventGenerator'
+20:34:36    Sequencer      INFO      -> OutputEvent 'particle_gun_event':
+20:34:36    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+20:34:36    Sequencer      INFO      Add Algorithm 'HepMC3InputConverter'
+20:34:36    Sequencer      INFO      <- InputEvent 'particle_gun_event':
+20:34:36    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+20:34:36    Sequencer      INFO      -> OutputParticles 'particles_generated':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      -> OutputVertices 'vertices_generated':
+20:34:36    Sequencer      INFO         flat_set<SimVertex, detail::CompareVertexId, void>
+20:34:36    Sequencer      INFO      Key 'particles_generated' aliased to 'particles'
+20:34:36    Sequencer      INFO      Key 'vertices_generated' aliased to 'vertices_truth'
+20:34:36    Sequencer      INFO      Key 'particles_generated' aliased to 'particles_generated_selected'
+20:34:36    Sequencer      INFO      Add Algorithm 'FatrasSimulation'
+20:34:36    Sequencer      INFO      <- InputParticles 'particles_generated_selected':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      -> OutputSimHits 'simhits':
+20:34:36    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+20:34:36    Sequencer      INFO      -> OutputParticles 'particles_simulated':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles'
+20:34:36    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles_simulated_selected'
+20:34:36    Sequencer      INFO      Add Algorithm 'DigitizationAlgorithm'
+20:34:36    Sequencer      INFO      <- InputHits 'simhits':
+20:34:36    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+20:34:36    Sequencer      INFO      -> OutputMeasurements 'measurements':
+20:34:36    Sequencer      INFO         MeasurementContainer
+20:34:36    Sequencer      INFO      -> OutputMeasurementSubset 'measurement_subset':
+20:34:36    Sequencer      INFO         MeasurementSubset
+20:34:36    Sequencer      INFO      -> OutputClusters 'clusters':
+20:34:36    Sequencer      INFO         vector<Cluster>
+20:34:36    Sequencer      INFO      -> OutputMeasurementParticlesMap 'measurement_particles_map':
+20:34:36    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+20:34:36    Sequencer      INFO      -> OutputMeasurementSimHitsMap 'measurement_simhits_map':
+20:34:36    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, less<unsigned int>, void>
+20:34:36    Sequencer      INFO      -> OutputParticleMeasurementsMap 'particle_measurements_map':
+20:34:36    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+20:34:36    Sequencer      INFO      -> OutputSimHitMeasurementsMap 'simhit_measurements_map':
+20:34:36    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, less<unsigned int>, void>
+20:34:36    Sequencer      INFO      Add Algorithm 'ParticleSelector'
+20:34:36    Sequencer      INFO      <- InputParticles 'particles_simulated_selected':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      <- InputParticleMeasurementsMap 'particle_measurements_map':
+20:34:36    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+20:34:36    Sequencer      INFO      <- InputMeasurements 'measurements':
+20:34:36    Sequencer      INFO         MeasurementContainer
+20:34:36    Sequencer      INFO      -> OutputParticles 'tmp_particles_digitized_selected':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_selected'
+20:34:36    Sequencer      INFO      Key 'tmp_particles_digitized_selected' aliased to 'particles_digitized_selected'
+20:34:36    Sequencer      INFO      Add Algorithm 'SpacePointMaker'
+20:34:36    Sequencer      INFO      <- InputMeasurements 'measurement_subset':
+20:34:36    Sequencer      INFO         MeasurementSubset
+20:34:36    Sequencer      INFO      -> OutputSpacePoints 'spacepoints':
+20:34:36    Sequencer      INFO         SpacePointContainer
+20:34:36    addSeeding     INFO      Using grid triplet seeding
+20:34:36    Sequencer      INFO      Add Algorithm 'GridTripletSeedingAlgorithm'
+20:34:36    Sequencer      INFO      <- InputSpacePoints 'spacepoints':
+20:34:36    Sequencer      INFO         SpacePointContainer
+20:34:36    Sequencer      INFO      -> OutputSeeds 'seeds':
+20:34:36    Sequencer      INFO         SeedContainer
+20:34:36    Sequencer      INFO      Add Algorithm 'TrackParamsEstimationAlgorithm'
+20:34:36    Sequencer      INFO      <- InputSeeds 'seeds':
+20:34:36    Sequencer      INFO         SeedContainer
+20:34:36    Sequencer      INFO      -> OutputTrackParameters 'estimatedparameters':
+20:34:36    Sequencer      INFO         vector<BoundTrackParameters>
+20:34:36    Sequencer      INFO      -> OutputSeeds 'estimatedseeds':
+20:34:36    Sequencer      INFO         SeedContainer
+20:34:36    Sequencer      INFO      Add Algorithm 'SeedsToProtoTracks'
+20:34:36    Sequencer      INFO      <- InputSeeds 'estimatedseeds':
+20:34:36    Sequencer      INFO         SeedContainer
+20:34:36    Sequencer      INFO      -> OutputProtoTracks 'seed-protoTracks':
+20:34:36    Sequencer      INFO         vector<small_vector<unsigned int, 3ul, void, void>>
+20:34:36    Sequencer      INFO      Add Algorithm 'SeedsToTracks'
+20:34:36    Sequencer      INFO      <- InputSeeds 'estimatedseeds':
+20:34:36    Sequencer      INFO         SeedContainer
+20:34:36    Sequencer      INFO      <- InputTrackParameters 'estimatedparameters':
+20:34:36    Sequencer      INFO         vector<BoundTrackParameters>
+20:34:36    Sequencer      INFO      -> OutputTracks 'seed-tracks':
+20:34:36    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:36    Sequencer      INFO      Add Algorithm 'TrackTruthMatcher'
+20:34:36    Sequencer      INFO      <- InputTracks 'seed-tracks':
+20:34:36    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:36    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:36    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:36    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+20:34:36    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+20:34:36    Sequencer      INFO      -> OutputTrackParticleMatching 'seed_particle_matching':
+20:34:36    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:36    Sequencer      INFO      -> OutputParticleTrackMatching 'particle_seed_matching':
+20:34:36    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+20:34:37    Sequencer      INFO      Add Writer 'RootPatternRecognitionPerformanceWriter'
+20:34:37    Sequencer      INFO      <- InputHandle 'seed-tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputTrackParticleMatching 'seed_particle_matching':
+20:34:37    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:37    Sequencer      INFO      <- InputParticleTrackMatching 'particle_seed_matching':
+20:34:37    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+20:34:37    Sequencer      INFO      <- InputParticleMeasurementsMap 'particle_measurements_map':
+20:34:37    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+20:34:37    Sequencer      INFO      Add Writer 'RootTrackParameterWriter'
+20:34:37    Sequencer      INFO      <- InputHandle 'estimatedparameters':
+20:34:37    Sequencer      INFO         vector<BoundTrackParameters>
+20:34:37    Sequencer      INFO      <- InputProtoTracks 'seed-protoTracks':
+20:34:37    Sequencer      INFO         vector<small_vector<unsigned int, 3ul, void, void>>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputSimHits 'simhits':
+20:34:37    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+20:34:37    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+20:34:37    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+20:34:37    Sequencer      INFO      <- InputMeasurementSimHitsMap 'measurement_simhits_map':
+20:34:37    Sequencer      INFO         flat_multimap<unsigned int, unsigned int, less<unsigned int>, void>
+20:34:37    RzTrackFindi   INFO      RZ layout: 22 cylinders, 82 discs, 48 sensitive layers, 18728 modules, escape r 1028.54 |z| 3001
+20:34:37    Sequencer      INFO      Add Algorithm 'RzTrackFindingAlgorithm'
+20:34:37    Sequencer      INFO      <- InputMeasurements 'measurements':
+20:34:37    Sequencer      INFO         MeasurementContainer
+20:34:37    Sequencer      INFO      <- InputInitialTrackParameters 'estimatedparameters':
+20:34:37    Sequencer      INFO         vector<BoundTrackParameters>
+20:34:37    Sequencer      INFO      -> OutputTracks 'rz_tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      Add Algorithm 'TrackTruthMatcher'
+20:34:37    Sequencer      INFO      <- InputTracks 'rz_tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputMeasurementParticlesMap 'measurement_particles_map':
+20:34:37    Sequencer      INFO         flat_multimap<unsigned int, Barcode, less<unsigned int>, void>
+20:34:37    Sequencer      INFO      -> OutputTrackParticleMatching 'rz_track_particle_matching':
+20:34:37    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:37    Sequencer      INFO      -> OutputParticleTrackMatching 'rz_particle_track_matching':
+20:34:37    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+20:34:37    Sequencer      INFO      Key 'rz_track_particle_matching' aliased to 'track_particle_matching'
+20:34:37    Sequencer      INFO      Key 'rz_particle_track_matching' aliased to 'particle_track_matching'
+20:34:37    Sequencer      INFO      Add Writer 'RootTrackSummaryWriter'
+20:34:37    Sequencer      INFO      <- InputHandle 'rz_tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputTrackParticleMatching 'track_particle_matching':
+20:34:37    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:37    Sequencer      INFO      Add Writer 'RootTrackParameterPerformanceWriter'
+20:34:37    Sequencer      INFO      <- InputHandle 'rz_tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputTrackParticleMatching 'track_particle_matching':
+20:34:37    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:37    Sequencer      INFO      Add Writer 'RootPatternRecognitionPerformanceWriter'
+20:34:37    Sequencer      INFO      <- InputHandle 'rz_tracks':
+20:34:37    Sequencer      INFO            TrackContainer<ConstVectorTrackContainer, ConstVectorMultiTrajectory, shared_ptr>
+20:34:37    Sequencer      INFO      <- InputParticles 'particles_selected':
+20:34:37    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+20:34:37    Sequencer      INFO      <- InputTrackParticleMatching 'track_particle_matching':
+20:34:37    Sequencer      INFO            map<unsigned int, TrackMatchEntry, less<unsigned int>, allocator<pair<unsigned int const, TrackMatchEntry>>>
+20:34:37    Sequencer      INFO      <- InputParticleTrackMatching 'particle_track_matching':
+20:34:37    Sequencer      INFO            map<Barcode, ParticleMatchEntry, less<Barcode>, allocator<pair<Barcode const, ParticleMatchEntry>>>
+20:34:37    Sequencer      INFO      <- InputParticleMeasurementsMap 'particle_measurements_map':
+20:34:37    Sequencer      INFO         flat_multimap<Barcode, unsigned int, less<Barcode>, void>
+20:34:37    Sequencer      INFO      Processing events [0, 200)
+20:34:37    Sequencer      INFO      Starting event loop with 1 threads
+20:34:37    Sequencer      INFO        0 context decorators
+20:34:37    Sequencer      INFO        18 sequence elements
+20:34:37    Sequencer      INFO        1 readers
+20:34:37    Sequencer      INFO        12 algorithms
+20:34:37    Sequencer      INFO        5 writers
+20:34:38    Sequencer      INFO      100 / 200 events processed
+20:34:38    Sequencer      INFO      200 / 200 events processed
+20:34:38    RootPatternR   INFO      Efficiency with seeds (nMatchedseeds/nAllseeds) = 0.99821
+20:34:38    RootPatternR   INFO      Fake ratio with seeds (nFakeseeds/nAllseeds) = 0
+20:34:38    RootPatternR   INFO      Duplicate ratio with seeds (nDuplicateseeds/nAllseeds) = 0.778466
+20:34:38    RootPatternR   INFO      Efficiency with particles (nMatchedParticles/nTrueParticles) = 1
+20:34:38    RootPatternR   INFO      Fake ratio with particles (nFakeParticles/nTrueParticles) = 0
+20:34:38    RootPatternR   INFO      Duplicate ratio with particles (nDuplicateParticles/nTrueParticles) = 0.967419
+20:34:38    RootPatternR   INFO      Wrote performance plots to 'output/v-mod-muon/performance_seeding.root:/'
+20:34:38    RootTrackPar   INFO      Wrote estimated parameters from seed to tree 'estimatedparams' in 'output/v-mod-muon/estimatedparams.root'
+20:34:38    RzTrackFindi   INFO      RzTrackFinding: 7263 seeds, 7245 tracks, 21.104 stops and 15.0375 candidates per seed, 11.8175 measurements and 0.0168392 holes per track, 0 backward pass failures
+20:34:38    RootTrackSum   INFO      Wrote parameters of tracks to tree 'tracksummary' in 'output/v-mod-muon/tracksummary_rz.root'
+20:34:38    RootTrackPar   INFO      === Track Parameter Performance Summary ===
+20:34:38    RootTrackPar   INFO      Total tracks: 7245
+20:34:38    RootTrackPar   INFO      Total matched tracks: 1595
+20:34:38    RootTrackPar   INFO      Total particles: 1596
+20:34:38    RootTrackPar   INFO      Total matched particles: 1595
+20:34:38    RootTrackPar   INFO      Track efficiency: 22.0152%
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+Warning in <ROOT::Fit::FillData>: fit range is outside histogram range, no fit data for xaxis
+Warning in <Fit>: Fit data is empty 
+Warning in <Fit>: Fit data is empty 
+20:34:40    RootTrackPar   INFO      Wrote performance plots to 'output/v-mod-muon/performance_fitting_rz.root:/'
+20:34:40    RootPatternR   INFO      Efficiency with tracks (nMatchedtracks/nAlltracks) = 0.998206
+20:34:40    RootPatternR   INFO      Fake ratio with tracks (nFaketracks/nAlltracks) = 0
+20:34:40    RootPatternR   INFO      Duplicate ratio with tracks (nDuplicatetracks/nAlltracks) = 0.778054
+20:34:40    RootPatternR   INFO      Efficiency with particles (nMatchedParticles/nTrueParticles) = 0.999373
+20:34:40    RootPatternR   INFO      Fake ratio with particles (nFakeParticles/nTrueParticles) = 0
+20:34:40    RootPatternR   INFO      Duplicate ratio with particles (nDuplicateParticles/nTrueParticles) = 0.966792
+20:34:40    RootPatternR   INFO      Wrote performance plots to 'output/v-mod-muon/performance_finding_rz.root:/'
+20:34:40    Sequencer      INFO      No unmasked FPEs encountered
+20:34:40    Sequencer      INFO      Processed 200 events in 2.634576 s (wall clock)
+20:34:40    Sequencer      INFO      Average time per event: 1.674970 ms/event
+20:34:40    Sequencer      INFO      Timing breakdown:
+| Algorithm                                      | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-----------------------------------------------|----------------:|----------------:|---------:|
+| Algorithm:RzTrackFindingAlgorithm              |          177.33 |            0.89 |    52.9% |
+| Algorithm:FatrasSimulation                     |           40.52 |            0.20 |    12.1% |
+| Writer:RootTrackParameterPerformanceWriter     |           25.19 |            0.13 |     7.5% |
+| Algorithm:DigitizationAlgorithm                |           22.92 |            0.11 |     6.8% |
+| Writer:RootTrackSummaryWriter                  |           18.89 |            0.09 |     5.6% |
+| Writer:RootPatternRecognitionPerformanceWriter |            9.06 |            0.05 |     2.7% |
+| Writer:RootPatternRecognitionPerformanceWriter |            8.65 |            0.04 |     2.6% |
+| Writer:RootTrackParameterWriter                |            7.07 |            0.04 |     2.1% |
+| Algorithm:GridTripletSeedingAlgorithm          |            6.24 |            0.03 |     1.9% |
+| Algorithm:TrackParamsEstimationAlgorithm       |            5.10 |            0.03 |     1.5% |
+| Algorithm:TrackTruthMatcher                    |            2.86 |            0.01 |     0.9% |
+| Algorithm:SpacePointMaker                      |            2.82 |            0.01 |     0.8% |
+| Reader:EventGenerator                          |            2.57 |            0.01 |     0.8% |
+| Algorithm:SeedsToTracks                        |            2.16 |            0.01 |     0.6% |
+| Algorithm:TrackTruthMatcher                    |            1.90 |            0.01 |     0.6% |
+| Algorithm:HepMC3InputConverter                 |            1.11 |            0.01 |     0.3% |
+| Algorithm:ParticleSelector                     |            0.39 |            0.00 |     0.1% |
+| Algorithm:SeedsToProtoTracks                   |            0.21 |            0.00 |     0.1% |
+| TOTAL                                          |          334.99 |            1.67 |   100.0% |
+
