@@ -1,0 +1,9 @@
+# Only the packages the GBTS layer tool work touches. Everything else, ACTS
+# included, comes from the nightly, which is the point: this checks the change
+# against the AthenaExternals ACTS pin rather than against a local ACTS.
+
++ .*Tracking/Acts/ActsPatternRecognition.*
++ .*Tracking/Acts/ActsToolInterfaces.*
++ .*Tracking/Acts/ActsConfig.*
+
+- .*
