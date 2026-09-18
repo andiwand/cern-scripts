@@ -31,6 +31,7 @@ from acts.examples.reconstruction import (
     SeedingAlgorithm,
     addCKFTracks,
     addTrackWriters,
+    addTrackSelection,
     TrackSelectorConfig,
     CkfConfig,
 )
@@ -208,9 +209,16 @@ def main():
             backwardQOverPScale=args.qop_scale,
         )
         s.addAlgorithm(finder)
+        addTrackSelection(
+            s,
+            trackSelectorConfig=selector,
+            inputTracks="rz_tracks",
+            outputTracks="rz_selected",
+            logLevel=level,
+        )
         matchAlg = acts.examples.TrackTruthMatcher(
             level=level,
-            inputTracks="rz_tracks",
+            inputTracks="rz_selected",
             inputParticles="particles_selected",
             inputMeasurementParticlesMap="measurement_particles_map",
             outputTrackParticleMatching="rz_track_particle_matching",
@@ -223,7 +231,7 @@ def main():
         addTrackWriters(
             s,
             name="rz",
-            tracks="rz_tracks",
+            tracks="rz_selected",
             outputDirRoot=out,
             writeSummary=True,
             writeStates=args.write_states,
