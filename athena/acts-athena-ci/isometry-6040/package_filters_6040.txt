@@ -1,0 +1,60 @@
+# ACTS related packages
+
+- .*ActsGPU.*
++ .*Acts.*
++ .*InnerDetector/InDetRecAlgs/InDetPriVxFinder.*
++ .*InnerDetector/InDetRecTools/InDetRecToolInterfaces.*
++ .*InnerDetector/InDetValidation/InDetDefectsEmulation.*
++ .*AtlasGeant4.*
++ .*MuonReadoutGeometryR4.*
++ .*MuonSpacePoint.*
++ .*xAODMuonPrepData.*
++ .*MuonTrackEvent.*
++ .*MuonPatternEvent.*
++ .*MuonPatternHelpers.*
++ .*MuonRecToolInterfacesR4.*
++ .*MuonTrackFindingAlgs.*
++ .*MuonTrackFindingTools.*
++ .*MuonGeoModelTestR4.*
++ .*MuonGeoModelR4.*
++ .*MuonTruthHelpers.*
++ .*MuonVisualizationHelpersR4.*
++ .*MdtCalibInterfaces.*
++ .*MuonCondAlg.*
++ .*MuonGeometryCnv.*
++ .*MuonTruthAlgsR4.*
++ .*NSWCalibTools.*
++ .*MuonMDT_CnvTools.*
++ .*MuonSTGC_CnvTools.*
++ .*MuonMM_CnvTools.*
++ .*Event/DumpEventDataToJSON.*
+
++ .*AtlasTest/CITest.*
++ .*xAODTracking
++ .*Tracking/TrkExtrapolation/TrkExAlgs.*
++ .*WorkflowTestRunner.*
+
++ InnerDetector/InDetConfig
++ Event/xAOD/xAODInDetMeasurement
++ Event/xAOD/xAODInDetMeasurementAthenaPool
++ Event/xAOD/xAODMeasurementBase
++ Event/xAOD/xAODAuxiliaryMeasurement
++ Trigger/EFTracking/EFTrackingDataTransfer
++ Trigger/EFTracking/FPGATrkConverter
+
++ .*CxxUtils.*
++ DetectorDescription/GeoPrimitives
++ .*InDetPhysValMonitoring.*
+
++ Reconstruction/egamma/egammaAlgs
++ HighGranularityTimingDetector/HGTD_Reconstruction/HGTD_RecAlgs
++ HighGranularityTimingDetector/HGTD_Config
++ graphics/VP1/VP1Systems/VP1TrackSystems
+
++ .*ISF_FastCaloSimParametrization.*
+
+# inlines AlignableGeoPositioning::getTransform, so it has to be rebuilt too
++ .*MuonSensitiveDetectorsR4.*
+
+# Exclude other packages
+- .*
