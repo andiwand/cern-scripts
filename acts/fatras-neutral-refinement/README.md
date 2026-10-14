@@ -1,5 +1,12 @@
 # Neutral transport and physics refinements — 2026-10-14
 
+**Summary superseded on 14 October 2026:** use
+[the inclusive comparison](../fatras-navigation-validation/README.md) and
+[its PDF](../fatras-navigation-validation/results/2026-10-14/inclusive_summary.pdf).
+It has no input momentum or hit analysis cuts and uses default FTFP_BERT without
+our former global time kill, inside the strict ID world. Results below are
+historical diagnostics with their explicitly stated selections.
+
 Standalone validation for conversion correction, slow neutral transport, native
 K-long and prompt neutral-meson decays. Charged p/pT thresholds, turn limits and
 step budgets remain unchanged. No runtime Geant4 dependency is added to Fatras.

@@ -1,5 +1,12 @@
 # Charged mesons in Fatras
 
+**Summary superseded on 14 October 2026:** use
+[the inclusive comparison](../fatras-navigation-validation/README.md) and
+[its PDF](../fatras-navigation-validation/results/2026-10-14/inclusive_summary.pdf).
+It has no input momentum or hit analysis cuts and uses default FTFP_BERT without
+our former global time kill, inside the strict ID world. Results below are
+historical diagnostics with their explicitly stated selections.
+
 Three separate additions on `feat/fatras-hadronic-interactions`: native charged-pion
 muon decays, separately calibrated K+/K- inelastic interactions, and native
 charged-kaon decays. Geant4 is an offline reference, not a runtime dependency.

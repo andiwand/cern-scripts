@@ -34,6 +34,17 @@ p.add_argument("--output", type=Path, required=True)
 p.add_argument("--material-map", type=Path, required=True)
 p.add_argument("--events", type=int, default=20)
 p.add_argument("--seed", type=int, default=42)
+p.add_argument(
+    "--geant4-time-max-ns",
+    type=float,
+    default=None,
+    help="Optional explicit time kill; default leaves Geant4 physics-list transport unchanged",
+)
+p.add_argument(
+    "--allow-prefiltered-input",
+    action="store_true",
+    help="Explicitly reproduce a historical momentum-filtered Geant4 sample",
+)
 a = p.parse_args()
 git = lambda *args: subprocess.check_output(
     ["git", "-C", str(a.source), *args], text=True
@@ -47,6 +58,13 @@ if not Path(binding).resolve().is_relative_to(a.build.resolve()):
     p.error("Activate the specified build before running")
 if a.mode == "changed" and a.table is None:
     p.error("--table is required for changed Fatras")
+selection_path = a.input / "selection.json"
+selection = json.loads(selection_path.read_text()) if selection_path.exists() else None
+if a.mode == "geant4" and selection and not a.allow_prefiltered_input:
+    if (selection.get("p_min_GeV") or 0) > 0 or (selection.get("pt_min_GeV") or 0) > 0:
+        p.error("Inclusive Geant4 reference requires input without momentum filtering")
+if a.geant4_time_max_ns is not None and a.geant4_time_max_ns <= 0:
+    p.error("Explicit Geant4 time limit must be positive")
 a.output.mkdir(parents=True, exist_ok=False)
 u = acts.UnitConstants
 level = acts.logging.INFO
@@ -95,7 +113,11 @@ if a.mode == "geant4":
         killSecondaries=False,
         killVolume=geometry.highestTrackingVolume,
         physicsList="FTFP_BERT",
-        killAfterTime=1000 * u.ns,
+        **(
+            {"killAfterTime": a.geant4_time_max_ns * u.ns}
+            if a.geant4_time_max_ns is not None
+            else {}
+        ),
     )
     import id_world
 
@@ -145,14 +167,18 @@ metadata = {
         hashlib.sha256(a.table.read_bytes()).hexdigest() if a.table else None
     ),
     "input": str(a.input.resolve()),
+    "input_selection": selection,
+    "geant4_explicit_time_max_ns": a.geant4_time_max_ns if a.mode == "geant4" else None,
     "p_min_GeV": 0.1 if a.mode != "geant4" else None,
     "pt_min_GeV": 0.05 if a.mode == "changed" else None,
-    "analysis_hit_p_min_GeV": 0.1,
-    "analysis_hit_pt_min_GeV": 0.05,
+    "analysis_hit_p_min_GeV": None,
+    "analysis_hit_pt_min_GeV": None,
     "physics": {
         "main": "Unmodified main: standard EM; no decays or hadronic interactions",
         "changed": "Standard EM; native decays; supplied hadronic table; local-L0 reference material",
-        "geant4": "FTFP_BERT; charged primary and secondary hits; 1000 ns global time cut",
+        "geant4": "FTFP_BERT defaults; charged primary and secondary hits; explicit time kill="
+        + str(a.geant4_time_max_ns)
+        + " ns",
     }[a.mode],
     "diagnostics": "None; standard CSV hit and particle writers in all three modes",
     "num_threads": 1,
