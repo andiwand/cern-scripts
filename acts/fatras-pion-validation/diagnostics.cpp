@@ -14,10 +14,12 @@
 #include <G4Track.hh>
 #include <G4UserSteppingAction.hh>
 #include <G4VProcess.hh>
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <unordered_map>
 
 namespace py = pybind11;
@@ -38,6 +40,8 @@ struct PathRecord {
 class Recorder : public G4UserSteppingAction {
   std::shared_ptr<Geant4::EventStore> store;
   std::string folder;
+  std::vector<int> projectiles;
+  std::string prefix;
   ActsFatras::NuclearInteractionTable table;
   int event = -1;
   std::ofstream interactions;
@@ -45,8 +49,9 @@ class Recorder : public G4UserSteppingAction {
 
 public:
   Recorder(std::shared_ptr<Geant4::EventStore> s, std::string dir,
-           const std::string &t)
-      : store(std::move(s)), folder(std::move(dir)), table([&] {
+           const std::string &t, std::vector<int> pdgs, std::string stem)
+      : store(std::move(s)), folder(std::move(dir)),
+        projectiles(std::move(pdgs)), prefix(std::move(stem)), table([&] {
           std::ifstream f(t);
           return ActsFatras::NuclearInteractionTable::read(f);
         }()) {}
@@ -54,7 +59,7 @@ public:
     if (event < 0)
       return;
     interactions.flush();
-    std::ofstream out(perEventFilepath(folder, "pion_paths.csv", event));
+    std::ofstream out(perEventFilepath(folder, prefix + "_paths.csv", event));
     out << std::setprecision(12) << ids
         << "pdg,p0,pt0,p_final,l0,first_l0,hazard,first_hazard,n_inelastic,n_"
            "elastic\n";
@@ -68,8 +73,6 @@ public:
   void UserSteppingAction(const G4Step *step) override {
     const auto *track = step->GetTrack();
     const int pdg = track->GetDefinition()->GetPDGEncoding();
-    if (std::abs(pdg) != 211)
-      return;
     const int now =
         G4RunManager::GetRunManager()->GetCurrentEvent()->GetEventID();
     if (now != event) {
@@ -78,15 +81,18 @@ public:
       paths.clear();
       event = now;
       interactions.open(
-          perEventFilepath(folder, "pion_interactions.csv", event));
+          perEventFilepath(folder, prefix + "_interactions.csv", event));
       interactions << std::setprecision(12) << ids
                    << "pdg,process,subtype,p,pt,dx,dy,dz,x,y,z,t_ns,material,"
                       "l0_material,l0_path,n_charged,n_accepted,n_photon,n_pi0,"
                       "leading_alive,leading_p,leading_pt\n";
     }
+    if (std::find(projectiles.begin(), projectiles.end(), pdg) ==
+        projectiles.end())
+      return;
     auto it = store->trackIdMapping.find(track->GetTrackID());
     if (it == store->trackIdMapping.end())
-      throw std::runtime_error("unregistered pion");
+      throw std::runtime_error("unregistered hadron");
     const auto *pre = step->GetPreStepPoint();
     const auto *post = step->GetPostStepPoint();
     const auto *mat = pre->GetMaterial();
@@ -103,10 +109,9 @@ public:
     const double dl0 = step->GetStepLength() / mat->GetNuclearInterLength();
     const auto *channel =
         table.findReferenceChannel(static_cast<Acts::PdgParticle>(pdg));
-    if (!channel)
-      throw std::runtime_error("missing charged-pion calibration channel");
     const double dh =
-        dl0 * table.ratePerL0(*channel, p * Acts::UnitConstants::GeV);
+        channel ? dl0 * table.ratePerL0(*channel, p * Acts::UnitConstants::GeV)
+                : 0;
     r.l0 += dl0;
     r.hazard += dh;
     r.p = post->GetMomentum().mag() / GeV;
@@ -157,20 +162,24 @@ public:
 std::vector<std::weak_ptr<Recorder>> recorders;
 class PionWriter : public WriterT<SimParticleContainer> {
   std::string folder;
+  std::vector<int> projectiles;
+  std::string prefix;
 
 public:
-  PionWriter(const std::string &input, const std::string &output)
-      : WriterT(input, "PionStateWriter", Acts::Logging::INFO), folder(output) {
-  }
+  PionWriter(const std::string &input, const std::string &output,
+             std::vector<int> pdgs, std::string stem)
+      : WriterT(input, "HadronStateWriter", Acts::Logging::INFO),
+        folder(output), projectiles(std::move(pdgs)), prefix(std::move(stem)) {}
   ProcessCode writeT(const AlgorithmContext &ctx,
                      const SimParticleContainer &particles) override {
     std::ofstream out(
-        perEventFilepath(folder, "pion_states.csv", ctx.eventNumber));
+        perEventFilepath(folder, prefix + "_states.csv", ctx.eventNumber));
     out << std::setprecision(12) << ids
         << "pdg,p0,pt0,px0,py0,pz0,p_final,pt_final,dx,dy,dz,x,y,z,t_ns,l0,"
            "outcome\n";
     for (const auto &particle : particles) {
-      if (std::abs(particle.pdg()) != 211)
+      if (std::find(projectiles.begin(), projectiles.end(), particle.pdg()) ==
+          projectiles.end())
         continue;
       const auto &f = particle.finalState();
       auto p = particle.momentum();
@@ -190,21 +199,32 @@ public:
 };
 } // namespace
 PYBIND11_MODULE(pion_diagnostics, mod) {
-  mod.def("make_geant4", [](Geant4Simulation::Config cfg,
-                            const std::string &dir, const std::string &table,
-                            Acts::Logging::Level level) {
-    cfg.steppingActionFactory =
-        [dir, table](std::shared_ptr<Geant4::EventStore> store) {
-          auto r = std::make_shared<Recorder>(std::move(store), dir, table);
-          recorders.push_back(r);
-          return r;
-        };
-    return std::make_shared<Geant4Simulation>(
-        cfg, Acts::getDefaultLogger("Geant4Simulation", level));
-  });
+  mod.def(
+      "make_geant4",
+      [](Geant4Simulation::Config cfg, const std::string &dir,
+         const std::string &table, Acts::Logging::Level level,
+         std::vector<int> pdgs, std::string prefix) {
+        cfg.steppingActionFactory =
+            [dir, table, pdgs,
+             prefix](std::shared_ptr<Geant4::EventStore> store) {
+              auto r = std::make_shared<Recorder>(std::move(store), dir, table,
+                                                  pdgs, prefix);
+              recorders.push_back(r);
+              return r;
+            };
+        return std::make_shared<Geant4Simulation>(
+            cfg, Acts::getDefaultLogger("Geant4Simulation", level));
+      },
+      py::arg("config"), py::arg("output"), py::arg("table"), py::arg("level"),
+      py::arg("projectiles") = std::vector<int>{211, -211},
+      py::arg("prefix") = "pion");
   py::class_<PionWriter, IWriter, std::shared_ptr<PionWriter>>(mod,
                                                                "PionWriter")
-      .def(py::init<const std::string &, const std::string &>());
+      .def(py::init<const std::string &, const std::string &, std::vector<int>,
+                    std::string>(),
+           py::arg("input"), py::arg("output"),
+           py::arg("projectiles") = std::vector<int>{211, -211},
+           py::arg("prefix") = "pion");
   mod.def("beryllium", [] {
     auto *material = G4NistManager::Instance()->FindOrBuildMaterial("G4_Be");
     py::dict out;

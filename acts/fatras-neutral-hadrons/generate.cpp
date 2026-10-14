@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     std::istringstream pdgs(argv[5]); std::string token;
     while (std::getline(pdgs,token,',')) {
       int pdg=std::stoi(token);
-      if (pdg!=211 && pdg!=-211 && pdg!=2212 && pdg!=2112 && pdg!=130)
+      if (pdg!=211 && pdg!=-211 && pdg!=2212 && pdg!=-2212 && pdg!=2112 && pdg!=-2112 && pdg!=130)
         throw std::runtime_error("unsupported projectile");
       projectiles.push_back(pdg);
     }

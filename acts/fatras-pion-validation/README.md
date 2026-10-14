@@ -118,3 +118,13 @@ Nuclear fragments, at-rest capture, charged-pion decays and several projectile
 species remain outside the current Fatras model. Do not tune rates to compensate
 for those omissions. Timings include diagnostics and CSV I/O; table loading is
 reported separately.
+
+The shared observer also accepts `--projectiles PDG...` and
+`--diagnostic-prefix NAME`; defaults preserve the original pion outputs.
+For example `--projectiles -2212 -2112 --diagnostic-prefix antinucleon` reuses
+these tools for antinucleon studies. Missing calibration channels give zero
+reference hazard, not a failure of Geant4 recording. Event files are opened
+before filtering species, so an event without the selected hadrons still has
+empty diagnostic headers. Source revision, working-tree status and diff hash
+are recorded in simulation metadata. The plotter delegates to the shared ODD
+implementation in `../fatras-neutral-hadrons/odd/compare.py`.

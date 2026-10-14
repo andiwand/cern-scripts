@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate identical inputs and compare Geant4 and Fatras in the ODD tracker."""
+
 import argparse
 import hashlib
 import json
@@ -24,6 +25,8 @@ p.add_argument("--pileup", type=int, default=200)
 p.add_argument("--seed", type=int, default=42)
 p.add_argument("--table", type=Path)
 p.add_argument("--material-map", type=Path)
+p.add_argument("--projectiles", type=int, nargs="+", default=[211, -211])
+p.add_argument("--diagnostic-prefix", default="pion")
 p.add_argument("--reference-material", action="store_true")
 p.add_argument("--neutral-hadrons", action=argparse.BooleanOptionalAction, default=True)
 p.add_argument("--neutral-ke-min", type=float, default=0.010, help="GeV")
@@ -74,6 +77,15 @@ meta = {
     ),
     "input": str(a.input) if a.input else None,
 }
+source = os.environ.get(
+    "ACTS_VALIDATION_SOURCE", "/Users/andreas/cern/source/acts/acts/dev3"
+)
+meta["acts_worktree_dirty"] = bool(
+    subprocess.check_output(["git", "-C", source, "status", "--porcelain"])
+)
+meta["acts_diff_sha256"] = hashlib.sha256(
+    subprocess.check_output(["git", "-C", source, "diff", "HEAD"])
+).hexdigest()
 if a.mode == "generate":
     settings = ["310:mayDecay = off", "3122:mayDecay = off"]
     addPythia8(
@@ -148,7 +160,9 @@ else:
         cfg.killAfterTime = 1000 * u.ns
         cfg.keepParticlesWithoutHits = True
         cfg.recordHitsOfSecondaries = True
-        alg = pion_diagnostics.make_geant4(cfg, str(a.output), str(a.table), level)
+        alg = pion_diagnostics.make_geant4(
+            cfg, str(a.output), str(a.table), level, a.projectiles, a.diagnostic_prefix
+        )
         s.addAlgorithm(alg)
         s.addWriter(
             acts.examples.CsvSimHitWriter(
@@ -195,9 +209,15 @@ else:
         "ODD tracker only (pixels + strips); no calorimeter or muon system"
     )
 if a.mode != "generate":
-    s.addWriter(pion_diagnostics.PionWriter("particles_simulated", str(a.output)))
+    s.addWriter(
+        pion_diagnostics.PionWriter(
+            "particles_simulated", str(a.output), a.projectiles, a.diagnostic_prefix
+        )
+    )
+meta["diagnostic_projectiles"] = a.projectiles
+meta["diagnostic_prefix"] = a.diagnostic_prefix
 meta["diagnostics"] = (
-    "external pion step observer and final-state writer; G4 truth reused only after hit replay verification"
+    "external hadron step observer and final-state writer; G4 truth reused only after hit replay verification"
 )
 (a.output / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
 t0 = time.perf_counter()
