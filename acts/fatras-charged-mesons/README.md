@@ -118,6 +118,60 @@ physics. Geant4 retains its production/low-energy transport: common hit cuts
 do not equalize the amount of work. See `cpu_comparison.pdf`, `cpu-comparison.json`
 and archived `timing/` metadata, logs and framework timing files.
 
+## Remaining secondary-hit gaps
+
+The corrected reference leaves 3440.80 secondary pixel hits/event missing;
+94.26% of this net deficit is below hit-entry pT=500 MeV.
+
+| Creation process | Geant4 | Current Fatras | Deficit / event |
+| --- | ---: | ---: | ---: |
+| Conversion | 5216.00 | 3976.70 | 1239.30 |
+| Decay | 4906.20 | 3825.00 | 1081.20 |
+| Nuclear | 8200.50 | 7159.60 | 1040.90 |
+| Other + ionisation | 79.40 | 0 | 79.40 |
+
+1. **Conversion sampler and electron transport.** 969.65 missing hits/event
+   come from photons already present in the identical generator input. Missing
+   hadronic photons cannot explain most of this gap. Audit the probability
+   scale inside the logarithm (positive minimum depth), stretched half-interval
+   energy sharing, threshold and energy/recoil consistency. Validate thin/split
+   slabs and identical incident photons before measuring ODD recovery and CPU.
+2. **Low-momentum transport and existing decays.** Charged-pion decay parents
+   contribute 715.95 versus 232.80 hits/event; charged kaons 239.85 versus 130.60.
+   Both models already exist. Test bounded half/one/two-turn propagation at fixed
+   p/pT cuts, including decay competition, sensor coverage, failures and CPU tails.
+   Repeated hits on the same sensor total only 6.35/event across conversion,
+   decay and nuclear categories. Later turns may still reach other sensors or
+   allow decays, so this does not rule out truncation.
+3. **Hadronic species spectra and ranges.** Nuclear-origin hit-producing
+   particles are already more numerous in Fatras (2705.80 versus 2601.75), but
+   make fewer hits each (2.646 versus 3.152). Pion hits are short by 1506.80;
+   proton hits overshoot by 875.20. First isolate pion/proton transport with
+   matched incident particles, then validate target-dependent final states and
+   momentum sampling. Increasing total multiplicity would target the wrong
+   quantity. Local L0 does not determine fragmentation or pion/proton spectra.
+
+Untransported fragments supply 376.05 reference hits/event, 330.75 from
+light ions; these average only 1.643 hits per hit-producing ion. They matter
+more for occupancy than multi-hit tracks. Missing direct eta/eta-prime/rho0
+decays contribute 172.65 hits/event; their extra conversions are small in this
+sample. Missing KS/Lambda/anti-Lambda nuclear parents contribute 171.25.
+These are direct reference contributions, not guaranteed net recoveries.
+
+`secondary-gaps.py --geant4 G4 --changed CURRENT --output RESULTS --events 20`
+produces `secondary-gaps.json` and the three-page `secondary_gaps.pdf`; add
+`--plot-only` to redraw saved results. Per-event totals agree with the independent
+ancestry analysis. Birth-cut production spans the entire ID and is not pixel
+acceptance. Three distinct sensors is a diagnostic, not reconstruction efficiency.
+Fatras folds nuclear pi0 decays into the nuclear vertex, so direct photon-parent
+labels must not be interpreted as identical shower histories.
+
+A targeted bookkeeping check finds zero surviving incident projectiles in 4608
+FTFP_BERT Si pi+/pi-/proton interactions (six momenta, 0.1--10 GeV, 256/node).
+Reclassifying a surviving projectile as a descendant is therefore not supported
+as the explanation of the proton excess in this scan. The source/log/command
+are archived in `leading-projectile-check/`; this is not an all-energy proof.
+
 ## Charged-meson ablations, 2026-10-14
 
 Twenty identical ttbar + PU200 events, seed 42, ODD tracker, 2 T. Pixel hit-entry
