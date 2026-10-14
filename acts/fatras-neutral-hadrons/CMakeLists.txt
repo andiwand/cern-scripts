@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(FatrasHadronicTables LANGUAGES CXX)
+find_package(Geant4 REQUIRED)
+add_executable(generate-table generate.cpp)
+target_include_directories(generate-table PRIVATE ${Geant4_INCLUDE_DIRS})
+target_link_libraries(generate-table PRIVATE ${Geant4_LIBRARIES})
+target_compile_features(generate-table PRIVATE cxx_std_17)
