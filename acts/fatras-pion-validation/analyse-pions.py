@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Join pion interactions to truth/hits and separate coverage from conditional yield."""
+
 import argparse, json
 from pathlib import Path
 import numpy as np
@@ -56,9 +57,12 @@ def analyse(event, mode, diagnostics, truth, output):
         paths = states.copy()
         paths["n_inelastic"] = ((paths.outcome == 1) & (paths.p_final > 0)).astype(int)
         paths["first_l0"] = paths.l0
-    index = pd.MultiIndex.from_frame(reactions[BAR])
     parent_index = pd.MultiIndex.from_frame(particles[PAR])
-    eligible = (particles.process == 4).to_numpy() & parent_index.isin(index)
+    parent = ids.get_indexer(parent_index)
+    parent_pdg = np.zeros(len(particles), dtype=int)
+    found = parent >= 0
+    parent_pdg[found] = particles.particle_type.to_numpy()[parent[found]]
+    eligible = (particles.process == 4).to_numpy() & (np.abs(parent_pdg) == 211)
     children = particles.loc[eligible].copy()
     children["hits"] = counts[eligible]
     groups = {
@@ -71,7 +75,9 @@ def analyse(event, mode, diagnostics, truth, output):
     positions[:, 3] *= 299.792458
     childpositions = children[["vx", "vy", "vz", "vt"]].to_numpy()
     for key, ix in children.groupby(PAR, sort=False).indices.items():
-        candidates = groups[key]
+        candidates = groups.get(key)
+        if candidates is None:
+            continue
         distance = np.linalg.norm(
             childpositions[ix, None, :] - positions[candidates][None, :, :], axis=2
         )
@@ -105,8 +111,8 @@ def analyse(event, mode, diagnostics, truth, output):
             association[valid], weights=np.asarray(weights)[valid], minlength=n
         )
     momenta = children[["px", "py", "pz"]].to_numpy()
-    safe = np.maximum(association, 0)
-    direction = reactions[["dx", "dy", "dz"]].to_numpy()[safe]
+    direction = np.zeros_like(momenta)
+    direction[valid] = reactions[["dx", "dy", "dz"]].to_numpy()[association[valid]]
     angle = np.arccos(
         np.clip(np.sum(momenta * direction, axis=1) / np.maximum(pchild, 1e-30), -1, 1)
     )
@@ -125,9 +131,10 @@ def analyse(event, mode, diagnostics, truth, output):
     reactions["inclusive_accepted"] = reactions.truth_accepted + leading
     # Disjoint attribution; keep non-inelastic and fragments explicit.
     category = np.full(len(children), "in-domain accepted", dtype=object)
-    rp = reactions.p.to_numpy()[safe]
-    rpt = reactions.pt.to_numpy()[safe]
-    sub = reactions.subtype.to_numpy()[safe]
+    rp, rpt, sub = np.zeros((3, len(children)))
+    rp[valid] = reactions.p.to_numpy()[association[valid]]
+    rpt[valid] = reactions.pt.to_numpy()[association[valid]]
+    sub[valid] = reactions.subtype.to_numpy()[association[valid]]
     category[~accepted] = "daughter below production cuts"
     category[(rp < 0.1) | (rpt < 0.05)] = "parent below transport cuts"
     category[rp > 20] = "parent above 20 GeV"

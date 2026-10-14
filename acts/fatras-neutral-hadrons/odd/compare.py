@@ -305,6 +305,11 @@ def main():
         action="store_true",
         help="Reuse a reference from an earlier ACTS revision; geometry and inputs must still match",
     )
+    p.add_argument(
+        "--allow-material-map-change",
+        action="store_true",
+        help="Explicit material-map correction study; all other geometry/input checks remain",
+    )
     p.add_argument("--baseline-label")
     p.add_argument("--fatras-label")
     a = p.parse_args()
@@ -319,6 +324,9 @@ def main():
         config[key] = label
     config["allow_different_revisions"] = a.allow_different_revisions or config.get(
         "allow_different_revisions", False
+    )
+    config["allow_material_map_change"] = a.allow_material_map_change or config.get(
+        "allow_material_map_change", False
     )
     config_file.write_text(json.dumps(config, indent=2) + "\n")
     folders = {"geant4": a.geant4, "fatras-em": a.em, "fatras": a.fatras}
@@ -342,6 +350,8 @@ def main():
             "events",
             "seed",
         ]
+        if a.allow_material_map_change:
+            keys.remove("material_map_sha256")
         if a.allow_different_revisions:
             keys.remove("acts_revision")
         for key in keys:
@@ -765,7 +775,11 @@ def main():
         "ODD v6 tracker only (pixels + strips), uniform Bz = 2 T; pixel summaries below.",
         "K-short and Lambda are left undecayed by Pythia8; identical filtered inputs for all variants.",
         "Geant4 11.3.2 FTFP_BERT, configured time kill at 1000 ns; Fatras pMin = 100 MeV, pTMin = 50 MeV.",
-        "Fatras variant settings and source revisions are recorded in run-metadata.json.",
+        (
+            "Fatras material-map correction enabled; Geant4 geometry unchanged. See run-metadata.json."
+            if config["allow_material_map_change"]
+            else "Fatras variant settings and source revisions are recorded in run-metadata.json."
+        ),
         "",
         "Mean pixel hits per event (common hit-entry p / pT cuts):",
     ]
