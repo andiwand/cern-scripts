@@ -41,8 +41,11 @@ def analyse(folder, event):
         & (np.hypot(pt, h.tpz) >= 0.1)
     )
     h = h.loc[mask].copy()
+    truth_path = folder / f"{stem}-particles_simulated.csv"
+    if not truth_path.exists():
+        truth_path = truth_path.with_suffix(".csv.gz")
     p = pd.read_csv(
-        folder / f"{stem}-particles_simulated.csv",
+        truth_path,
         usecols=BAR + PARENT + ["process", "particle_type", "px", "py", "pz", "q"],
     )
     ids = pd.MultiIndex.from_frame(p[BAR])

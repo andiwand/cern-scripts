@@ -73,6 +73,7 @@ def load(folder, events, cache):
         for e in range(events)
         for stem in ("particles_simulated", "hits")
     ]
+    paths = [f if f.exists() else f.with_suffix(".csv.gz") for f in paths]
     signature = hashlib.sha256(
         json.dumps(
             [(str(f.resolve()), f.stat().st_size, f.stat().st_mtime_ns) for f in paths]
@@ -90,7 +91,7 @@ def load(folder, events, cache):
 
     for event in range(events):
         stem = f"event{event:09d}"
-        particles = pd.read_csv(folder / f"{stem}-particles_simulated.csv")
+        particles = pd.read_csv(paths[2 * event])
         hits = pd.read_csv(folder / f"{stem}-hits.csv", dtype={"geometry_id": "uint64"})
         ids = pd.MultiIndex.from_frame(particles[BAR])
         assert ids.is_unique

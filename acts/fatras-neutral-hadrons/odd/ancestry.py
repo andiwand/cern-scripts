@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Attribute common-cut pixel hits to their immediate parent, without inferring ancestry."""
+
 import argparse
 import json
 from pathlib import Path
@@ -43,8 +44,11 @@ def group(pdg):
 
 def analyse(folder, event):
     stem = f"event{event:09d}"
+    truth_path = folder / f"{stem}-particles_simulated.csv"
+    if not truth_path.exists():
+        truth_path = truth_path.with_suffix(".csv.gz")
     p = pd.read_csv(
-        folder / f"{stem}-particles_simulated.csv",
+        truth_path,
         usecols=BAR + PARENT + ["particle_type", "process", "px", "py", "pz"],
     )
     h = pd.read_csv(
