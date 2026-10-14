@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     std::istringstream pdgs(argv[5]); std::string token;
     while (std::getline(pdgs,token,',')) {
       int pdg=std::stoi(token);
-      if (pdg!=211 && pdg!=-211 && pdg!=2212 && pdg!=-2212 && pdg!=2112 && pdg!=-2112 && pdg!=130)
+      if (pdg!=211 && pdg!=-211 && pdg!=2212 && pdg!=-2212 && pdg!=2112 && pdg!=-2112 && pdg!=130 && pdg!=321 && pdg!=-321)
         throw std::runtime_error("unsupported projectile");
       projectiles.push_back(pdg);
     }
@@ -130,6 +130,9 @@ int main(int argc, char** argv) {
           const auto add=[&](const G4DynamicParticle& particle) {
             // Fold nuclear fragments into the untransported residual system.
             if (std::abs(particle.GetPDGcode())>=1000000000) return;
+            // Geant4 can emit Sigma_b0, absent from the ACTS/PDG mass table.
+            // Retain this very rare untransported state in the residual too.
+            if (std::abs(particle.GetPDGcode())==5212) return;
             auto p=particle.Get4Momentum();
             products.push_back({particle.GetPDGcode(),particle.GetMass(),particle.GetCharge()/eplus,p});
             residual-=p;

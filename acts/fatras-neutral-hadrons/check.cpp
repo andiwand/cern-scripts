@@ -2,10 +2,12 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <string>
 int main(int argc,char**argv) {
  try {
-  if(argc!=2)return 2;
+  if(argc!=2 && !(argc==3 && std::string(argv[2])=="--load-only"))return 2;
   std::ifstream in(argv[1]);auto table=ActsFatras::NuclearInteractionTable::read(in);
+  if(argc==3){std::cout<<"{\"channels\":"<<table.channels().size()<<"}\n";return 0;}
   std::size_t n=0;double maximum=0;
   for(const auto& channel:table.channels()) for(std::size_t b=0;b<channel.bins.size();++b) {
    const auto& bin=channel.bins[b];

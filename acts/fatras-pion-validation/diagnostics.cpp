@@ -85,7 +85,7 @@ public:
       interactions << std::setprecision(12) << ids
                    << "pdg,process,subtype,p,pt,dx,dy,dz,x,y,z,t_ns,material,"
                       "l0_material,l0_path,n_charged,n_accepted,n_photon,n_pi0,"
-                      "leading_alive,leading_p,leading_pt\n";
+                      "leading_alive,leading_p,leading_pt,proper_time_ns\n";
     }
     if (std::find(projectiles.begin(), projectiles.end(), pdg) ==
         projectiles.end())
@@ -119,7 +119,7 @@ public:
       r.firstL0 += dl0;
       r.firstHazard += dh;
     }
-    if (!process || process->GetProcessType() != fHadronic)
+    if (!process || (process->GetProcessType() != fHadronic && process->GetProcessType() != fDecay))
       return;
     const int subtype = process->GetProcessSubType();
     if (subtype == 121)
@@ -156,7 +156,7 @@ public:
                  << mat->GetNuclearInterLength() / mm << ',' << r.l0 << ','
                  << charged << ',' << accepted << ',' << photon << ',' << pi0
                  << ',' << alive << ',' << r.p << ','
-                 << post->GetMomentum().perp() / GeV << '\n';
+                 << post->GetMomentum().perp() / GeV << ',' << track->GetProperTime() / ns << '\n';
   }
 };
 std::vector<std::weak_ptr<Recorder>> recorders;
@@ -176,7 +176,7 @@ public:
         perEventFilepath(folder, prefix + "_states.csv", ctx.eventNumber));
     out << std::setprecision(12) << ids
         << "pdg,p0,pt0,px0,py0,pz0,p_final,pt_final,dx,dy,dz,x,y,z,t_ns,l0,"
-           "outcome\n";
+           "outcome,proper_time_ns\n";
     for (const auto &particle : particles) {
       if (std::find(projectiles.begin(), projectiles.end(), particle.pdg()) ==
           projectiles.end())
@@ -192,7 +192,7 @@ public:
           << f.position().x() << ',' << f.position().y() << ','
           << f.position().z() << ',' << f.time() / Acts::UnitConstants::ns
           << ',' << f.pathInL0() << ',' << static_cast<int>(f.outcome())
-          << '\n';
+          << ',' << f.properTime() / Acts::UnitConstants::ns << '\n';
     }
     return ProcessCode::SUCCESS;
   }
