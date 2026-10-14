@@ -5,6 +5,7 @@ Uses identical event IDs, per-event normalization and event-level uncertainties.
 Particle plots require charged particles with pixel hits, pT>100 MeV, |eta|<4.
 Raw and common-transport-acceptance hit rates are kept separate.
 """
+
 import argparse, hashlib, json, re
 from pathlib import Path
 import numpy as np
@@ -383,6 +384,11 @@ def main():
             k: load(v, a.events, a.output / f"{k}-{a.events}.npz")
             for k, v in folders.items()
         }
+    metadata = json.loads((a.output / "run-metadata.json").read_text())
+    if metadata["fatras-em"].get("mode") == "fatras-main":
+        assert (
+            metadata["geant4"].get("geant4_world", {}).get("world_solid") == "G4Tubs"
+        ), "Require a physical ID boundary for the Geant4 reference"
     book = PdfPages(a.output / "odd_geant4_vs_fatras.pdf")
     subtitle = (
         f"{a.events} matched ttbar + PU200 events; ODD pixels (volumes 16–18); Bz = 2 T"
@@ -768,17 +774,22 @@ def main():
             "material_coverage",
             "Ar/Z lookup at relative tolerance 0.001; counts are NOT weighted by track flux or interaction probability.",
         )
+    main_baseline = metadata["fatras-em"].get("mode") == "fatras-main"
     fig = plt.figure(figsize=(11.7, 8.3))
     fig.suptitle("ODD Geant4 / Fatras validation", fontsize=17, y=0.94)
     lines = [
         f"{a.events} matched Pythia8 ttbar + Poisson PU200 events, 14 TeV; seed 42.",
         "ODD v6 tracker only (pixels + strips), uniform Bz = 2 T; pixel summaries below.",
         "K-short and Lambda are left undecayed by Pythia8; identical filtered inputs for all variants.",
-        "Geant4 11.3.2 FTFP_BERT, configured time kill at 1000 ns; Fatras pMin = 100 MeV, pTMin = 50 MeV.",
+        "Geant4 11.3.2 FTFP_BERT, configured time kill at 1000 ns; common hit cuts: p >= 100, pT >= 50 MeV.",
         (
             "Fatras material-map correction enabled; Geant4 geometry unchanged. See run-metadata.json."
             if config["allow_material_map_change"]
-            else "Fatras variant settings and source revisions are recorded in run-metadata.json."
+            else (
+                "Both Fatras runs: same corrected map, pMin = 100 MeV; main has no pT transport cut."
+                if main_baseline
+                else "Fatras variant settings and source revisions are recorded in run-metadata.json."
+            )
         ),
         "",
         "Mean pixel hits per event (common hit-entry p / pT cuts):",
@@ -800,7 +811,11 @@ def main():
         "Interpretation limits:",
         "• Simulation hits, before digitization or reconstruction; repeated sensor crossings retained.",
         "• Shared input and geometry source; Geant4 volume material versus Fatras mapped surfaces.",
-        "• Momentum cuts on hits do not equalize earlier transport, shower history or production cuts.",
+        (
+            "• Main has no pT transport cut; current Fatras uses 50 MeV. Common hit cuts do not equalize transport."
+            if main_baseline
+            else "• Momentum cuts on hits do not equalize earlier transport, shower history or production cuts."
+        ),
         "• Tracker-only reference excludes calorimeter backscatter; small sample, not a physics tune.",
         "• Ranges on distribution plots are display windows, not normalization selections.",
         "• Read README and run logs for propagation failures and Geant4 hit-buffer warnings.",

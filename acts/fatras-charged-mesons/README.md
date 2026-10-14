@@ -11,7 +11,114 @@ Physics sources:
 - https://pdg.lbl.gov/2026/listings/rpp2026-list-pi-plus-minus.pdf
 - https://pdg.lbl.gov/2026/listings/rpp2026-list-K-plus-minus.pdf
 
-## Measurements, 2026-10-14
+## Strict inner-detector reference
+
+The historical Geant4 reference used a post-step kill-volume check, which
+allowed outside-ID transport and secondary production. All final comparisons
+now use a fresh physical Geant4 world cylinder r=1202 mm, half-length=4002 mm,
+matching Fatras. `id-world.cpp` verifies all six top-level placements fit
+(r<=1200 mm, |z|<=4000 mm) before changing the world solid. No detector material
+is removed and no transport observer is added. `audit-boundary.py` checks all
+47,420,396 saved birth vertices and 4,182,862 tracker hits: zero outside,
+allowing 1 micron for CSV coordinate rounding. The physical world boundary
+limits transport itself; checking saved hits alone would be insufficient.
+
+Build the external helper with `build-id-world.py --acts-build BUILD
+--output data/2026-10-14/id_world.so` and add that data directory to PYTHONPATH
+for Geant4 runs. ACTS source is unchanged. Superseded results are archived under
+`results/2026-10-14/unbounded-reference/`. The failed unbounded timing run is
+excluded. Historical raw truth in `/private/tmp/fatras-odd-geant4-neutral-parent/`
+is retained losslessly as `.csv.gz`.
+
+## ACTS main comparison, 2026-10-14
+
+The default PDFs now use **genuine, unmodified local main**, commit
+`300b664a3d9c32ec928208e7eb18df40e7b2721b`, built in a separate checkout.
+Current Fatras is `82f3aa8afaa98690024da9f1012e5eee7b6af844`.
+Both use the same corrected external beam-pipe material map, ODD revision,
+tracker world, 2 T field, seed 42 and 20 identical filtered ttbar + PU200 events.
+This isolates the source changes; it is not an out-of-box default-map comparison.
+Main has pMin=100 MeV but no pTMin transport option. The common pixel hit-entry
+cuts remain p>=100 MeV and pT>=50 MeV. Main lacks the new neutral decay exemptions.
+
+| Configuration | Primary hits/event | Secondary hits/event | Secondary / Geant4 |
+| --- | ---: | ---: | ---: |
+| Geant4 | 47158.45 | 18402.10 | 100% |
+| ACTS main | 48555.55 | 3802.60 | 20.66% |
+| Current Fatras | 45808.30 | 14961.30 | 81.30% |
+
+Current versus main: +11158.70 +/-235.06 secondary hits/event (paired event SEM),
+closing 76.43% of the original gap. Main records two maximum-step propagation
+failures; current records none. Main's accepted secondary hits are all from
+conversions. Its CSV schema has no parent identifiers; no absent ancestry is
+inferred. The observer-free current run reproduces the earlier validated
+40 hit/truth CSVs byte-for-byte.
+
+`results/2026-10-14/charged_meson_diagnostics.pdf` and
+`odd_geant4_vs_fatras.pdf` compare Geant4/main/current. The explicitly separate
+`charged_meson_ablations.pdf` retains the historical stages below. The two
+summary files are `charged-meson-summary-main.json` and
+`charged-meson-summary.json`; the latter always describes the ablations.
+
+### Reproduce the main comparison and CPU measurement
+
+`run-comparison.py` takes `--mode main|changed|geant4`, `--source`, `--build`,
+`--revision`, `--input`, `--output`, `--material-map`, `--events 20`; changed
+Fatras also requires `--table`. It checks the clean source revision and native
+binding location. Invoke it through `../fatras-neutral-hadrons/odd/run-env.sh`
+with `ACTS_VALIDATION_BUILD` set to the matching build. Use separate output
+directories and sequential runs for timing. All modes write standard hit/truth
+CSVs with one worker and no external physics observers. Main's older CSV schema
+has fewer truth columns. Geant4 uses FTFP_BERT and a 1000 ns time kill.
+
+The main build uses RelWithDebInfo, assertions and log-failure checks enabled,
+Python bindings, Fatras, Examples DD4hep/ROOT, JSON/ROOT plugins and ODD; system
+Eigen/JSON and the same cached ODD/pybind11 sources and dependency view as dev3.
+Only the Python bindings and ODD targets are needed. Build configuration,
+logs and generated-header provenance are archived in `results/2026-10-14/main-build/`.
+The four generated Core headers were reused only after verifying their generator
+sources, helper package and requirements are unchanged from main; this avoids
+network-dependent code generation and does not change baseline source code.
+
+`odd/compare.py --geant4 G4 --baseline MAIN --fatras CURRENT --output RESULTS
+--events 20 --allow-different-revisions --baseline-label 'ACTS main (300b664a3d)'
+--fatras-label 'Current Fatras'` produces the detailed comparison. All final
+runs record the same corrected map; no material-map override is required. Input hashes, ODD
+revision, field and world checks remain active.
+
+Run `plot.py --results RESULTS --calibration MIDPOINT_JSON` for the main-based
+four-page book; add `--ablations` only for the historical ablation book. Main
+metadata is checked before a sample is labelled as main, and current/reference
+ancestry counts must match the shared comparison cache. Run
+`timing.py --main MAIN --changed CURRENT --geant4 G4 --output RESULTS
+--host-label 'Apple M3 Pro (12 cores, 18 GiB)'` for CPU JSON and PDF output.
+
+Timing distinguishes process user+system CPU from elapsed time. Setup includes
+imports, geometry, table loading and provenance; the event loop includes
+initialization, simulation, CSV I/O and finalization. Framework algorithm timings
+are elapsed time, excluding CSV I/O, and are **not** separately measured CPU.
+One run per variant is a cost snapshot, not a throughput or scaling benchmark.
+
+## CPU snapshot on Apple M3 Pro (12 cores, 18 GiB)
+
+One worker, 20 identical events per run, sequential runs, standard CSV writers.
+
+| Measurement | ACTS main | Current Fatras | Geant4, ID only |
+| --- | ---: | ---: | ---: |
+| Event-loop process CPU [s/event] | 0.820 | 1.135 | 39.701 |
+| Setup process CPU [s/job] | 1.249 | 10.532 | 1.647 |
+| Simulation algorithm elapsed [s/event] | 0.404 | 0.597 | 32.558 |
+| Maximum process RSS [MiB] | 605 | 1595 | 4628 |
+
+Current event-loop CPU is 38.4% above main and 35.0 times lower than Geant4.
+CSV I/O is included in process CPU; simulation-only elapsed time is listed
+separately. The current 558 MiB table has a substantial startup cost. Optional
+build modules differ, so total setup/RSS changes cannot all be assigned to
+physics. Geant4 retains its production/low-energy transport: common hit cuts
+do not equalize the amount of work. See `cpu_comparison.pdf`, `cpu-comparison.json`
+and archived `timing/` metadata, logs and framework timing files.
+
+## Charged-meson ablations, 2026-10-14
 
 Twenty identical ttbar + PU200 events, seed 42, ODD tracker, 2 T. Pixel hit-entry
 cuts p >= 100 MeV and pT >= 50 MeV. Fatras uses the previously corrected beam-pipe
@@ -19,35 +126,30 @@ map and local L0 scaling of the Si reference. No detector hit tuning.
 
 | Configuration | Primary hits/event | Secondary hits/event | Secondary / Geant4 |
 | --- | ---: | ---: | ---: |
-| Geant4 | 47191.40 | 18195.55 | 100% |
-| Previous Fatras | 46350.30 | 13968.95 | 76.77% |
-| Plus pion decays | 46150.50 | 14161.60 | 77.83% |
-| Plus kaon interactions | 45887.70 | 14780.85 | 81.23% |
-| Plus kaon decays | 45808.30 | 14961.30 | 82.23% |
+| Geant4 | 47158.45 | 18402.10 | 100% |
+| Before charged-meson additions | 46350.30 | 13968.95 | 75.91% |
+| Plus pion decays | 46150.50 | 14161.60 | 76.96% |
+| Plus kaon interactions | 45887.70 | 14780.85 | 80.32% |
+| Plus kaon decays | 45808.30 | 14961.30 | 81.30% |
 
 Sequential secondary-hit gains: 192.65 +/-127.79, 619.25 +/-122.61, and
 180.45 +/-111.61/event (paired event SEM). Combined: 992.35 +/-111.27, +7.10%,
-closing 23.48% of the previous gap. Final coverage 82.23% +/-0.81 percentage
+closing 22.38% of the before-mesons gap. Final coverage 81.30% +/-0.57 percentage
 points. Primary hits decrease by 542/event; combined primary+secondary gain is
 450.35/event. Decays replace parent tracks and compete with nuclear interactions;
 individual additions also change later random-number history. Small-sample
 statistical errors do not cover physics-model errors.
 
-Direct final Fatras / Geant4 hits: pion decays 232.80/712.90, kaon decays
-130.60/236.80, kaon nuclear 598.45/509.55. These are immediate-parent categories,
-not shower ancestry. The remaining pion gap is not explained by parent cuts:
-708.00 reference hits/event have accepted incident pion kinematics, 4.25 do not,
-and 0.65 have no matched decay vertex. Corresponding kaon values are 186.45,
-49.60 and 0.75. Pre-step incident momentum does not resolve continuous loss
-within the decay-ending step.
+Direct final Fatras / Geant4 hits: pion decays 232.80/715.95, kaon decays
+130.60/239.85, kaon nuclear 598.45/546.55. These are immediate-parent categories,
+not shower ancestry. The old parent-cut/proper-time diagnostic used the unbounded
+reference and is retained only in the historical archive; its numbers must not
+be interpreted as the recoverable deficit in the corrected reference.
 
-Existing propagator loop protection remains enabled at half a turn. In uniform
-2 T and at fixed momentum, this corresponds to 2.439 ns pion proper time and
-8.628 ns kaon proper time. Reference accepted decay-parent hits beyond these
-proper times contribute 230.80 and 10.10/event. This is a diagnostic proxy,
-not an exact recoverable gain: energy loss, scattering, daughter looping and
-world exit also matter. Do not disable navigation/loop safeguards without a
-separate CPU and correctness study.
+Existing propagator loop protection remains enabled at half a turn. At fixed
+momentum in 2 T, this corresponds to 2.439 ns pion and 8.628 ns kaon proper time.
+A bounded transport study must measure unique particles/sensors, valid repeated
+crossings, CPU tails and failures before relaxing that limit.
 
 ## Correctness and approximation checks
 
@@ -64,15 +166,17 @@ separate CPU and correctness study.
 - 268 integration cases pass, including charged lifetimes and later daughter
   hits with both Eigen and the Examples Sympy stepper. Required repository
   hooks pass. Final ODD run has no failed tracks; each intermediate ablation
-  has one maximum-step failure. Geant4 retains 14 hit-buffer warnings.
+  has one maximum-step failure. The corrected Geant4 reference retains 32 hit-buffer warnings and one QGS
+  negative projectile-mass-squared warning (clamped to zero). These are reference limitations.
 - Native and Geant4 rest-frame checks use 100000 decays per charge/species.
   Three-pion energy spectra agree well; native semileptonic mean charged-daughter
   energies are 0.13955 versus 0.13249 GeV (electron mode), and 0.17868 versus
   0.16757 GeV (muon mode). These shape differences are a documented limitation
   of uniform phase space. Six branching fractions and both charges are retained.
-- All 20 Geant4 hit files match the earlier reference byte-for-byte. Only then
-  reuse its full particle truth. Final packaged tools and committed ACTS source
-  reproduce all 60 Fatras hit, truth and meson-state CSV files byte-for-byte.
+- Final packaged tools and committed ACTS source reproduce all 60 Fatras hit,
+  truth and meson-state CSV files byte-for-byte. The new observer-free current
+  timing run also reproduces all 40 hit/truth files. Geant4 was rerun from scratch
+  with the corrected physical world; historical Geant4 truth is not reused.
 
 ## Calibration and cost
 
@@ -115,21 +219,22 @@ meson decay vertices and proper time. No validation writer is added to ACTS.
 3. Build the shared diagnostics module and use `run-env.sh run.py MODE` with
    `--projectiles 211 -211 321 -321 --diagnostic-prefix meson`, the same input
    directory, 20 events, the corrected material map and `--reference-material`.
-   Inputs here: `/private/tmp/fatras-odd-inputs-final`. Geant4 diagnostics:
-   `/private/tmp/fatras-meson-geant4`. Reused verified truth:
-   `/private/tmp/fatras-odd-geant4-neutral-parent`.
+   Inputs here: `/private/tmp/fatras-odd-inputs-final`. Historical Geant4 diagnostics
+   in `/private/tmp/fatras-meson-geant4` are superseded. Use `run-comparison.py`
+   and the physical world helper for the final reference in
+   `/private/tmp/fatras-timing-geant4-id`.
 4. ACTS `17706df312` supplies pion decays and kaon interactions with the final
    world guard. Old versus nine-channel tables give the first two ablations.
    `1fae8bd106` adds kaon decays; `82f3aa8afa` adds Sympy regression coverage.
-   Baseline is the archived antinucleon run. Runtime metadata records revisions,
+   The ablation baseline is the archived antinucleon run, not ACTS main. Metadata records revisions,
    dirty state, table/input/map hashes and raw locations.
 5. Run shared `odd/ancestry.py` for each variant. Archive as
    `{geant4,baseline,pion,kaon,full}-ancestry.json`. Run `decay-attribution.py
    --input G4_WITH_VERIFIED_TRUTH --output JSON` for the cut/late-decay diagnostic.
 6. Build `decay-reference.cpp` with `build-decay-reference.py --acts-build BUILD
    --geant4-lib LIBDIR --output EXECUTABLE`; run with the G4 dataset environment
-   and output CSV path. `plot.py --results RESULTS --calibration MIDPOINT_JSON`
-   makes the four-page diagnostics book. Shared `odd/compare.py` makes the
+   and output CSV path. `plot.py --results RESULTS --calibration MIDPOINT_JSON
+   --ablations` makes the historical four-page ablation book. Shared `odd/compare.py` makes the
    full 11-page ODD book; use explicit revision/material-map overrides.
 
 Local ignored artifacts: `data/2026-10-14/`, `results/2026-10-14/`. PDFs:
