@@ -28,8 +28,11 @@ PT = [0.05, 0.1, 0.2, 0.5, 1, 2, 1000000]
 
 def analyse(folder, event):
     stem = f"event{event:09d}"
+    hit_path = folder / f"{stem}-hits.csv"
+    if not hit_path.exists():
+        hit_path = hit_path.with_suffix(".csv.gz")
     h = pd.read_csv(
-        folder / f"{stem}-hits.csv",
+        hit_path,
         usecols=BAR + ["geometry_id", "tpx", "tpy", "tpz"],
         dtype={"geometry_id": "uint64"},
     )
