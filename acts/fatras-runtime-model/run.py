@@ -32,6 +32,7 @@ p.add_argument("--input", type=Path, required=True)
 p.add_argument("--output", type=Path, required=True)
 p.add_argument("--material-map", type=Path, required=True)
 p.add_argument("--events", type=int, default=20)
+p.add_argument("--threads", type=int, default=1)
 p.add_argument("--seed", type=int, default=42)
 p.add_argument(
     "--geant4-time-max-ns",
@@ -50,6 +51,8 @@ p.add_argument(
     help="Optional validation bridge; omit with a normal build of this branch",
 )
 a = p.parse_args()
+if a.threads < 1 or (a.mode == "geant4" and a.threads != 1):
+    p.error("positive worker count required; the Geant4 reference uses one worker")
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
@@ -85,7 +88,7 @@ u = acts.UnitConstants
 level = acts.logging.INFO
 s = acts.examples.Sequencer(
     events=a.events,
-    numThreads=1,
+    numThreads=a.threads,
     logLevel=level,
     outputDir=str(a.output),
     trackFpes=False,
@@ -215,7 +218,7 @@ metadata = {
         + " ns",
     }[a.mode],
     "diagnostics": "None; standard CSV hit and particle writers in all three modes",
-    "num_threads": 1,
+    "num_threads": a.threads,
     "validation_bridge": str(a.module_dir) if a.module_dir else None,
     "geant4_dataset_environment": {
         k: v for k, v in os.environ.items() if k.startswith("G4") and k.endswith("DATA")
