@@ -109,3 +109,12 @@ byte and separates rate/header, event/remnant and daughter records. It is not a
 physics validator. The 561 MiB file contains 771 nodes, 386304 interactions and
 6364029 daughters; only about 32 KiB is rates/indexing. The final-state catalogue
 accounts for 99.994% of its bytes. It remains outside ACTS for validation.
+
+## Direct-model threading feasibility — 15 October 2026
+
+The [standalone direct-model probe](direct-model/README.md) demonstrates concurrent
+interaction generation without Geant4 run/event scheduling: identical outputs
+across worker counts, 6.18× speedup at eight workers. MT-enabled Geant4 libraries,
+standard datasets and per-worker particle state remain necessary. The production
+ACTS adapter above is unchanged; full-event integration and throughput remain
+unvalidated. [PDF](results/2026-10-15/direct-model/report/direct_model_validation.pdf).
