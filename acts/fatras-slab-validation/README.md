@@ -2,7 +2,9 @@
 
 Quantify EM interaction and within-material transport errors without ODD material
 placement. This is an external diagnostic, not a new Fatras transport backend.
-ACTS source remains at `5825d58880` on `fix/fatras-radiative-secondaries`.
+The original archive uses `5825d58880` on `fix/fatras-radiative-secondaries`.
+The current harness also supports sampled photon birth material; see
+[`../fatras-photon-column/`](../fatras-photon-column/README.md) for that follow-up.
 
 ## What is compared
 
@@ -48,8 +50,10 @@ not components to add to the ODD hit deficit.
 
 The harness invokes the production `SimulationActor::interact`, charged
 scattering/interleaved-ionisation-and-brems list, and photon conversion/Compton
-list. It retains conversion daughters' sampled remaining column. Other daughters
-skip the rest of their birth cell, exactly the current production limitation.
+list. The original archive retains conversion daughters' sampled remaining
+column; other daughters skip the birth cell. The current harness also consumes
+explicit bremsstrahlung/scattered-photon depth records from the production
+actor. Unlisted daughters still skip the birth cell.
 A scattered photon preserves its incident-history status for primary-only
 scoring. No custom cross section, production multiplier or loss formula is used.
 

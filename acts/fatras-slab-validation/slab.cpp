@@ -257,7 +257,8 @@ using Actor = detail::SimulationActor<std::mt19937_64, Empty, L, Empty>;
 // A planar cell is processed by the production actor; straight free flight
 // selects the next cell. This intentionally retains the production slab
 // approximation: conversion daughters get their sampled remaining column,
-// other daughters leave the birth cell. Subdivision tests that approximation.
+// emitted/scattered photons also retain sampled depth; other daughters leave
+// the birth cell. Subdivision tests the remaining approximation.
 struct Work {
   Particle particle;
   int cell;
@@ -337,12 +338,19 @@ void fatras() {
         work.birth.reset();
         auto column = pos.remaining(track.direction());
         result.generatedParticles.clear();
-        result.conversionMaterial.reset();
+        result.generatedMaterial.clear();
         if (track.pdg() == Acts::eGamma)
           neutral.interact(column, result, &pos);
         else
           charged.interact(column, result, &pos);
-        for (auto child : result.generatedParticles) {
+        auto childMaterial = result.generatedMaterial.begin();
+        for (std::size_t i = 0; i < result.generatedParticles.size(); ++i) {
+          const auto child = result.generatedParticles[i];
+          std::optional<SlabPosition> birthMaterial;
+          if (childMaterial != result.generatedMaterial.end() && childMaterial->first == i) {
+            birthMaterial = childMaterial->second;
+            ++childMaterial;
+          }
           const auto process = child.process();
           const bool continuation = child.pdg() == Acts::eGamma &&
                                     process == GenerationProcess::eOther;
@@ -359,10 +367,9 @@ void fatras() {
           if (child.pdg() == Acts::eGamma && kinetic(child) < cutMeV)
             continue;
           const int next = work.cell + (child.direction().z() > 0 ? 1 : -1);
-          if (result.conversionMaterial &&
-              process == GenerationProcess::ePhotonConversion)
-            queue.push_back(
-                {child, work.cell, false, result.conversionMaterial});
+          if (birthMaterial)
+            queue.push_back({child, work.cell, continuation && work.primary,
+                             birthMaterial});
           else
             queue.push_back({child, next, continuation && work.primary, {}});
         }
