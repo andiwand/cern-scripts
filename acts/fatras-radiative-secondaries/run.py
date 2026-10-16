@@ -22,6 +22,7 @@ p.add_argument(
 p.add_argument("--brems-cut-MeV", type=float, default=0.1)
 p.add_argument("--photon-cut-MeV", type=float, default=0.1)
 p.add_argument("--disable-compton", action="store_true")
+p.add_argument("--disable-annihilation", action="store_true")
 p.add_argument("--standard", action="store_true")
 p.add_argument("--threads", type=int, default=1)
 p.add_argument("--inside-env", action="store_true", help=argparse.SUPPRESS)
@@ -46,6 +47,9 @@ sys.path.insert(0, str(a.module))
 import acts.examples
 import runtime_fatras
 
+has_annihilation = hasattr(runtime_fatras, "configure_annihilation")
+if has_annihilation:
+    runtime_fatras.configure_annihilation(not a.disable_annihilation)
 runtime_fatras.configure_photons(a.photon_cut_MeV * 0.001, not a.disable_compton)
 runtime_fatras.configure_radiation(a.brems_cut_MeV * 0.001)
 revision = subprocess.check_output(
@@ -59,7 +63,7 @@ assert script.count('if key != "level":') == 1
 common.write_text(
     script.replace(
         'if key != "level":',
-        'if key not in ("level", "emComptonScattering", "emBremsstrahlungPhotonMinEnergy"):',
+        'if key not in ("level", "emComptonScattering", "emBremsstrahlungPhotonMinEnergy", "emPositronAnnihilation"):',
     )
 )
 runner = common if a.standard else tools / "fatras-low-momentum/run.py"
@@ -110,6 +114,7 @@ meta["soft_physics"] = {
     "ionisation_cut_GeV": 0.0001,
     "photon_cut_GeV": a.photon_cut_MeV * 0.001,
     "compton": not a.disable_compton,
+    "positron_annihilation": has_annihilation and not a.disable_annihilation,
     "legacy_decays": False,
     "brems_production_cut_GeV": (
         a.brems_cut_MeV * 0.001 if a.brems_cut_MeV != float("inf") else None

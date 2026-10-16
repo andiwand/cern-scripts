@@ -226,10 +226,10 @@ void geant() {
       auto* processList = pm->GetProcessList();
       for (int i = 0; i < pm->GetProcessListLength(); ++i) {
         auto name = (*processList)[i]->GetProcessName();
-        if ((name == "msc" && cfg.profile != "transport") ||
+        if ((name == "msc" && cfg.profile != "transport" && cfg.profile != "annihilation-transport") ||
             (name == "phot" &&
              (cfg.profile == "common" || cfg.profile == "transport" ||
-              cfg.profile == "annihilation")) ||
+              cfg.profile == "annihilation" || cfg.profile == "annihilation-transport")) ||
             (name == "annihil" &&
              (cfg.profile == "common" || cfg.profile == "transport" ||
               cfg.profile == "photoelectric")))
@@ -314,7 +314,9 @@ void fatras() {
       charged.interactions.get<detail::StandardScattering>().physics.angle;
   scattering.screenedElectronScattering = true;
   scattering.maxElectronAngularVariance = angularVariance;
-  if (cfg.profile != "full" && cfg.profile != "transport")
+  if (cfg.profile == "common" || cfg.profile == "transport" || cfg.profile == "photoelectric")
+    charged.interactions.disable<PositronAnnihilation>();
+  if (cfg.profile != "full" && cfg.profile != "transport" && cfg.profile != "annihilation-transport")
     charged.interactions.disable<detail::StandardScattering>();
   for (int event = 0; event < cfg.n; ++event) {
     Particle p(Barcode().withParticle(1),
@@ -338,8 +340,7 @@ void fatras() {
           charged.armPointLikeInteractions(result.particle, result);
       };
       arm();
-      while (result.isAlive && result.particle.isAlive() &&
-             result.particle.absoluteMomentum() > 0) {
+      while (result.isAlive && result.particle.isAlive()) {
         if (++steps > 1000000)
           throw std::runtime_error("Step budget exceeded");
         auto& track = result.particle;
@@ -370,13 +371,13 @@ void fatras() {
             ++childMaterial;
           }
           const auto process = child.process();
-          const bool continuation = child.pdg() == Acts::eGamma &&
+          const bool continuation = track.pdg() == Acts::eGamma && child.pdg() == Acts::eGamma &&
                                     process == GenerationProcess::eOther;
           std::string name =
               process == GenerationProcess::eBremsstrahlung     ? "eBrem"
               : process == GenerationProcess::eIonisation       ? "eIoni"
               : process == GenerationProcess::ePhotonConversion ? "conv"
-              : process == GenerationProcess::eOther            ? "compt"
+              : process == GenerationProcess::eOther            ? (track.pdg() == Acts::ePositron ? "annihil" : "compt")
                                                                 : "?";
           if (!continuation)
             birth(int(child.pdg()), kinetic(child), name);
