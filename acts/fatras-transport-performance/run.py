@@ -39,5 +39,9 @@ meta_path = a.output / "metadata.json"
 meta = json.loads(meta_path.read_text())
 meta["transport_experiment"] = json.loads((a.module / "experiment-build.json").read_text())
 meta["soft_physics"] = {"ionisation_cut_GeV": .0001, "photon_cut_GeV": .0010219979, "legacy_decays": False}
+if a.transport_only:
+    meta["pileup"] = None
+    meta["sample"] = "Deterministic charged transport probes"
+    meta["soft_physics"] = None
 meta_path.write_text(json.dumps(meta, indent=2))
 print(json.dumps({"output": str(a.output), "cpu_s_per_event": meta["sequencer_cpu_seconds"] / a.events, "statistics": meta["navigation"]["statistics"]}))
