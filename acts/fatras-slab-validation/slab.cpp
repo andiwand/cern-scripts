@@ -39,7 +39,9 @@
 #include "Randomize.hh"
 
 constexpr double cutMeV = .1;
-const std::array<const char*, 11> names = {"brems",
+double angularVariance = .04;
+double fractionalLoss = .02;
+const std::array<const char*, 14> names = {"brems",
                                            "ionisation",
                                            "compton",
                                            "conversion",
@@ -49,13 +51,16 @@ const std::array<const char*, 11> names = {"brems",
                                            "escape_charged",
                                            "escape_energy_MeV",
                                            "primary_exit_MeV",
-                                           "compton_scatter"};
-using Event = std::array<double, 11>;
+                                           "compton_scatter",
+                                           "primary_escape",
+                                           "primary_exit_cosine",
+                                           "primary_exit_sin2"};
+using Event = std::array<double, 14>;
 struct Scores {
   Event event{}, sum{}, sum2{};
   int n = 0;
   void finish() {
-    for (int k = 0; k < 11; ++k) {
+    for (int k = 0; k < 14; ++k) {
       sum[k] += event[k];
       sum2[k] += event[k] * event[k];
     }
@@ -90,7 +95,12 @@ void birth(int pdg, double ke, const std::string& process) {
   if (k >= 0)
     ++scores.event[k];
 }
-void escape(int pdg, double ke, bool primary) {
+void escape(int pdg, double ke, bool primary, double cosine) {
+  if (primary) {
+    ++scores.event[11];
+    scores.event[12] += cosine;
+    scores.event[13] += 1 - cosine * cosine;
+  }
   if (primary)
     scores.event[9] += ke;
   if (ke >= cutMeV * (1 - 1e-9)) {
@@ -192,7 +202,7 @@ class Steps : public G4UserSteppingAction {
     if (pre && pre->GetName() == "slab" &&
         (!post || post->GetName() != "slab")) {
       escape(t->GetDefinition()->GetPDGEncoding(), t->GetKineticEnergy() / MeV,
-             t->GetParentID() == 0);
+             t->GetParentID() == 0, t->GetMomentumDirection().z());
       t->SetTrackStatus(fStopAndKill);
     }
     if (t->GetDefinition() == G4Gamma::Definition() &&
@@ -216,11 +226,13 @@ void geant() {
       auto* processList = pm->GetProcessList();
       for (int i = 0; i < pm->GetProcessListLength(); ++i) {
         auto name = (*processList)[i]->GetProcessName();
-        if (name == "msc" ||
+        if ((name == "msc" && cfg.profile != "transport") ||
             (name == "phot" &&
-             (cfg.profile == "common" || cfg.profile == "annihilation")) ||
+             (cfg.profile == "common" || cfg.profile == "transport" ||
+              cfg.profile == "annihilation")) ||
             (name == "annihil" &&
-             (cfg.profile == "common" || cfg.profile == "photoelectric")))
+             (cfg.profile == "common" || cfg.profile == "transport" ||
+              cfg.profile == "photoelectric")))
           pm->SetProcessActivation((*processList)[i], false);
       }
     }
@@ -294,10 +306,15 @@ void fatras() {
   neutral.generator = &rng;
   charged.interactions = makeStandardChargedElectroMagneticInteractions(0.);
   auto& loss = charged.interactions.get<detail::StandardBetheBloch>().physics;
+  loss.maxElectronFractionalLoss = fractionalLoss;
   loss.secondaryEnergyMin = cutMeV * Acts::UnitConstants::MeV;
   loss.bremsstrahlungPhotonMinEnergy = cutMeV * Acts::UnitConstants::MeV;
   charged.interactions.disable<detail::StandardBetheHeitler>();
-  if (cfg.profile != "full")
+  auto& scattering =
+      charged.interactions.get<detail::StandardScattering>().physics.angle;
+  scattering.screenedElectronScattering = true;
+  scattering.maxElectronAngularVariance = angularVariance;
+  if (cfg.profile != "full" && cfg.profile != "transport")
     charged.interactions.disable<detail::StandardScattering>();
   for (int event = 0; event < cfg.n; ++event) {
     Particle p(Barcode().withParticle(1),
@@ -330,7 +347,7 @@ void fatras() {
         if (track.pdg() == Acts::eGamma && ke < cutMeV)
           break;
         if (work.cell < 0 || work.cell >= cfg.slices) {
-          escape(int(track.pdg()), ke, work.primary);
+          escape(int(track.pdg()), ke, work.primary, track.direction().z());
           break;
         }
         SlabPosition pos = work.birth.value_or(SlabPosition{
@@ -347,7 +364,8 @@ void fatras() {
         for (std::size_t i = 0; i < result.generatedParticles.size(); ++i) {
           const auto child = result.generatedParticles[i];
           std::optional<SlabPosition> birthMaterial;
-          if (childMaterial != result.generatedMaterial.end() && childMaterial->first == i) {
+          if (childMaterial != result.generatedMaterial.end() &&
+              childMaterial->first == i) {
             birthMaterial = childMaterial->second;
             ++childMaterial;
           }
@@ -380,7 +398,7 @@ void fatras() {
   }
 }
 int main(int argc, char** argv) {
-  if (argc != 12) {
+  if (argc != 12 && argc != 13 && argc != 14) {
     std::cerr << "backend material pdg energy_MeV thickness_mm n slices "
                  "profile mode seed output\n";
     return 2;
@@ -396,13 +414,17 @@ int main(int argc, char** argv) {
          std::stod(argv[4]),
          std::stod(argv[5]),
          std::stol(argv[10])};
+  if (argc >= 13)
+    angularVariance = std::stod(argv[12]);
+  if (argc == 14)
+    fractionalLoss = std::stod(argv[13]);
   if (cfg.backend == "g4")
     geant();
   else
     fatras();
   std::ofstream out(cfg.output);
   out << std::setprecision(12) << "metric,n,mean,sem\n";
-  for (int k = 0; k < 11; ++k) {
+  for (int k = 0; k < 14; ++k) {
     double mean = scores.sum[k] / scores.n;
     double var = std::max(
         0., (scores.sum2[k] - scores.n * mean * mean) / (scores.n - 1));

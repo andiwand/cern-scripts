@@ -3,8 +3,9 @@
 Quantify EM interaction and within-material transport errors without ODD material
 placement. This is an external diagnostic, not a new Fatras transport backend.
 The original archive uses `5825d58880` on `fix/fatras-radiative-secondaries`.
-The current harness also supports sampled photon birth material; see
-[`../fatras-photon-column/`](../fatras-photon-column/README.md) for that follow-up.
+The current harness supports sampled photon and charged-daughter birth material;
+see [photon columns](../fatras-photon-column/README.md) and
+[charged columns](../fatras-charged-column/README.md) for the successive changes.
 
 ## What is compared
 
@@ -40,9 +41,10 @@ The current harness also supports sampled photon birth material; see
 | photoelectric | common + photoelectric | not used |
 | annihilation | common + positron annihilation | not used |
 | extended | common + photoelectric + annihilation | not used |
+| transport | common + multiple scattering | common + current scattering |
 | full | standard EM including multiple scattering | common + current scattering |
 
-Multiple scattering is off except in `full`. All profiles share material and
+Multiple scattering is off except in `transport` and `full`. All profiles share material and
 production thresholds. Profile differences are controlled causal experiments,
 not components to add to the ODD hit deficit.
 
@@ -65,7 +67,7 @@ Subdividing the **same total material** tests this approximation. Rare pathologi
 cascades would throw at the explicit work limits instead of silently truncating;
 all accepted runs complete.
 
-The 100/1000/10000-slice full-profile runs are sensitivity tests, **not a
+The original archive's 100/1000/10000-slice full-profile runs are sensitivity tests, **not a
 converged transport solution**. The electron branch of the production scattering
 width uses Rossi–Greisen with a logarithmic thickness correction. Applying it
 independently to increasingly small pieces changes the total angular variance.
@@ -108,3 +110,13 @@ ODD source spectra, locations, angles and sensor response remain necessary.
 
 No production change, runtime table, geometry edit or new shipped data follows
 from this diagnostic. Validation archives are optional local outputs.
+
+## Charged-column follow-up
+
+The current harness enables the local screened electron scattering law and
+adaptive material integration. Optional final arguments select the maximum
+projected variance (default 0.04 rad²) and fractional mean loss (default 0.02).
+`transport` enables scattering while keeping G4 photoelectric and annihilation
+off. New primary escape, cosine and sin²(angle) scores retain zero for stopped
+primaries. See the charged-column archive for convergence and inclusive CPU;
+the original results above retain their original model and harness.
