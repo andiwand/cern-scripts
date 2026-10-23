@@ -1,0 +1,56 @@
+Internal ctest changing into directory: /tmp/acts-atlas-review-build
+Test project /tmp/acts-atlas-review-build
+      Start 282: FatrasChannelMerger
+ 1/25 Test #282: FatrasChannelMerger ..............   Passed    0.23 sec
+      Start 283: FatrasChannelizer
+ 2/25 Test #283: FatrasChannelizer ................   Passed    0.01 sec
+      Start 284: FatrasPlanarSurfaceDrift
+ 3/25 Test #284: FatrasPlanarSurfaceDrift .........   Passed    0.01 sec
+      Start 285: FatrasPlanarSurfaceMask
+ 4/25 Test #285: FatrasPlanarSurfaceMask ..........   Passed    0.02 sec
+      Start 286: FatrasUncorrelatedHitSmearer
+ 5/25 Test #286: FatrasUncorrelatedHitSmearer .....   Passed    0.01 sec
+      Start 287: FatrasSegmentizer
+ 6/25 Test #287: FatrasSegmentizer ................   Passed    0.03 sec
+      Start 288: FatrasBarcode
+ 7/25 Test #288: FatrasBarcode ....................   Passed    0.01 sec
+      Start 289: FatrasHit
+ 8/25 Test #289: FatrasHit ........................   Passed    0.01 sec
+      Start 290: FatrasParticle
+ 9/25 Test #290: FatrasParticle ...................   Passed    0.01 sec
+      Start 291: FatrasContinuousProcess
+10/25 Test #291: FatrasContinuousProcess ..........   Passed    0.01 sec
+      Start 292: FatrasPointLikeProcess
+11/25 Test #292: FatrasPointLikeProcess ...........   Passed    0.00 sec
+      Start 293: FatrasInteractionList
+12/25 Test #293: FatrasInteractionList ............   Passed    0.01 sec
+      Start 294: FatrasSimulationActor
+13/25 Test #294: FatrasSimulationActor ............   Passed    0.16 sec
+      Start 295: FatrasMultiParticleSimulation
+14/25 Test #295: FatrasMultiParticleSimulation ....   Passed    0.15 sec
+      Start 296: FatrasTupleIndexOf
+15/25 Test #296: FatrasTupleIndexOf ...............   Passed    0.01 sec
+      Start 297: FatrasBetheBloch
+16/25 Test #297: FatrasBetheBloch .................   Passed    0.05 sec
+      Start 298: FatrasBetheHeitler
+17/25 Test #298: FatrasBetheHeitler ...............   Passed    0.01 sec
+      Start 299: FatrasScattering
+18/25 Test #299: FatrasScattering .................   Passed    0.12 sec
+      Start 300: FatrasPhotonConversion
+19/25 Test #300: FatrasPhotonConversion ...........   Passed    0.01 sec
+      Start 301: FatrasNuclearInteraction
+20/25 Test #301: FatrasNuclearInteraction .........   Passed    0.23 sec
+      Start 302: FatrasGeant4Decay
+21/25 Test #302: FatrasGeant4Decay ................   Passed    0.44 sec
+      Start 303: FatrasKinematicCasts
+22/25 Test #303: FatrasKinematicCasts .............   Passed    0.01 sec
+      Start 304: FatrasParticleSelectors
+23/25 Test #304: FatrasParticleSelectors ..........   Passed    0.00 sec
+      Start 305: FatrasSelectorHelpers
+24/25 Test #305: FatrasSelectorHelpers ............   Passed    0.01 sec
+      Start 306: FatrasFpeSafeGammaDistribution
+25/25 Test #306: FatrasFpeSafeGammaDistribution ...   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 25
+
+Total Test time (real) =   1.58 sec

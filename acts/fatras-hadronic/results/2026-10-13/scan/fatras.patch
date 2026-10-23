@@ -1,0 +1,101 @@
+diff --git a/Fatras/CMakeLists.txt b/Fatras/CMakeLists.txt
+index 0d2774d765..3f1083c803 100644
+--- a/Fatras/CMakeLists.txt
++++ b/Fatras/CMakeLists.txt
+@@ -11,6 +11,8 @@ acts_add_library(
+     src/Kernel/SimulationError.cpp
+     src/Physics/BetheHeitler.cpp
+     src/Physics/StandardInteractions.cpp
++    src/Physics/NuclearInteractionTable.cpp
++    src/Physics/NuclearInteraction.cpp
+     src/Utilities/LandauDistribution.cpp
+     ACTS_INCLUDE_FOLDER include/ActsFatras
+ )
+diff --git a/Fatras/include/ActsFatras/EventData/GenerationProcess.hpp b/Fatras/include/ActsFatras/EventData/GenerationProcess.hpp
+index dc5fea6141..7912e31638 100644
+--- a/Fatras/include/ActsFatras/EventData/GenerationProcess.hpp
++++ b/Fatras/include/ActsFatras/EventData/GenerationProcess.hpp
+@@ -17,13 +17,10 @@ namespace ActsFatras {
+ ///
+ /// Encodes the type of process that generated a particle.
+ ///
+-/// Fatras' own physics modules only ever set eDecay, ePhotonConversion and
+-/// eBremsstrahlung. The remaining values (eNuclearInteraction, eIonisation,
+-/// eOther) are not produced by Fatras (as of June 2026); they exist to
+-/// "translate" the finer production-process information available from the full
+-/// Geant4 simulation (mapped from the G4 creator process in the Geant4
+-/// integration's ParticleTrackingAction) so it can be stored on the particle
+-/// and written out.
++/// Fatras modules produce eDecay, ePhotonConversion, eBremsstrahlung and
++/// eNuclearInteraction. Prompt pi0 decay within a nuclear interaction is folded
++/// into that vertex and its photons carry eNuclearInteraction. The remaining
++/// values translate production-process information from full Geant4 simulation.
+ enum class GenerationProcess : std::uint32_t {
+   eUndefined = 0,
+   eDecay = 1,
+diff --git a/Fatras/include/ActsFatras/Physics/StandardInteractions.hpp b/Fatras/include/ActsFatras/Physics/StandardInteractions.hpp
+index 3561ff97e1..16a7bfc52b 100644
+--- a/Fatras/include/ActsFatras/Physics/StandardInteractions.hpp
++++ b/Fatras/include/ActsFatras/Physics/StandardInteractions.hpp
+@@ -16,6 +16,7 @@
+ #include "ActsFatras/Physics/ElectroMagnetic/BetheHeitler.hpp"
+ #include "ActsFatras/Physics/ElectroMagnetic/PhotonConversion.hpp"
+ #include "ActsFatras/Physics/ElectroMagnetic/Scattering.hpp"
++#include "ActsFatras/Physics/Hadronic/NuclearInteraction.hpp"
+ #include "ActsFatras/Selectors/KinematicCasts.hpp"
+ #include "ActsFatras/Selectors/ParticleSelectors.hpp"
+ #include "ActsFatras/Selectors/SelectorHelpers.hpp"
+@@ -78,6 +79,20 @@ using StandardChargedElectroMagneticInteractions =
+ StandardChargedElectroMagneticInteractions
+ makeStandardChargedElectroMagneticInteractions(double minimumAbsMomentum);
+ 
++/// Standard charged EM processes followed by optional inelastic interactions.
++/// Nuclear interactions use a supplied calibration; no table means EM only.
++using StandardChargedInteractions =
++    InteractionList<detail::StandardScattering, detail::StandardBetheBloch,
++                    detail::StandardBetheHeitler, NuclearInteraction>;
++
++/// Construct charged physics with an optional hadronic calibration.
++/// @param minimumAbsMomentum lower p cut on output particles
++/// @param nuclearTable immutable hadronic calibration, or null to disable
++/// @return Configured interaction list
++StandardChargedInteractions makeStandardChargedInteractions(
++    double minimumAbsMomentum,
++    std::shared_ptr<const NuclearInteractionTable> nuclearTable = nullptr);
++
+ /// Standard set of electro-magnetic interactions for neutral particles.
+ using StandardNeutralElectroMagneticInteractions =
+     InteractionList<detail::StandardPhotonConversion>;
+diff --git a/Fatras/src/Physics/StandardInteractions.cpp b/Fatras/src/Physics/StandardInteractions.cpp
+index 5dc3007f2e..56cf642e98 100644
+--- a/Fatras/src/Physics/StandardInteractions.cpp
++++ b/Fatras/src/Physics/StandardInteractions.cpp
+@@ -8,6 +8,8 @@
+ 
+ #include "ActsFatras/Physics/StandardInteractions.hpp"
+ 
++#include <utility>
++
+ ActsFatras::StandardChargedElectroMagneticInteractions
+ ActsFatras::makeStandardChargedElectroMagneticInteractions(
+     double minimumAbsMomentum) {
+@@ -31,3 +33,19 @@ ActsFatras::makeStandardNeutralElectroMagneticInteractions(
+       minimumAbsMomentum;
+   return pl;
+ }
++
++ActsFatras::StandardChargedInteractions
++ActsFatras::makeStandardChargedInteractions(
++    double minimumAbsMomentum,
++    std::shared_ptr<const NuclearInteractionTable> nuclearTable) {
++  auto em = makeStandardChargedElectroMagneticInteractions(minimumAbsMomentum);
++  StandardChargedInteractions interactions;
++  interactions.get<detail::StandardScattering>() =
++      em.get<detail::StandardScattering>();
++  interactions.get<detail::StandardBetheBloch>() =
++      em.get<detail::StandardBetheBloch>();
++  interactions.get<detail::StandardBetheHeitler>() =
++      em.get<detail::StandardBetheHeitler>();
++  interactions.get<NuclearInteraction>().table = std::move(nuclearTable);
++  return interactions;
++}

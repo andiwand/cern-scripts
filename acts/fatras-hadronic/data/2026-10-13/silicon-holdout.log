@@ -1,0 +1,35 @@
+
+**************************************************************
+ Geant4 version Name: geant4-11-03-patch-02 [MT]   (25-April-2025)
+                       Copyright : Geant4 Collaboration
+                      References : NIM A 506 (2003), 250-303
+                                 : IEEE-TNS 53 (2006), 270-278
+                                 : NIM A 835 (2016), 186-225
+                             WWW : http://geant4.org/
+**************************************************************
+
+pdg=211 p=0.15 rate/L0=1.0492 events=512
+pdg=211 p=0.25 rate/L0=1.66902 events=512
+pdg=211 p=0.4 rate/L0=1.21592 events=512
+pdg=211 p=0.75 rate/L0=1.04339 events=512
+pdg=211 p=1.5 rate/L0=1.03566 events=512
+pdg=211 p=3.5 rate/L0=0.914546 events=512
+pdg=211 p=7.5 rate/L0=0.862595 events=512
+pdg=211 p=15 rate/L0=0.827464 events=512
+pdg=-211 p=0.15 rate/L0=1.26414 events=512
+pdg=-211 p=0.25 rate/L0=1.73366 events=512
+pdg=-211 p=0.4 rate/L0=1.24967 events=512
+pdg=-211 p=0.75 rate/L0=1.05507 events=512
+pdg=-211 p=1.5 rate/L0=1.03627 events=512
+pdg=-211 p=3.5 rate/L0=0.914546 events=512
+pdg=-211 p=7.5 rate/L0=0.862595 events=512
+pdg=-211 p=15 rate/L0=0.827464 events=512
+pdg=2212 p=0.15 rate/L0=1.3523 events=512
+pdg=2212 p=0.25 rate/L0=1.62054 events=512
+pdg=2212 p=0.4 rate/L0=1.04391 events=512
+pdg=2212 p=0.75 rate/L0=0.956778 events=512
+pdg=2212 p=1.5 rate/L0=1.08798 events=512
+pdg=2212 p=3.5 rate/L0=1.11897 events=512
+pdg=2212 p=7.5 rate/L0=1.07673 events=512
+pdg=2212 p=15 rate/L0=1.05475 events=512
+null_collisions=0

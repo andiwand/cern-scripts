@@ -1,0 +1,5 @@
+820401721d297f2311e06781b6d5a6e2b7ca2f17 feat: enable calibrated hadronic physics in Fatras examples
+e08c9dee83135625817a4ff483f95b0a0d8f6780 feat: add table-driven charged-hadron interactions to Fatras
+6296233ed44fdd28d57de5b26fa558194ebf6602 feat: add charged transverse-momentum cuts to Fatras transport
+9dd94cade34afb51d6d56f55699a4e4f53cef9a9 fix: make Fatras Geant4 decays reproducible and conserve four-momentum
+350da4cb80a75c800ab624f34ecc2ce070fa101d fix: correct Fatras interaction scheduling and decay propagation
