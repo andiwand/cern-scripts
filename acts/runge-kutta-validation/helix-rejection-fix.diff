@@ -1,0 +1,6 @@
+297c297,299
+<     h *= calcStepSizeScaling(errorEstimate);
+---
+>     // Local fix for the validation: an error estimate within rounding of
+>     // the tolerance gives a scaling of exactly 1, and the step never ends
+>     h *= std::min(calcStepSizeScaling(errorEstimate), 0.9);
