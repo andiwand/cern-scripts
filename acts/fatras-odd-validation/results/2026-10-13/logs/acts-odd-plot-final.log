@@ -1,0 +1,143 @@
+fatras-odd-geant4-final-v3 0 163282 9149
+fatras-odd-geant4-final-v3 1 222981 12572
+fatras-odd-geant4-final-v3 2 188067 10554
+fatras-odd-geant4-final-v3 3 229228 12733
+fatras-odd-geant4-final-v3 4 206579 11658
+fatras-odd-geant4-final-v3 5 184877 10299
+fatras-odd-geant4-final-v3 6 206360 11489
+fatras-odd-geant4-final-v3 7 213362 11857
+fatras-odd-geant4-final-v3 8 203141 11562
+fatras-odd-geant4-final-v3 9 224671 12541
+fatras-odd-geant4-final-v3 10 196397 11025
+fatras-odd-geant4-final-v3 11 226800 12675
+fatras-odd-geant4-final-v3 12 203690 11573
+fatras-odd-geant4-final-v3 13 235818 13258
+fatras-odd-geant4-final-v3 14 200584 11133
+fatras-odd-geant4-final-v3 15 221568 12394
+fatras-odd-geant4-final-v3 16 205831 11473
+fatras-odd-geant4-final-v3 17 198497 11002
+fatras-odd-geant4-final-v3 18 220029 12261
+fatras-odd-geant4-final-v3 19 229838 13122
+fatras-odd-em-final 0 77488 6377
+fatras-odd-em-final 1 107464 8738
+fatras-odd-em-final 2 91609 7547
+fatras-odd-em-final 3 108998 9002
+fatras-odd-em-final 4 99817 8236
+fatras-odd-em-final 5 89135 7291
+fatras-odd-em-final 6 100566 8268
+fatras-odd-em-final 7 102316 8445
+fatras-odd-em-final 8 98237 8033
+fatras-odd-em-final 9 109285 8985
+fatras-odd-em-final 10 92865 7630
+fatras-odd-em-final 11 108193 8862
+fatras-odd-em-final 12 96544 7934
+fatras-odd-em-final 13 114790 9424
+fatras-odd-em-final 14 96387 7920
+fatras-odd-em-final 15 107333 8801
+fatras-odd-em-final 16 98978 8124
+fatras-odd-em-final 17 95799 7768
+fatras-odd-em-final 18 104795 8570
+fatras-odd-em-final 19 112013 9143
+fatras-odd-fatras-final 0 83052 6855
+fatras-odd-fatras-final 1 114846 9405
+fatras-odd-fatras-final 2 98583 8146
+fatras-odd-fatras-final 3 116295 9644
+fatras-odd-fatras-final 4 107327 8917
+fatras-odd-fatras-final 5 95958 7917
+fatras-odd-fatras-final 6 108426 8940
+fatras-odd-fatras-final 7 109709 9048
+fatras-odd-fatras-final 8 105353 8685
+fatras-odd-fatras-final 9 118132 9697
+fatras-odd-fatras-final 10 100497 8299
+fatras-odd-fatras-final 11 116473 9625
+fatras-odd-fatras-final 12 103057 8554
+fatras-odd-fatras-final 13 123185 10161
+fatras-odd-fatras-final 14 103623 8486
+fatras-odd-fatras-final 15 115659 9478
+fatras-odd-fatras-final 16 106433 8783
+fatras-odd-fatras-final 17 102995 8448
+fatras-odd-fatras-final 18 113352 9293
+fatras-odd-fatras-final 19 120566 9949
+{
+  "geant4": {
+    "events": 20,
+    "pixel_hits_per_event": 87742.85,
+    "pixel_hits_after_1000ns": 77,
+    "primary_pixel_hits_per_event": 47667.15,
+    "secondary_pixel_hits_per_event": 40075.7,
+    "common_primary_pixel_hits_per_event": 47191.4,
+    "common_secondary_pixel_hits_per_event": 18195.55,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 4887.05,
+      "conversion": 5145.75,
+      "bremsstrahlung": 0.0,
+      "nuclear": 8077.55,
+      "ionisation": 8.0,
+      "other": 77.2
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 6038.15,
+      "conversion": 12695.1,
+      "bremsstrahlung": 0.0,
+      "nuclear": 8810.0,
+      "ionisation": 11405.6,
+      "other": 1126.85
+    }
+  },
+  "fatras-em": {
+    "events": 20,
+    "pixel_hits_per_event": 52207.65,
+    "pixel_hits_after_1000ns": 0,
+    "primary_pixel_hits_per_event": 48482.7,
+    "secondary_pixel_hits_per_event": 3724.95,
+    "common_primary_pixel_hits_per_event": 48482.7,
+    "common_secondary_pixel_hits_per_event": 3724.95,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 0.0,
+      "conversion": 3724.95,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 0.0,
+      "conversion": 3724.95,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    }
+  },
+  "fatras": {
+    "events": 20,
+    "pixel_hits_per_event": 55934.0,
+    "pixel_hits_after_1000ns": 0,
+    "primary_pixel_hits_per_event": 48504.55,
+    "secondary_pixel_hits_per_event": 7429.45,
+    "common_primary_pixel_hits_per_event": 48504.55,
+    "common_secondary_pixel_hits_per_event": 7429.45,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3518.8,
+      "conversion": 3910.65,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3518.8,
+      "conversion": 3910.65,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    }
+  }
+}

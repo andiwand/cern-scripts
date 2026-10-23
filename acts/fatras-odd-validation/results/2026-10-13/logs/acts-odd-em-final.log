@@ -1,0 +1,71 @@
+/Users/andreas/cern/source/acts/ci-dependencies/.spack-env/._view/g65lbzilk6lk6puo4v5oxacyktlt3js5/bin/thisroot.sh: line 191: /bin/ps: Operation not permitted
+WARNING: shell name was not found. Assuming 'bash'.
+./thisroot.sh: line 191: /bin/ps: Operation not permitted
+WARNING: shell name was not found. Assuming 'bash'.
+./geant4.sh: line 59: cd: /Users/andreas/cern/source/spack/opt/spack/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__sp/darwin-aarch64/geant4-11.3.2-sg3bwrxh2ce7ji44z6haxtvkxejubhn7/bin/../share/Geant4/data: No such file or directory
+INFO:    Found OpenDataDetector and set it up
+INFO:    Acts Python 3.14 bindings setup complete.
+17:22:20    Sequencer      INFO      Create Sequencer (single-threaded)
+17:22:20    Sequencer      INFO      Add Reader 'CsvParticleReader'
+17:22:20    Sequencer      INFO      -> OutputParticles 'particles_generated':
+17:22:20    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+Warning in <TGeoMixture::ComputeDerivedQuantities>: Mixture PE: sum of weights is: 6
+DD4hep           WARN  ++ STD conditions NOT defined by client. NTP defaults taken.
+Detector         WARN  +++ Object 'compact_checksum' is already defined. New value will be ignored
+17:22:22    Sequencer      INFO      Add Algorithm 'FatrasSimulation'
+17:22:22    Sequencer      INFO      <- InputParticles 'particles_generated':
+17:22:22    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+17:22:22    Sequencer      INFO      -> OutputSimHits 'simhits':
+17:22:22    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+17:22:22    Sequencer      INFO      -> OutputParticles 'particles_simulated':
+17:22:22    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+17:22:22    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles'
+17:22:22    Sequencer      INFO      Key 'particles_simulated' aliased to 'particles_simulated_selected'
+17:22:22    Sequencer      INFO      Add Writer 'CsvParticleWriter'
+17:22:22    Sequencer      INFO      <- InputHandle 'particles_simulated':
+17:22:22    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+17:22:22    Sequencer      INFO      Add Writer 'CsvSimHitWriter'
+17:22:22    Sequencer      INFO      <- InputHandle 'simhits':
+17:22:22    Sequencer      INFO         flat_multiset<Hit, detail::CompareGeometryId, void>
+17:22:22    Sequencer      INFO      Processing events [0, 20)
+17:22:22    Sequencer      INFO      Starting event loop with 1 threads
+17:22:22    Sequencer      INFO        0 context decorators
+17:22:22    Sequencer      INFO        4 sequence elements
+17:22:22    Sequencer      INFO        1 readers
+17:22:22    Sequencer      INFO        1 algorithms
+17:22:22    Sequencer      INFO        2 writers
+17:22:23    Sequencer      INFO      finished event 0
+17:22:23    FatrasSimula   ERROR     event 1 particle id=2768879682515160607(vp=60|vs=0|p=37|g=0|sp=0)|pdg=K-|q=-1|m=0.493677|p=0.313955 failed to simulate with error PropagatorError:2: Propagation reached the configured maximum number of steps
+17:22:24    Sequencer      INFO      finished event 1
+17:22:24    Sequencer      INFO      finished event 2
+17:22:25    Sequencer      INFO      finished event 3
+17:22:26    Sequencer      INFO      finished event 4
+17:22:27    Sequencer      INFO      finished event 5
+17:22:28    Sequencer      INFO      finished event 6
+17:22:28    Sequencer      INFO      finished event 7
+17:22:29    Sequencer      INFO      finished event 8
+17:22:30    Sequencer      INFO      finished event 9
+17:22:31    Sequencer      INFO      finished event 10
+17:22:32    Sequencer      INFO      finished event 11
+17:22:33    Sequencer      INFO      finished event 12
+17:22:33    Sequencer      INFO      finished event 13
+17:22:34    FatrasSimula   ERROR     event 14 particle id=14666584640386701615(vp=165|vs=0|p=60|g=0|sp=0)|pdg=pi-|q=-1|m=0.13957|p=0.328848 failed to simulate with error PropagatorError:2: Propagation reached the configured maximum number of steps
+17:22:34    Sequencer      INFO      finished event 14
+17:22:35    Sequencer      INFO      finished event 15
+17:22:36    Sequencer      INFO      finished event 16
+17:22:37    Sequencer      INFO      finished event 17
+17:22:38    Sequencer      INFO      finished event 18
+17:22:38    Sequencer      INFO      finished event 19
+17:22:38    FatrasSimula   ERROR     2 particles failed to simulate
+17:22:38    FatrasSimula   ERROR       Propagation reached the configured maximum number of steps (code 2): 2 times
+17:22:38    Sequencer      INFO      Processed 20 events in 16.395303 s (wall clock)
+17:22:38    Sequencer      INFO      Average time per event: 819.439770 ms/event
+17:22:38    Sequencer      INFO      Timing breakdown:
+| Algorithm                  | Total Time (ms) | Time/Event (ms) | Fraction |
+|:---------------------------|----------------:|----------------:|---------:|
+| Algorithm:FatrasSimulation |         8097.94 |          404.90 |    49.4% |
+| Writer:CsvSimHitWriter     |         5558.44 |          277.92 |    33.9% |
+| Writer:CsvParticleWriter   |         1498.18 |           74.91 |     9.1% |
+| Reader:CsvParticleReader   |         1234.23 |           61.71 |     7.5% |
+| TOTAL                      |        16388.80 |          819.44 |   100.0% |
+

@@ -1,0 +1,103 @@
+fatras-odd-local-l0 0 90976 8113
+fatras-odd-local-l0 1 125105 10999
+fatras-odd-local-l0 2 105722 9201
+fatras-odd-local-l0 3 128126 11371
+fatras-odd-local-l0 4 115981 10379
+fatras-odd-local-l0 5 104067 9143
+fatras-odd-local-l0 6 117925 10430
+fatras-odd-local-l0 7 120046 10630
+fatras-odd-local-l0 8 115024 10177
+fatras-odd-local-l0 9 127001 11244
+fatras-odd-local-l0 10 108579 9616
+fatras-odd-local-l0 11 127323 11240
+fatras-odd-local-l0 12 112987 10059
+fatras-odd-local-l0 13 135336 11878
+fatras-odd-local-l0 14 112899 9927
+fatras-odd-local-l0 15 126175 11180
+fatras-odd-local-l0 16 115742 10208
+fatras-odd-local-l0 17 113686 9931
+fatras-odd-local-l0 18 123111 10782
+fatras-odd-local-l0 19 131462 11521
+{
+  "geant4": {
+    "events": 20,
+    "pixel_hits_per_event": 87742.85,
+    "pixel_hits_after_1000ns": 77,
+    "primary_pixel_hits_per_event": 47667.15,
+    "secondary_pixel_hits_per_event": 40075.7,
+    "common_primary_pixel_hits_per_event": 47191.4,
+    "common_secondary_pixel_hits_per_event": 18195.55,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 4887.05,
+      "conversion": 5145.75,
+      "bremsstrahlung": 0.0,
+      "nuclear": 8077.55,
+      "ionisation": 8.0,
+      "other": 77.2
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 6038.15,
+      "conversion": 12695.1,
+      "bremsstrahlung": 0.0,
+      "nuclear": 8810.0,
+      "ionisation": 11405.6,
+      "other": 1126.85
+    }
+  },
+  "fatras-em": {
+    "events": 20,
+    "pixel_hits_per_event": 55934.0,
+    "pixel_hits_after_1000ns": 0,
+    "primary_pixel_hits_per_event": 48504.55,
+    "secondary_pixel_hits_per_event": 7429.45,
+    "common_primary_pixel_hits_per_event": 48504.55,
+    "common_secondary_pixel_hits_per_event": 7429.45,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3518.8,
+      "conversion": 3910.65,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3518.8,
+      "conversion": 3910.65,
+      "bremsstrahlung": 0.0,
+      "nuclear": 0.0,
+      "ionisation": 0.0,
+      "other": 0.0
+    }
+  },
+  "fatras": {
+    "events": 20,
+    "pixel_hits_per_event": 58612.6,
+    "pixel_hits_after_1000ns": 0,
+    "primary_pixel_hits_per_event": 46469.95,
+    "secondary_pixel_hits_per_event": 12142.65,
+    "common_primary_pixel_hits_per_event": 46469.95,
+    "common_secondary_pixel_hits_per_event": 12142.65,
+    "common_secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3381.5,
+      "conversion": 3944.75,
+      "bremsstrahlung": 0.0,
+      "nuclear": 4816.4,
+      "ionisation": 0.0,
+      "other": 0.0
+    },
+    "secondary_process_hits_per_event": {
+      "undefined": 0.0,
+      "decay": 3381.5,
+      "conversion": 3944.75,
+      "bremsstrahlung": 0.0,
+      "nuclear": 4816.4,
+      "ionisation": 0.0,
+      "other": 0.0
+    }
+  }
+}

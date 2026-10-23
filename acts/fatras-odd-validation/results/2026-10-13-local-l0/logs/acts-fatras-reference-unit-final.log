@@ -1,0 +1,33 @@
+Running 9 test cases...
+
+Test module "ActsUnitTestFatrasNuclearInteraction" has passed with:
+  9 test cases out of 9 passed
+  31642 assertions out of 31642 passed
+
+  Test case "ConservationAtAndBetweenMomentumNodes" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "ProbabilityAndSplitSlabSurvival" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "PromptPi0DecayReplayAndParentTermination" has passed with:
+    20 assertions out of 20 passed
+
+  Test case "ReferenceMaterialUsesLocalNuclearThickness" has passed with:
+    31572 assertions out of 31572 passed
+
+  Test case "ReferenceMaterialRejectsAmbiguousTargets" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "RateInterpolationAndDomain" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "UnsupportedInputsDoNotConsumeRandomNumbers" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "TableValidationAndLoading" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "CompleteAbsorptionConservesIncomingFourMomentum" has passed with:
+    2 assertions out of 2 passed
+

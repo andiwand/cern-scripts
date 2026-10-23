@@ -1,0 +1,61 @@
+/Users/andreas/cern/source/acts/ci-dependencies/.spack-env/._view/g65lbzilk6lk6puo4v5oxacyktlt3js5/bin/thisroot.sh: line 191: /bin/ps: Operation not permitted
+WARNING: shell name was not found. Assuming 'bash'.
+./thisroot.sh: line 191: /bin/ps: Operation not permitted
+WARNING: shell name was not found. Assuming 'bash'.
+./geant4.sh: line 59: cd: /Users/andreas/cern/source/spack/opt/spack/__spack_path_placeholder__/__spack_path_placeholder__/__spack_path_placeholder__/__sp/darwin-aarch64/geant4-11.3.2-sg3bwrxh2ce7ji44z6haxtvkxejubhn7/bin/../share/Geant4/data: No such file or directory
+INFO:    Found OpenDataDetector and set it up
+INFO:    Acts Python 3.14 bindings setup complete.
+17:15:54    Sequencer      INFO      Create Sequencer (single-threaded)
+17:15:57    Sequencer      INFO      Add Reader 'EventGenerator'
+17:15:57    Sequencer      INFO      -> OutputEvent 'pythia8-event':
+17:15:57    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+17:15:57    Sequencer      INFO      Add Algorithm 'HepMC3InputConverter'
+17:15:57    Sequencer      INFO      <- InputEvent 'pythia8-event':
+17:15:57    Sequencer      INFO         shared_ptr<HepMC3::GenEvent>
+17:15:57    Sequencer      INFO      -> OutputParticles 'particles_generated':
+17:15:57    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+17:15:57    Sequencer      INFO      -> OutputVertices 'vertices_generated':
+17:15:57    Sequencer      INFO         flat_set<SimVertex, detail::CompareVertexId, void>
+17:15:57    Sequencer      INFO      Key 'particles_generated' aliased to 'particles'
+17:15:57    Sequencer      INFO      Key 'vertices_generated' aliased to 'vertices_truth'
+17:15:57    Sequencer      INFO      Key 'particles_generated' aliased to 'particles_generated_selected'
+17:15:57    Sequencer      INFO      Add Writer 'CsvParticleWriter'
+17:15:57    Sequencer      INFO      <- InputHandle 'particles_generated':
+17:15:57    Sequencer      INFO         flat_set<SimParticle, detail::CompareParticleId, void>
+17:15:57    Sequencer      INFO      Processing events [0, 20)
+17:15:57    Sequencer      INFO      Starting event loop with 1 threads
+17:15:57    Sequencer      INFO        0 context decorators
+17:15:57    Sequencer      INFO        3 sequence elements
+17:15:57    Sequencer      INFO        1 readers
+17:15:57    Sequencer      INFO        1 algorithms
+17:15:57    Sequencer      INFO        1 writers
+17:15:58    Sequencer      INFO      finished event 0
+17:15:59    Sequencer      INFO      finished event 1
+17:15:59    Sequencer      INFO      finished event 2
+17:16:00    Sequencer      INFO      finished event 3
+17:16:01    Sequencer      INFO      finished event 4
+17:16:02    Sequencer      INFO      finished event 5
+17:16:03    Sequencer      INFO      finished event 6
+17:16:03    Sequencer      INFO      finished event 7
+17:16:04    Sequencer      INFO      finished event 8
+17:16:05    Sequencer      INFO      finished event 9
+17:16:06    Sequencer      INFO      finished event 10
+17:16:07    Sequencer      INFO      finished event 11
+17:16:08    Sequencer      INFO      finished event 12
+17:16:09    Sequencer      INFO      finished event 13
+17:16:09    Sequencer      INFO      finished event 14
+17:16:10    Sequencer      INFO      finished event 15
+17:16:11    Sequencer      INFO      finished event 16
+17:16:12    Sequencer      INFO      finished event 17
+17:16:13    Sequencer      INFO      finished event 18
+17:16:14    Sequencer      INFO      finished event 19
+17:16:14    Sequencer      INFO      Processed 20 events in 16.317217 s (wall clock)
+17:16:14    Sequencer      INFO      Average time per event: 806.213114 ms/event
+17:16:14    Sequencer      INFO      Timing breakdown:
+| Algorithm                      | Total Time (ms) | Time/Event (ms) | Fraction |
+|:-------------------------------|----------------:|----------------:|---------:|
+| Algorithm:HepMC3InputConverter |         8957.83 |          447.89 |    55.6% |
+| Reader:EventGenerator          |         5807.66 |          290.38 |    36.0% |
+| Writer:CsvParticleWriter       |         1358.77 |           67.94 |     8.4% |
+| TOTAL                          |        16124.26 |          806.21 |   100.0% |
+

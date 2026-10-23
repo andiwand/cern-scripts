@@ -1,0 +1,35 @@
+[1/35] Building CXX object Fatras/CMakeFiles/ActsFatras.dir/src/Physics/NuclearInteraction.cpp.o
+[2/35] Building CXX object Fatras/CMakeFiles/ActsFatras.dir/src/Physics/StandardInteractions.cpp.o
+[3/35] Building CXX object Fatras/CMakeFiles/ActsFatras.dir/src/Physics/NuclearInteractionTable.cpp.o
+[4/35] Linking CXX shared library lib/libActsFatras.dylib
+[5/35] Linking CXX shared module python/acts/ActsFatrasPythonBindings.cpython-314-darwin.so
+[6/35] Linking CXX shared library lib/libActsExamplesFramework.dylib
+[7/35] Linking CXX shared library lib/libActsExamplesDetectorsCommon.dylib
+[8/35] Linking CXX shared library lib/libActsExamplesDigitization.dylib
+[9/35] Linking CXX shared library lib/libActsExamplesTruthTracking.dylib
+[10/35] Linking CXX shared library lib/libActsExamplesGeant4.dylib
+[11/35] Linking CXX shared library lib/libActsExamplesMagneticField.dylib
+[12/35] Linking CXX shared library lib/libActsExamplesIoHepMC3.dylib
+[13/35] Linking CXX shared library lib/libActsExamplesMaterialMapping.dylib
+[14/35] Linking CXX shared library lib/libActsExamplesGenerators.dylib
+[15/35] Linking CXX shared library lib/libActsExamplesPrinters.dylib
+[16/35] Linking CXX shared library lib/libActsExamplesPropagation.dylib
+[17/35] Linking CXX shared library lib/libActsExamplesTrackFinding.dylib
+[18/35] Linking CXX shared library lib/libActsExamplesTrackFitting.dylib
+[19/35] Linking CXX shared library lib/libActsExamplesVertexing.dylib
+[20/35] Linking CXX shared library lib/libActsExamplesUtilities.dylib
+[21/35] Linking CXX shared library lib/libActsExamplesAmbiguityResolution.dylib
+[22/35] Linking CXX shared library lib/libActsExamplesHelloWorld.dylib
+[23/35] Linking CXX shared library lib/libActsExamplesDetectorGeneric.dylib
+[24/35] Linking CXX shared library lib/libActsExamplesDetectorTelescope.dylib
+[25/35] Linking CXX shared library lib/libActsExamplesIoObj.dylib
+[26/35] Linking CXX shared library lib/libActsExamplesIoCsv.dylib
+[27/35] Linking CXX shared library lib/libActsTestsCommonHelpers.dylib
+[28/35] Building CXX object Tests/UnitTests/Fatras/Physics/CMakeFiles/ActsUnitTestFatrasNuclearInteraction.dir/NuclearInteractionTests.cpp.o
+[29/35] Linking CXX executable bin/ActsUnitTestFatrasNuclearInteraction
+[30/35] Building CXX object Python/Examples/CMakeFiles/ActsExamplesPythonBindings.dir/src/ExampleAlgorithms.cpp.o
+[31/35] Building CXX object Tests/IntegrationTests/Fatras/CMakeFiles/ActsIntegrationTestFatrasSimulation.dir/FatrasSimulationTests.cpp.o
+[32/35] Building CXX object Examples/Algorithms/Fatras/CMakeFiles/ActsExamplesFatras.dir/src/FatrasSimulation.cpp.o
+[33/35] Linking CXX executable bin/ActsIntegrationTestFatrasSimulation
+[34/35] Linking CXX shared library lib/libActsExamplesFatras.dylib
+[35/35] Linking CXX shared module python/acts/examples/ActsExamplesPythonBindings.cpython-314-darwin.so
