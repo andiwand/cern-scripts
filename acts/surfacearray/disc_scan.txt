@@ -1,0 +1,15 @@
+layer with 108 surfaces
+  native axis 0: nbins=2 [30.000,176.200]
+  native axis 1: nbins=92 [-3.142,3.142]
+  protolayer R=[30.00,176.20] Z=[597.42,602.58]
+native (Gen1 LayerCreator)         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
+binsR=2 binsPhi=92 maxNb=1         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
+binsR=4 binsPhi=92 maxNb=1         truth= 58724 missed=  1876 (  3.195%)  cand/q=3.08
+binsR=8 binsPhi=92 maxNb=1         truth= 58724 missed=    76 (  0.129%)  cand/q=3.61
+binsR=16 binsPhi=92 maxNb=1        truth= 58724 missed=     0 (  0.000%)  cand/q=4.00
+binsR=32 binsPhi=92 maxNb=1        truth= 58724 missed=     0 (  0.000%)  cand/q=4.11
+binsR=64 binsPhi=92 maxNb=1        truth= 58724 missed=     0 (  0.000%)  cand/q=4.03
+binsR=2 binsPhi=92 maxNb=1         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
+binsR=2 binsPhi=92 maxNb=2         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
+binsR=2 binsPhi=92 maxNb=3         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
+binsR=2 binsPhi=92 maxNb=4         truth= 58724 missed=  9706 ( 16.528%)  cand/q=5.22
