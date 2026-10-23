@@ -1,0 +1,605 @@
+diff --git a/Fatras/Geant4/include/ActsFatras/Geant4/Geant4Decay.hpp b/Fatras/Geant4/include/ActsFatras/Geant4/Geant4Decay.hpp
+index 758df35107..dc48964e1a 100644
+--- a/Fatras/Geant4/include/ActsFatras/Geant4/Geant4Decay.hpp
++++ b/Fatras/Geant4/include/ActsFatras/Geant4/Geant4Decay.hpp
+@@ -20,15 +20,13 @@
+ 
+ #include "G4ParticleDefinition.hh"
+ 
+-class G4RunManager;
+-
+ namespace ActsFatras {
+ 
+ /// Handle particle decays using the Geant4 decay models.
+ class Geant4Decay {
+  public:
+   /// Constructor
+-  Geant4Decay();
++  Geant4Decay() = default;
+ 
+   /// Generate the particle life time.
+   ///
+@@ -36,7 +34,7 @@ class Geant4Decay {
+   /// @param [in, out] generator The random number generator
+   /// @param [in] particle The particle that gets a lifetime assigned
+   ///
+-  /// @return Proper time limit of the particle
++  /// @return Accumulated proper time at decay, including the initial proper time
+   template <typename generator_t>
+   double generateProperTimeLimit(generator_t& generator,
+                                  const Particle& particle) const;
+@@ -44,6 +42,7 @@ class Geant4Decay {
+   /// Decay the particle and create the decay products.
+   ///
+   /// @tparam generator_t Type of the random number generator
++  /// @param [in, out] generator Event random number generator
+   /// @param [in, out] particle The particle that may decay
+   ///
+   /// @return Vector containing decay products
+@@ -54,11 +53,10 @@ class Geant4Decay {
+   /// This function evaluates the decay products of a given particle
+   ///
+   /// @param [in] parent The decaying particle
++  /// @param [in] seed Seed for the isolated Geant4 random engine
+   ///
+   /// @return Vector containing the decay products
+-  std::vector<Particle> decayParticle(const Particle& parent) const;
+-
+-  mutable G4RunManager* m_g4RunManager;  ///< for dummy G4 initialization
++  std::vector<Particle> decayParticle(const Particle& parent, long seed) const;
+ 
+   PDGtoG4Converter
+       m_pdgToG4Conv;  ///< Handle for converting a PDG ID into a Geant4 particle
+@@ -83,17 +81,21 @@ double Geant4Decay::generateProperTimeLimit(generator_t& generator,
+   }
+ 
+   // Get average lifetime
+-  constexpr double convertTime = Acts::UnitConstants::mm / CLHEP::s;
++  constexpr double convertTime = Acts::UnitConstants::s / CLHEP::s;
+   const double tau = pDef->GetPDGLifeTime() * convertTime;
+   // Sample & return the lifetime
+   std::uniform_real_distribution<double> uniformDistribution{0., 1.};
+ 
+-  return -tau * std::log(uniformDistribution(generator));
++  return particle.properTime() -
++         tau * std::log1p(-uniformDistribution(generator));
+ }
+ 
+ template <typename generator_t>
+-std::vector<Particle> Geant4Decay::run(generator_t& /*generator*/,
++std::vector<Particle> Geant4Decay::run(generator_t& generator,
+                                        Particle& particle) const {
+-  return decayParticle(particle);
++  // HepJamesRandom accepts seeds in [1, 900000000]. Derive each decay from
++  // the event generator without changing the caller's Geant4 engine state.
++  std::uniform_int_distribution<long> seeds(1, 900000000);
++  return decayParticle(particle, seeds(generator));
+ }
+ }  // namespace ActsFatras
+diff --git a/Fatras/Geant4/src/Geant4Decay.cpp b/Fatras/Geant4/src/Geant4Decay.cpp
+index 8959b484a6..68fe167fb4 100644
+--- a/Fatras/Geant4/src/Geant4Decay.cpp
++++ b/Fatras/Geant4/src/Geant4Decay.cpp
+@@ -12,19 +12,31 @@
+ #include "Acts/Definitions/Common.hpp"
+ #include "ActsFatras/EventData/Barcode.hpp"
+ #include "ActsFatras/EventData/GenerationProcess.hpp"
+-#include "ActsFatras/Geant4/DummyDetectorConstruction.hpp"
+ 
+ #include <cstdint>
++#include <memory>
++#include <mutex>
+ #include <utility>
+ 
++#include <CLHEP/Random/JamesRandom.h>
++#include <CLHEP/Random/Random.h>
++
+ #include "G4DecayProducts.hh"
+ #include "G4DecayTable.hh"
+ 
+-ActsFatras::Geant4Decay::Geant4Decay()
+-    : m_g4RunManager(ensureGeant4RunManager()) {}
+-
+ std::vector<ActsFatras::Particle> ActsFatras::Geant4Decay::decayParticle(
+-    const ActsFatras::Particle& parent) const {
++    const ActsFatras::Particle& parent, long seed) const {
++  // Decay channels contain mutable state. Serialize access even when Geant4
++  // was built without thread-local random engines.
++  static std::mutex decayMutex;
++  std::lock_guard lock(decayMutex);
++  CLHEP::HepJamesRandom engine(seed);
++  struct RestoreEngine {
++    CLHEP::HepRandomEngine* previous = CLHEP::HepRandom::getTheEngine();
++    ~RestoreEngine() { CLHEP::HepRandom::setTheEngine(previous); }
++  } restoreEngine;
++  CLHEP::HepRandom::setTheEngine(&engine);
++
+   std::vector<Particle> children;
+ 
+   // Find the particle type that will decay
+@@ -38,13 +50,16 @@ std::vector<ActsFatras::Particle> ActsFatras::Geant4Decay::decayParticle(
+   if (dt == nullptr) {
+     return children;
+   }
+-  // Select a decay channel
+-  G4VDecayChannel* channel = dt->SelectADecayChannel();
++  // Use the transported mass consistently; ACTS and Geant4 particle tables
++  // can use slightly different values.
++  constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
++  const double parentMass = parent.mass() / convertEnergy;
++  G4VDecayChannel* channel = dt->SelectADecayChannel(parentMass);
+   if (channel == nullptr) {
+     return children;
+   }
+   // Get the decay products from the selected channel
+-  G4DecayProducts* products = channel->DecayIt();
++  std::unique_ptr<G4DecayProducts> products(channel->DecayIt(parentMass));
+   if (products == nullptr) {
+     return children;
+   }
+@@ -57,23 +72,26 @@ std::vector<ActsFatras::Particle> ActsFatras::Geant4Decay::decayParticle(
+ 
+   G4int nProducts = products->entries();
+   for (G4int i = 0; i < nProducts; i++) {
+-    G4DynamicParticle* prod = products->PopProducts();
++    std::unique_ptr<G4DynamicParticle> prod(products->PopProducts());
+     if (prod == nullptr) {
+       continue;
+     }
+ 
+     // Convert the decay product from Geant4 to Acts
+     const G4ThreeVector& mom = prod->GetMomentum();
+-    constexpr double convertEnergy = Acts::UnitConstants::GeV / CLHEP::GeV;
+     Acts::Vector3 amgMom(mom.x(), mom.y(), mom.z());
+     amgMom *= convertEnergy;
+     const std::int32_t pdg = prod->GetPDGcode();
+ 
++    constexpr double convertCharge = Acts::UnitConstants::e / CLHEP::eplus;
+     Particle childParticle(parent.particleId().makeDescendant(i),
+-                           static_cast<Acts::PdgParticle>(pdg));
++                           static_cast<Acts::PdgParticle>(pdg),
++                           prod->GetCharge() * convertCharge,
++                           prod->GetMass() * convertEnergy);
+     childParticle.setPosition4(parent.fourPosition())
+         .setAbsoluteMomentum(amgMom.norm())
+-        .setDirection(amgMom)
++        .setDirection(amgMom.norm() > 0.0 ? Acts::Vector3(amgMom.normalized())
++                                          : parent.direction())
+         .setProcess(GenerationProcess::eDecay);
+ 
+     // Store the particle
+diff --git a/Fatras/include/ActsFatras/Kernel/ContinuousProcess.hpp b/Fatras/include/ActsFatras/Kernel/ContinuousProcess.hpp
+index 4f5ef04e69..4964ef9e0c 100644
+--- a/Fatras/include/ActsFatras/Kernel/ContinuousProcess.hpp
++++ b/Fatras/include/ActsFatras/Kernel/ContinuousProcess.hpp
+@@ -76,7 +76,7 @@ struct ContinuousProcess {
+                  std::back_inserter(generated), selectChildParticle);
+     // break condition is defined by whether the output particle is still valid
+     // or not e.g. because it has fallen below a momentum threshold.
+-    return !selectOutputParticle(particle);
++    return !particle.isAlive() || !selectOutputParticle(particle);
+   }
+ };
+ 
+diff --git a/Fatras/include/ActsFatras/Kernel/InteractionList.hpp b/Fatras/include/ActsFatras/Kernel/InteractionList.hpp
+index 3f9a62ff05..6ca6b0cf40 100644
+--- a/Fatras/include/ActsFatras/Kernel/InteractionList.hpp
++++ b/Fatras/include/ActsFatras/Kernel/InteractionList.hpp
+@@ -131,10 +131,12 @@ using PointLikeIndices = TupleFilter<PointLikeProcessTrait, processes_t>;
+ /// with which they occur but not the interaction itself, e.g. photon conversion
+ /// into electron pairs. They are simulated by first drawing a limit on the
+ /// material paths and then executing the interaction with the shortest limit
+-/// when the drawn amount of material has been passed. Point-like process
++/// when the drawn amount of material has been passed. Sampled distances are
++/// relative to the current particle state, not accumulated path limits.
++/// Point-like process
+ /// types **must** provide the following two member functions:
+ ///
+-///     // generate X0/L0 limits
++///     // generate remaining X0/L0 distances (not accumulated path limits)
+ ///     template <typename generator_t>
+ ///     std::pair<Scalar, Scalar>
+ ///     generatePathLimits(
+@@ -173,7 +175,7 @@ class InteractionList {
+   using PointLikeIndices = detail::PointLikeIndices<Processes>;
+ 
+  public:
+-  /// Point-like interaction selection.
++  /// Point-like interaction selection, expressed as remaining material paths.
+   struct Selection {
+     /// X0 (radiation length) limit for interaction selection
+     double x0Limit = std::numeric_limits<double>::infinity();
+diff --git a/Fatras/include/ActsFatras/Kernel/MultiParticleSimulation.hpp b/Fatras/include/ActsFatras/Kernel/MultiParticleSimulation.hpp
+index 7a331a5905..49246e3c3c 100644
+--- a/Fatras/include/ActsFatras/Kernel/MultiParticleSimulation.hpp
++++ b/Fatras/include/ActsFatras/Kernel/MultiParticleSimulation.hpp
+@@ -146,11 +146,10 @@ struct MultiParticleSimulation {
+         }
+ 
+         if (!result.ok()) {
+-          // remove particle from output container since it was not simulated.
++          // Copy the failed state before erase invalidates initialParticle.
++          failedParticles.push_back({initialParticle, result.error()});
+           simulatedParticlesInitial.erase(
+               std::next(simulatedParticlesInitial.begin(), iinitial));
+-          // record the particle as failed
+-          failedParticles.push_back({initialParticle, result.error()});
+           continue;
+         }
+ 
+diff --git a/Fatras/include/ActsFatras/Kernel/PointLikeProcess.hpp b/Fatras/include/ActsFatras/Kernel/PointLikeProcess.hpp
+index 07c445fe97..0782e9a487 100644
+--- a/Fatras/include/ActsFatras/Kernel/PointLikeProcess.hpp
++++ b/Fatras/include/ActsFatras/Kernel/PointLikeProcess.hpp
+@@ -23,10 +23,9 @@ namespace ActsFatras {
+ /// @tparam output_particle_selector_t is the output particle selector
+ /// @tparam child_particle_selector_t is the child particle selector
+ ///
+-/// The physics model type **must** provide a call operator with the following
+-/// two member functions
++/// The physics model type **must** provide the following two member functions
+ ///
+-///     // generate X0/L0 limits
++///     // generate remaining X0/L0 distances (not accumulated path limits)
+ ///     template <typename generator_t>
+ ///     std::pair<Scalar, Scalar>
+ ///     generatePathLimits(
+@@ -41,8 +40,7 @@ namespace ActsFatras {
+ ///         Particle& particle,
+ ///         std::vector<Particle>& generatedParticles) const
+ ///
+-/// The return type of generatePathLimits() can be any `Container` with
+-/// `Particle` elements.
++/// A true return value from run() stops the parent independently of selectors.
+ ///
+ /// The input selector defines whether the process is applied while the
+ /// output selector defines a break condition, i.e. whether to continue
+@@ -68,10 +66,14 @@ struct PointLikeProcess {
+   /// Generate path limits for the process
+   /// @param generator Random number generator
+   /// @param particle Input particle
+-  /// @return Pair of minimum and maximum path limits
++  /// @return Remaining distances in X0 and L0, or infinity for inactive processes
+   template <class generator_t>
+   std::pair<double, double> generatePathLimits(generator_t& generator,
+                                                const Particle& particle) const {
++    if (!selectInputParticle(particle)) {
++      return {std::numeric_limits<double>::infinity(),
++              std::numeric_limits<double>::infinity()};
++    }
+     return physics.generatePathLimits(generator, particle);
+   }
+ 
+@@ -79,7 +81,7 @@ struct PointLikeProcess {
+   /// @param rng Random number generator
+   /// @param particle Input particle
+   /// @param generatedParticles Output vector of generated particles
+-  /// @return True if process was applied
++  /// @return True if the parent must stop propagating
+   template <class generator_t>
+   bool run(generator_t& rng, Particle& particle,
+            std::vector<Particle>& generatedParticles) const {
+@@ -88,12 +90,12 @@ struct PointLikeProcess {
+     }
+ 
+     std::vector<Particle> children;
+-    physics.run(rng, particle, children);
++    const bool killed = physics.run(rng, particle, children);
+ 
+     std::copy_if(std::begin(children), std::end(children),
+                  std::back_inserter(generatedParticles), selectChildParticle);
+ 
+-    return !selectOutputParticle(particle);
++    return killed || !particle.isAlive() || !selectOutputParticle(particle);
+   }
+ };
+ 
+diff --git a/Fatras/include/ActsFatras/Kernel/SingleParticleSimulation.hpp b/Fatras/include/ActsFatras/Kernel/SingleParticleSimulation.hpp
+index 37165138b6..b23af6008a 100644
+--- a/Fatras/include/ActsFatras/Kernel/SingleParticleSimulation.hpp
++++ b/Fatras/include/ActsFatras/Kernel/SingleParticleSimulation.hpp
+@@ -16,6 +16,7 @@
+ #include "ActsFatras/EventData/Particle.hpp"
+ #include "ActsFatras/Kernel/SingleParticleSimulationResult.hpp"
+ #include "ActsFatras/Kernel/detail/SimulationActor.hpp"
++#include "ActsFatras/Selectors/ParticleSelectors.hpp"
+ 
+ #include <algorithm>
+ #include <cassert>
+@@ -29,8 +30,10 @@ namespace ActsFatras {
+ /// @tparam interactions_t interaction list
+ /// @tparam hit_surface_selector_t selector for hit surfaces
+ /// @tparam decay_t decay module
++/// @tparam particle_selector_t selector for continued particle transport
+ template <typename propagator_t, typename interactions_t,
+-          typename hit_surface_selector_t, typename decay_t>
++          typename hit_surface_selector_t, typename decay_t,
++          typename particle_selector_t = EveryParticle>
+ struct SingleParticleSimulation {
+   /// How and within which geometry to propagate the particle.
+   propagator_t propagator;
+@@ -44,6 +47,8 @@ struct SingleParticleSimulation {
+   interactions_t interactions;
+   /// Selector for surfaces that should generate hits.
+   hit_surface_selector_t selectHitSurface;
++  /// Checked at each step and after material interactions; false stops transport.
++  particle_selector_t selectParticle;
+   /// Logger for debug output.
+   std::unique_ptr<const Acts::Logger> logger;
+ 
+@@ -70,7 +75,8 @@ struct SingleParticleSimulation {
+       const Particle &particle) const {
+     // propagator-related additional types
+     using Actor = detail::SimulationActor<generator_t, decay_t, interactions_t,
+-                                          hit_surface_selector_t>;
++                                          hit_surface_selector_t,
++                                          particle_selector_t>;
+     using Result = typename Actor::result_type;
+     using ActorList = Acts::ActorList<Actor>;
+     using PropagatorOptions =
+@@ -86,6 +92,7 @@ struct SingleParticleSimulation {
+     actor.decay = decay;
+     actor.interactions = interactions;
+     actor.selectHitSurface = selectHitSurface;
++    actor.selectParticle = selectParticle;
+     actor.initialParticle = particle;
+ 
+     if (particle.hasReferenceSurface()) {
+diff --git a/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp b/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
+index 6c4c035796..5d45c101e7 100644
+--- a/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
++++ b/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
+@@ -14,10 +14,12 @@
+ #include "Acts/Surfaces/Surface.hpp"
+ #include "ActsFatras/EventData/Particle.hpp"
+ #include "ActsFatras/Kernel/SingleParticleSimulationResult.hpp"
++#include "ActsFatras/Selectors/ParticleSelectors.hpp"
+ 
+ #include <algorithm>
+ #include <cassert>
+ #include <cmath>
++#include <limits>
+ 
+ namespace ActsFatras::detail {
+ 
+@@ -33,8 +35,10 @@ namespace ActsFatras::detail {
+ /// @tparam decay_t decay module
+ /// @tparam interactions_t interaction list
+ /// @tparam hit_surface_selector_t selector for hit surfaces
++/// @tparam particle_selector_t selector for continued particle transport
+ template <typename generator_t, typename decay_t, typename interactions_t,
+-          typename hit_surface_selector_t>
++          typename hit_surface_selector_t,
++          typename particle_selector_t = EveryParticle>
+ struct SimulationActor {
+   using result_type = SingleParticleSimulationResult;
+ 
+@@ -46,6 +50,8 @@ struct SimulationActor {
+   interactions_t interactions;
+   /// Selector for surfaces that should generate hits.
+   hit_surface_selector_t selectHitSurface;
++  /// Checked at each step and after material interactions; false stops transport.
++  particle_selector_t selectParticle;
+   /// Initial particle state.
+   Particle initialParticle;
+ 
+@@ -68,6 +74,11 @@ struct SimulationActor {
+                          const Acts::Logger &logger) const {
+     assert(generator != nullptr && "The generator pointer must be valid");
+ 
++    // Actors are called once more after propagation has terminated.
++    if (!result.isAlive) {
++      return Acts::Result<void>::success();
++    }
++
+     if (state.stage == Acts::PropagatorStage::prePropagation) {
+       // first step is special: there is no previous state and we need to arm
+       // the decay simulation for all future steps.
+@@ -75,56 +86,42 @@ struct SimulationActor {
+           makeParticle(initialParticle, state, stepper, navigator);
+       result.properTimeLimit =
+           decay.generateProperTimeLimit(*generator, initialParticle);
+-      return Acts::Result<void>::success();
++    } else {
++      // Update proper time using the energy before this step's interactions.
++      result.particle =
++          makeParticle(result.particle, state, stepper, navigator);
+     }
+ 
+-    // actors are called once more after the propagation terminated
+-    if (!result.isAlive) {
++    // decay check. needs to happen at every step, not just on surfaces.
++    if (std::isfinite(result.properTimeLimit) &&
++        (result.properTimeLimit - result.particle.properTime() <=
++         (result.properTimeLimit - initialParticle.properTime()) *
++             properTimeRelativeTolerance)) {
++      auto descendants = decay.run(*generator, result.particle);
++      for (const auto &descendant : descendants) {
++        result.generatedParticles.emplace_back(descendant);
++      }
++      result.isAlive = false;
+       return Acts::Result<void>::success();
+     }
+ 
+-    if (Acts::EndOfWorldReached{}.checkAbort(state, stepper, navigator,
+-                                             logger)) {
++    if (!selectParticle(result.particle)) {
+       result.isAlive = false;
+       return Acts::Result<void>::success();
+     }
+ 
+-    // update the particle state first. this also computes the proper time which
+-    // needs the particle state from the previous step for reference. that means
+-    // this must happen for every step (not just on surface) and before
+-    // everything, e.g. any interactions that could modify the state.
+-    result.particle = makeParticle(result.particle, state, stepper, navigator);
+-
+-    // decay check. needs to happen at every step, not just on surfaces.
+-    if (std::isfinite(result.properTimeLimit) &&
+-        (result.properTimeLimit - result.particle.properTime() <
+-         result.properTimeLimit * properTimeRelativeTolerance)) {
+-      auto descendants = decay.run(generator, result.particle);
+-      for (const auto &descendant : descendants) {
+-        result.generatedParticles.emplace_back(descendant);
+-      }
+-      result.isAlive = false;
++    // Constrain the first step as well as every subsequent step. The actor
++    // constraint leaves the user maximum and other actors' limits intact.
++    constrainDecayStep(state, stepper, result);
++    if (state.stage == Acts::PropagatorStage::prePropagation) {
+       return Acts::Result<void>::success();
+     }
+ 
+-    // Regulate the step size
+-    if (std::isfinite(result.properTimeLimit)) {
+-      assert(result.particle.mass() > 0.0 && "Particle must have mass");
+-      //    beta² = p²/E²
+-      //    gamma = 1 / sqrt(1 - beta²) = sqrt(m² + p²) / m = E / m
+-      //     time = proper-time * gamma
+-      // ds = beta * dt = (p/E) dt (E/m) = (p/m) proper-time
+-      const auto properTimeDiff =
+-          result.properTimeLimit - result.particle.properTime();
+-      // Evaluate the step size for massive particle, assuming massless
+-      // particles to be stable
+-      const auto stepSize = properTimeDiff *
+-                            result.particle.absoluteMomentum() /
+-                            result.particle.mass();
+-      stepper.releaseStepSize(state.stepping,
+-                              Acts::ConstrainedStep::Type::User);
+-      stepper.updateStepSize(state.stepping, stepSize,
+-                             Acts::ConstrainedStep::Type::User);
++    // Account for the last step and a possible decay before ending transport.
++    if (Acts::EndOfWorldReached{}.checkAbort(state, stepper, navigator,
++                                             logger)) {
++      result.isAlive = false;
++      return Acts::Result<void>::success();
+     }
+ 
+     // arm the point-like interaction limits in the first step
+@@ -184,7 +181,8 @@ struct SimulationActor {
+       after.setNumberOfHits(result.hits.size());
+     }
+ 
+-    if (after.absoluteMomentum() == 0.0) {
++    if (!result.isAlive || after.absoluteMomentum() == 0.0 ||
++        !selectParticle(after)) {
+       result.isAlive = false;
+       return Acts::Result<void>::success();
+     }
+@@ -192,6 +190,8 @@ struct SimulationActor {
+     // continue the propagation with the modified parameters
+     stepper.update(state.stepping, after.position(), after.direction(),
+                    after.qOverP(), after.time());
++    // Energy loss changes the distance corresponding to the remaining lifetime.
++    constrainDecayStep(state, stepper, result);
+ 
+     return Acts::Result<void>::success();
+   }
+@@ -205,6 +205,21 @@ struct SimulationActor {
+     return !result.isAlive;
+   }
+ 
++  /// Limit the next step to the remaining proper lifetime, with c = 1.
++  template <typename propagator_state_t, typename stepper_t>
++  void constrainDecayStep(propagator_state_t &state, stepper_t &stepper,
++                          const result_type &result) const {
++    if (std::isfinite(result.properTimeLimit)) {
++      assert(result.particle.mass() > 0.0 && "Particle must have mass");
++      const auto remaining =
++          result.properTimeLimit - result.particle.properTime();
++      const auto stepSize = remaining * result.particle.absoluteMomentum() /
++                            result.particle.mass();
++      stepper.updateStepSize(state.stepping, stepSize,
++                             Acts::ConstrainedStep::Type::Actor);
++    }
++  }
++
+   /// Construct the current particle state from the propagation state.
+   template <typename propagator_state_t, typename stepper_t,
+             typename navigator_t>
+@@ -239,8 +254,8 @@ struct SimulationActor {
+   void armPointLikeInteractions(const Particle &particle,
+                                 result_type &result) const {
+     auto selection = interactions.armPointLike(*generator, particle);
+-    result.x0Limit = selection.x0Limit;
+-    result.l0Limit = selection.l0Limit;
++    result.x0Limit = particle.pathInX0() + selection.x0Limit;
++    result.l0Limit = particle.pathInL0() + selection.l0Limit;
+     result.x0Process = selection.x0Process;
+     result.l0Process = selection.l0Process;
+   }
+@@ -257,7 +272,7 @@ struct SimulationActor {
+       partialSlab.scaleThickness(fraction);
+       // material after passing this slab
+       const auto x0 = result.particle.pathInX0() + partialSlab.thicknessInX0();
+-      const auto l0 = result.particle.pathInX0() + partialSlab.thicknessInL0();
++      const auto l0 = result.particle.pathInL0() + partialSlab.thicknessInL0();
+       bool retval = false;
+       if (interactions.runContinuous(*(this->generator), partialSlab,
+                                      result.particle,
+@@ -287,23 +302,17 @@ struct SimulationActor {
+     // along different scales. to be able to check which one would happen first
+     // they need to be translated to a common scale.
+ 
+-    // relative fraction within material where the interaction occurs.
+-    //
+-    // fraction < 0:
+-    //   this is an error case where the point-like interaction should have
+-    //   occurred before reaching the material. not sure how this could happen,
+-    //   but in such a case the point-like interaction happens immediately.
+-    // 1 < fraction:
+-    //   the next point-like interaction does not occur within the current
+-    //   material. simulation is limited to the continuous processes.
+-    //
+-    // `clamp` ensures a valid range in all cases.
+-    const float fracX0 =
+-        std::clamp(static_cast<float>(x0Dist / slabX0), 0.0f, 1.0f);
+-    const float fracL0 =
+-        std::clamp(static_cast<float>(l0Dist / slabL0), 0.0f, 1.0f);
+-    // fraction of the material where the first point-like interaction occurs
+-    const float frac = std::min(fracX0, fracL0);
++    // Zero thickness cannot exhaust an interaction budget. Keep the raw
++    // fractions to distinguish an interaction at the slab exit from no
++    // interaction in this slab.
++    const auto fraction = [](double distance, double thickness) {
++      return thickness > 0.0 ? distance / thickness
++                             : std::numeric_limits<double>::infinity();
++    };
++    const double fracX0 = fraction(x0Dist, slabX0);
++    const double fracL0 = fraction(l0Dist, slabL0);
++    const double first = std::min(fracX0, fracL0);
++    const double frac = std::clamp(first, 0.0, 1.0);
+ 
+     // do not run if there is zero material before the point-like interaction
+     if (0.0f < frac) {
+@@ -313,7 +322,7 @@ struct SimulationActor {
+       }
+     }
+     // do not run if there is no point-like interaction
+-    if (frac < 1.0f) {
++    if (first <= 1.0) {
+       // select which process to simulate
+       const std::size_t process =
+           (fracX0 < fracL0) ? result.x0Process : result.l0Process;
+@@ -324,7 +333,7 @@ struct SimulationActor {
+         return;
+       }
+       // simulate continuous processes after the point-like interaction
+-      if (runContinuousPartial(1.0 - frac)) {
++      if (frac < 1.0 && runContinuousPartial(1.0 - frac)) {
+         return;
+       }
+ 
+diff --git a/Fatras/include/ActsFatras/Physics/Decay/NoDecay.hpp b/Fatras/include/ActsFatras/Physics/Decay/NoDecay.hpp
+index 0280c55547..b37587a38b 100644
+--- a/Fatras/include/ActsFatras/Physics/Decay/NoDecay.hpp
++++ b/Fatras/include/ActsFatras/Physics/Decay/NoDecay.hpp
+@@ -17,7 +17,7 @@ namespace ActsFatras {
+ 
+ /// Decay module that treats all particles as stable.
+ struct NoDecay {
+-  /// Generate the proper time limit for a particle.
++  /// Generate the accumulated proper time at decay for a particle.
+   ///
+   /// @returns Always returns infinity as limit.
+   template <typename generator_t>
