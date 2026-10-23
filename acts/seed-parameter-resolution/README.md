@@ -13,6 +13,8 @@ origin so every variant is compared to truth on the same surface.
 | `truth_inner3` | truth | the three innermost layers | exact helix through three points |
 | `truth_spread3` | truth | innermost, middle and outermost layer | exact helix through three points |
 | `triplet` | grid triplet | whatever the seeder found | exact helix through three points |
+| `truth_all_refine10` | truth | every pixel space point on the track | as `truth_all`, plus 10 Gauss-Newton iterations on the circle |
+| `truth_all_invr2` | truth | every pixel space point on the track | as `truth_all`, points weighted by 1/r^2 |
 
 The triplet selections pick one space point per *layer*. Neighbouring modules
 of an ODD pixel layer overlap, so a track can leave two space points at nearly
@@ -24,11 +26,11 @@ in d0 and a factor 16 in q/pT.
 ## Running
 
 ```sh
-python run.py results                # 100k muons at 1, 10 and 100 GeV, 4 variants
+python run.py results                # 100k muons at 1, 10 and 100 GeV, 6 variants
 python plot.py results               # -> results/seed_parameter_resolution.pdf
 ```
 
-1.2M muons in under two minutes on 12 cores. The event loop is threaded
+1.8M muons in two and a half minutes on 12 cores. The event loop is threaded
 (`--threads`, all cores by default) but only reaches ~300% CPU: a single-muon
 event is small enough that the serial parts, the writer's fill mutex above all,
 set the pace. Shorter runs scale worse still, since the ~2 s of ODD geometry
@@ -91,15 +93,21 @@ Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
 | 1 | truth_all | 56 | 69 | 3.5 |
 | 1 | truth_spread3 | 61 (1.08) | 92 (1.33) | 3.6 (1.03) |
 | 1 | truth_inner3 | 69 (1.24) | 73 (1.05) | 6.0 (1.70) |
-| 1 | triplet | 74 (1.32) | 95 (1.37) | 4.4 (1.25) |
+| 1 | triplet | 74 (1.32) | 96 (1.38) | 4.4 (1.25) |
+| 1 | truth_all_refine10 | 56 (1.00) | 69 (1.00) | 3.5 (1.00) |
+| 1 | truth_all_invr2 | 55 (0.98) | 61 (0.88) | 3.7 (1.04) |
 | 10 | truth_all | 30 | 19 | 11.5 |
 | 10 | truth_spread3 | 32 (1.05) | 21 (1.12) | 13.7 (1.18) |
-| 10 | truth_inner3 | 52 (1.71) | 22 (1.16) | 36.9 (3.20) |
-| 10 | triplet | 48 (1.58) | 23 (1.23) | 20.8 (1.80) |
+| 10 | truth_inner3 | 52 (1.71) | 22 (1.15) | 36.9 (3.20) |
+| 10 | triplet | 48 (1.58) | 23 (1.23) | 20.6 (1.79) |
+| 10 | truth_all_refine10 | 30 (1.00) | 19 (1.00) | 11.5 (1.00) |
+| 10 | truth_all_invr2 | 34 (1.13) | 21 (1.11) | 13.9 (1.20) |
 | 100 | truth_all | 30 | 18 | 110 |
 | 100 | truth_spread3 | 32 (1.05) | 19 (1.09) | 133 (1.21) |
 | 100 | truth_inner3 | 52 (1.72) | 21 (1.18) | 366 (3.33) |
-| 100 | triplet | 50 (1.68) | 21 (1.17) | 218 (1.99) |
+| 100 | triplet | 51 (1.69) | 21 (1.17) | 218 (1.98) |
+| 100 | truth_all_refine10 | 30 (1.00) | 18 (1.00) | 110 (1.00) |
+| 100 | truth_all_invr2 | 34 (1.13) | 20 (1.14) | 134 (1.22) |
 
 - At 1 GeV multiple scattering compresses the differences to 5-37%, and in
   q/pT the three spread points already match the all-points fit exactly. The
@@ -114,16 +122,33 @@ Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
   resolution, and even the best variant is 100% wrong. Whatever consumes a seed
   estimate has to treat q/pT as an order of magnitude, not a value.
 - Triplet seeding sits between `truth_spread3` and `truth_inner3`, which is
-  what its deltaR cuts select. It also produces ~7 seeds per muon, all of which
-  enter the histograms - the truth variants contribute one each. That is the
-  population a CKF actually starts from, but it is not a like-for-like
+  what its deltaR cuts select. It also produces 7 to 9 seeds per muon, all of
+  which enter the histograms - the truth variants contribute one each. That is
+  the population a CKF actually starts from, but it is not a like-for-like
   comparison of one estimate per track; the last PDF page shows the counts.
 - z0 inverts the ordering at 1 GeV, which the ratio panel shows and the log
   axis hides: `truth_inner3` is within 5% of the all-points reference while
-  `truth_spread3` is 33% and `triplet` 37% worse - the reverse of their d0 and
+  `truth_spread3` is 33% and `triplet` 38% worse - the reverse of their d0 and
   q/pT ranking. Reaching for the outer layers costs z0 there, because the
   scattering picked up on the way out is extrapolated back to the beam line.
   Above 10 GeV the effect is gone and all variants agree to 23%.
+- The geometric refinement changes nothing. Ten Gauss-Newton iterations on top
+  of the algebraic circle move the fit by ~1e-6 relative, and the centre and
+  the radius move together, so d0 barely shifts at all. Over 100k muons that
+  migrates about 20 entries by one histogram bin and leaves every resolution
+  identical in the third digit. Taubin already sits within 1e-6 of the
+  geometric minimum for the four to seven points and the 15 um pixel
+  resolution of an ODD track; the refinement would only earn its keep where the
+  residuals are a larger fraction of the radius.
+- Weighting the points by 1/r^2 trades lever arm for the inner hits and only
+  pays at 1 GeV, where it buys 12% in z0 and 2% in d0 for 4% in q/pT. That is
+  the same effect that makes `truth_inner3` the best z0 variant there:
+  downweighting the outer points drops the scattering they picked up on the way
+  out. From 10 GeV up it is a straight loss - 13% in d0, 11-14% in z0, 20-22%
+  in q/pT - because it discards exactly the lever arm the resolution comes
+  from. The 1 GeV gain is flat in eta; above it the z0 loss turns into a small
+  gain beyond `|eta| = 2` (0.91 to 0.95), where the tracks are shorter in r
+  anyway.
 
 ## Caveats
 
@@ -134,3 +159,10 @@ Resolution averaged over `|eta| < 1`, 100k muons per point, with the ratio to
   the same particles.
 - The seed covariances are inflated by `TrackParamsEstimationAlgorithm`, so the
   pulls in the ROOT files are far below one by construction and are not plotted.
+- Numbers from ACTS main at `c81fa970ab` (01.09.2026), where the space point
+  selection, the refinement and the weight are all `addSeeding` arguments
+  (`paramEstimationSpacePoints`, `paramEstimationRefineIterations`,
+  `paramEstimationWeight`). The four original variants reproduce the 24.08.2026
+  run: the truth ones to the last digit of the table, `triplet` to a percent in
+  d0 and q/pT. Triplet seeding now returns 8.4 seeds per muon at 1 GeV where it
+  returned ~7, so its population is not the same one.

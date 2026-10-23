@@ -14,6 +14,12 @@ The variants differ in which space points the estimate is built from:
                  space point
   triplet        grid triplet seeding, default three-point estimate
 
+and two variations of the all-space-point fit:
+
+  truth_all_refine10  10 Gauss-Newton iterations on top of the algebraic
+                      circle fit
+  truth_all_invr2     the space points weighted by 1/r^2
+
 All variants are extrapolated to a perigee at the origin before the comparison
 with truth, so the numbers are on the same footing.
 
@@ -45,7 +51,6 @@ from acts.examples.simulation import (
 )
 from acts.examples.reconstruction import (
     SeedingAlgorithm,
-    TruthEstimatedSeedingAlgorithmConfigArg,
     addSeeding,
     addTrackParameterPerformanceWriter,
 )
@@ -55,24 +60,38 @@ import argparse
 
 u = acts.UnitConstants
 
-# name -> (seeding algorithm, truth space point selection, fit all space points)
+SPACE_POINTS = acts.examples.SeedSpacePointSelection
+
+# name -> the `addSeeding` arguments that define the variant. A truth seed is
+# the whole truth track, so which of its space points reach the estimate is the
+# estimation algorithm's selection rather than the seeder's. Refinement and
+# weighting are read by the all-space-point fit only.
 VARIANTS = {
-    "truth_all": (
-        SeedingAlgorithm.TruthEstimated,
-        acts.examples.TruthSeedSpacePointSelection.All,
-        True,
+    "truth_all": dict(
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        paramEstimationSpacePoints=SPACE_POINTS.All,
     ),
-    "truth_inner3": (
-        SeedingAlgorithm.TruthEstimated,
-        acts.examples.TruthSeedSpacePointSelection.InnermostTriplet,
-        False,
+    "truth_inner3": dict(
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        paramEstimationSpacePoints=SPACE_POINTS.InnermostTriplet,
     ),
-    "truth_spread3": (
-        SeedingAlgorithm.TruthEstimated,
-        acts.examples.TruthSeedSpacePointSelection.SpreadTriplet,
-        False,
+    "truth_spread3": dict(
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        paramEstimationSpacePoints=SPACE_POINTS.SpreadTriplet,
     ),
-    "triplet": (SeedingAlgorithm.GridTriplet, None, False),
+    "triplet": dict(seedingAlgorithm=SeedingAlgorithm.GridTriplet),
+    "truth_all_refine10": dict(
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        paramEstimationSpacePoints=SPACE_POINTS.All,
+        paramEstimationRefineIterations=10,
+    ),
+    "truth_all_invr2": dict(
+        seedingAlgorithm=SeedingAlgorithm.TruthEstimated,
+        paramEstimationSpacePoints=SPACE_POINTS.All,
+        paramEstimationWeight=(
+            acts.examples.TrackParamsEstimationAlgorithm.inverseRadiusPowerWeight(2.0)
+        ),
+    ),
 }
 
 # Half range of the residual axes for the calibration pass. It only has to be
@@ -141,7 +160,7 @@ def resPlotToolConfig(pt, args, axes=None):
     """
     ptGeV = pt / u.GeV
 
-    cfg = acts.examples.root.ResPlotToolConfig()
+    cfg = acts.examples.ResPlotToolConfig()
     binning = {
         "Eta": acts.Axis.regular(args.etaBins, args.eta[0], args.eta[1], "#eta"),
         "Phi": acts.Axis.regular(40, -3.15, 3.15, "#phi [rad]"),
@@ -257,9 +276,6 @@ def checkBinning(path, args, label):
 def run(args, detector, field, variant, pt, outputDir, events, axes, label):
     trackingGeometry = detector.trackingGeometry()
     geoDir = getOpenDataDetectorDirectory()
-    seedingAlgorithm, spacePointSelection, estimateFromAllSpacePoints = VARIANTS[
-        variant
-    ]
 
     rnd = acts.examples.RandomNumbers(seed=args.seed)
     s = acts.examples.Sequencer(
@@ -311,12 +327,7 @@ def run(args, detector, field, variant, pt, outputDir, events, axes, label):
         s,
         trackingGeometry,
         field,
-        seedingAlgorithm=seedingAlgorithm,
-        truthEstimatedSeedingAlgorithmConfigArg=TruthEstimatedSeedingAlgorithmConfigArg(
-            spacePointSelection=spacePointSelection,
-        ),
-        estimateFromAllSpacePoints=estimateFromAllSpacePoints,
-        geometricRefineIterations=args.refineIterations,
+        **VARIANTS[variant],
         geoSelectionConfigFile=geoDir / "config/odd-seeding-config.json",
         initialSigmas=[
             1 * u.mm,
@@ -332,13 +343,26 @@ def run(args, detector, field, variant, pt, outputDir, events, axes, label):
         particleHypothesis=acts.ParticleHypothesis.muon,
     )
 
+    # the estimate sits on the sensor of the space point it is reported at,
+    # so it has to be moved to a common surface before the comparison to truth
+    s.addAlgorithm(
+        acts.examples.TrackExtrapolationAlgorithm(
+            level=acts.logging.INFO,
+            inputTracks="seed-tracks",
+            outputTracks="seed-tracks-perigee",
+            targetSurface=acts.Surface.createPerigee(acts.Vector3(0, 0, 0)),
+            trackingGeometry=trackingGeometry,
+            magneticField=field,
+            strategy=acts.examples.TrackExtrapolationStrategy.first,
+        )
+    )
+
     addTrackParameterPerformanceWriter(
         s,
         outputDir,
-        tracks="seed-tracks",
+        tracks="seed-tracks-perigee",
         particles="particles_selected",
-        trackingGeometry=trackingGeometry,
-        field=field,
+        trackParticleMatching="seed_particle_matching",
         resPlotToolConfig=resPlotToolConfig(pt, args, axes),
         outputName=label,
     )
@@ -436,13 +460,6 @@ def main():
         help="Measurements required of a muon to enter the study",
         type=int,
         default=9,
-    )
-    parser.add_argument(
-        "--refine-iterations",
-        dest="refineIterations",
-        help="Geometric refinement iterations of the multi-point helix fit",
-        type=int,
-        default=0,
     )
     args = parser.parse_args()
 

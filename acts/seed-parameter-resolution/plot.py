@@ -21,13 +21,17 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-# blue, orange, aqua, violet - validated for colour vision deficiency on all
-# pairs, plus a marker shape each so the identity never rests on colour alone
+# blue, orange, aqua, violet, grey, magenta - validated for colour vision
+# deficiency on all pairs, plus a marker shape each so the identity never rests
+# on colour alone. `truth_all_refine10` keeps the circle of `truth_all` on
+# purpose: it lands on top of it and is drawn as a ring around it.
 VARIANTS = {
     "truth_all": ("truth seed, all space points", "#2a78d6", "o"),
     "truth_inner3": ("truth seed, 3 innermost", "#eb6834", "s"),
     "truth_spread3": ("truth seed, 3 spread", "#1baf7a", "^"),
     "triplet": ("triplet seeding", "#4a3aa7", "D"),
+    "truth_all_refine10": ("truth seed, all, 10 refine iterations", "#4d4d4d", "o"),
+    "truth_all_invr2": ("truth seed, all, $1/r^2$ weights", "#c2185b", "X"),
 }
 
 PARAMS = {
@@ -35,6 +39,9 @@ PARAMS = {
     "z0": ("$z_0$", "mm"),
     "qopt_rel": ("$q/p_\\mathrm{T}$ (relative)", None),
 }
+
+# variants per legend row - six of them do not fit across one page width
+LEGEND_COLUMNS = 3
 
 MIN_ENTRIES = 25
 QUANTILES = (0.158655, 0.5, 0.841345)
@@ -47,6 +54,37 @@ MARKER_STYLE = dict(
     elinewidth=0.9,
     capsize=0,
 )
+
+# variants drawn as a ring, so the one they land on top of stays visible
+HOLLOW = {"truth_all_refine10"}
+
+
+def markerStyle(variant, color, marker):
+    style = dict(MARKER_STYLE, color=color, marker=marker)
+    if variant in HOLLOW:
+        style["markerfacecolor"] = "none"
+        style["markersize"] = 6.0
+    return style
+
+
+def addLegend(fig, handles, fontsize, perRow):
+    """Legend below the figure, wrapped over as many rows as it needs.
+
+    Returns the bottom margin `tight_layout` has to leave for it.
+    """
+    import math
+
+    columns = min(len(handles), LEGEND_COLUMNS)
+    rows = math.ceil(len(handles) / columns)
+    fig.legend(
+        handles=handles,
+        loc="lower center",
+        ncol=columns,
+        frameon=False,
+        fontsize=fontsize,
+        bbox_to_anchor=(0.5, -0.004),
+    )
+    return perRow * rows
 
 
 def resolutionVsEta(hist, estimator="fit"):
@@ -186,25 +224,16 @@ def resolutionPage(pdf, data, pt, variants, estimator, reference):
             eta, etaErr, sigma, sigmaErr, bias, biasErr, _ = resolutionVsEta(
                 hist, estimator
             )
+            style = markerStyle(variant, color, marker)
             point = top.errorbar(
                 eta,
                 sigma,
                 yerr=sigmaErr,
                 xerr=etaErr,
-                color=color,
-                marker=marker,
                 label=name,
-                **MARKER_STYLE,
+                **style,
             )
-            bottom.errorbar(
-                eta,
-                bias,
-                yerr=biasErr,
-                xerr=etaErr,
-                color=color,
-                marker=marker,
-                **MARKER_STYLE,
-            )
+            bottom.errorbar(eta, bias, yerr=biasErr, xerr=etaErr, **style)
 
             if referenceSigma is not None and variant != reference:
                 with np.errstate(divide="ignore", invalid="ignore"):
@@ -215,15 +244,7 @@ def resolutionPage(pdf, data, pt, variants, estimator, reference):
                     ratioErr = ratio * np.hypot(
                         sigmaErr / sigma, referenceSigmaErr / referenceSigma
                     )
-                middle.errorbar(
-                    eta,
-                    ratio,
-                    yerr=ratioErr,
-                    xerr=etaErr,
-                    color=color,
-                    marker=marker,
-                    **MARKER_STYLE,
-                )
+                middle.errorbar(eta, ratio, yerr=ratioErr, xerr=etaErr, **style)
                 ratios.append((eta, ratio, color))
             if col == 0:
                 handles.append(point)
@@ -260,15 +281,8 @@ def resolutionPage(pdf, data, pt, variants, estimator, reference):
         for ax in (top, middle, bottom):
             styleAxes(ax)
 
-    fig.legend(
-        handles=handles,
-        loc="lower center",
-        ncol=len(handles),
-        frameon=False,
-        fontsize=10,
-        bbox_to_anchor=(0.5, -0.004),
-    )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.97))
+    margin = addLegend(fig, handles, 10, 0.026)
+    fig.tight_layout(rect=(0, margin, 1, 0.97))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -307,15 +321,8 @@ def distributionPage(pdf, data, pts, variants, estimator):
                 )
             styleAxes(ax)
 
-    fig.legend(
-        handles=handles,
-        loc="lower center",
-        ncol=len(handles),
-        frameon=False,
-        fontsize=9,
-        bbox_to_anchor=(0.5, -0.005),
-    )
-    fig.tight_layout(rect=(0, 0.04, 1, 0.97))
+    margin = addLegend(fig, handles, 9, 0.026)
+    fig.tight_layout(rect=(0, margin, 1, 0.97))
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -357,10 +364,8 @@ def coveragePage(pdf, data, pts, variants):
                 n,
                 yerr=np.sqrt(n),
                 xerr=etaErr,
-                color=color,
-                marker=marker,
                 label=name,
-                **MARKER_STYLE,
+                **markerStyle(variant, color, marker),
             )
             if col == 0:
                 handles.append(point)
@@ -371,15 +376,8 @@ def coveragePage(pdf, data, pts, variants):
             ax.set_ylabel("matched seeds", fontsize=9)
         styleAxes(ax)
 
-    fig.legend(
-        handles=handles,
-        loc="lower center",
-        ncol=len(handles),
-        frameon=False,
-        fontsize=9,
-        bbox_to_anchor=(0.5, -0.01),
-    )
-    fig.tight_layout(rect=(0, 0.1, 1, 0.94))
+    margin = addLegend(fig, handles, 9, 0.06)
+    fig.tight_layout(rect=(0, margin, 1, 0.94))
     pdf.savefig(fig)
     plt.close(fig)
 
