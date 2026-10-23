@@ -1,0 +1,13 @@
+Running 2 test cases...
+
+Test module "ActsIntegrationTestFatrasSimulation" has passed with:
+  2 test cases out of 260 passed
+  258 test cases out of 260 skipped
+  7191 assertions out of 7191 passed
+
+  Test case "NativeDecayVertexFollowsSampledLifetime" has passed with:
+    1374 assertions out of 1374 passed
+
+  Test case "NativeDecayCascadeTruthAndSecondaryHits" has passed with:
+    5817 assertions out of 5817 passed
+

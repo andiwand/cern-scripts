@@ -1,0 +1,21 @@
+commit d41a146baacbc3a8be62cafec3a7eff37dc34f66
+Author:     Andreas Stefl <stefl.andreas@gmail.com>
+AuthorDate: Tue Oct 13 16:16:43 2026 +0200
+Commit:     Andreas Stefl <stefl.andreas@gmail.com>
+CommitDate: Tue Oct 13 16:16:43 2026 +0200
+
+    feat: expose native Fatras decays in examples
+    
+    Add opt-in enableDecays configuration in C++ and Python, independent of material interactions. Preserve supported moving neutral parents below pMin and skip inputs explicitly marked Decayed. Document retained channels, rare-mode and polarization approximations, at-rest limitations and the generator final-state contract.
+
+commit c9d82eba25e3074aaacdd4e2f1728a933adeb89b
+Author:     Andreas Stefl <stefl.andreas@gmail.com>
+AuthorDate: Tue Oct 13 16:16:16 2026 +0200
+Commit:     Andreas Stefl <stefl.andreas@gmail.com>
+CommitDate: Tue Oct 13 16:16:16 2026 +0200
+
+    feat: add native V0 decays to Fatras
+    
+    Sample K-short and Lambda/anti-Lambda lifetimes and dominant charged/neutral two-body modes with PDG 2026 inputs. Preserve prompt pi0 cascades, daughter ancestry and a distinct Decayed outcome. Share exact two-body kinematics with the nuclear interaction model and retain moving decay parents independently of stable-particle momentum cuts.
+    
+    Validate lifetime and channel distributions, isotropy, conservation, reproducibility, propagated vertices, low-momentum parent acceptance and secondary hits.

@@ -1,0 +1,22 @@
+clang-format.............................................................Passed
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+black-jupyter............................................................Passed
+gersemi..................................................................Passed
+codespell................................................................Passed
+Validate material schema and examples................(no files to check)Skipped
+license..................................................................Passed
+include_guards...........................................................Passed
+pragma_once..............................................................Passed
+type_t...................................................................Passed
+boost_test...............................................................Passed
+cmake_options........................................(no files to check)Skipped
+Leftover conflict markers................................................Passed
+math_macros..............................................................Passed
+codegen_dependencies.................................(no files to check)Skipped
+Format JSON files (Python)...........................(no files to check)Skipped
+sync citation metadata...............................(no files to check)Skipped
+dependency versions consistent...........................................Passed
+zizmor...............................................(no files to check)Skipped

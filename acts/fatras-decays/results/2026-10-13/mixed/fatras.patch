@@ -1,0 +1,424 @@
+diff --git a/Examples/Algorithms/Fatras/include/ActsExamples/Fatras/FatrasSimulation.hpp b/Examples/Algorithms/Fatras/include/ActsExamples/Fatras/FatrasSimulation.hpp
+index 015ce0284a..7e6643bdbc 100644
+--- a/Examples/Algorithms/Fatras/include/ActsExamples/Fatras/FatrasSimulation.hpp
++++ b/Examples/Algorithms/Fatras/include/ActsExamples/Fatras/FatrasSimulation.hpp
+@@ -48,7 +48,8 @@ class FatrasSimulation final : public IAlgorithm {
+     std::shared_ptr<const Acts::MagneticFieldProvider> magneticField;
+ 
+     // tuning parameters
+-    /// Minimal absolute momentum for particles to be simulated.
++    /// Minimal absolute momentum, except for supported neutral decay parents
++    /// when enableDecays is true.
+     double pMin = 0.5 * Acts::UnitConstants::GeV;
+     /// Minimal transverse momentum for charged particles, also during
+     /// transport. Measured relative to the global z axis; zero disables this
+@@ -57,6 +58,9 @@ class FatrasSimulation final : public IAlgorithm {
+     /// Path to a validated hadronic interaction table; empty disables hadronic
+     /// physics.
+     std::string nuclearInteractionTable;
++    /// Enable native K-short, Lambda/anti-Lambda and prompt pi0 decays.
++    /// Supply undecayed generator final states; see fatras_decays.md.
++    bool enableDecays = false;
+     /// Simulate (multiple) scattering for charged particles.
+     bool emScattering = true;
+     /// Simulate ionisiation/excitation energy loss of charged particles.
+diff --git a/Examples/Algorithms/Fatras/src/FatrasSimulation.cpp b/Examples/Algorithms/Fatras/src/FatrasSimulation.cpp
+index 2e97ee9a76..a59e2e10d8 100644
+--- a/Examples/Algorithms/Fatras/src/FatrasSimulation.cpp
++++ b/Examples/Algorithms/Fatras/src/FatrasSimulation.cpp
+@@ -27,9 +27,11 @@
+ #include "ActsFatras/Kernel/InteractionList.hpp"
+ #include "ActsFatras/Kernel/MultiParticleSimulation.hpp"
+ #include "ActsFatras/Kernel/SingleParticleSimulation.hpp"
++#include "ActsFatras/Physics/Decay/NativeDecay.hpp"
+ #include "ActsFatras/Physics/Decay/NoDecay.hpp"
+ #include "ActsFatras/Physics/ElectroMagnetic/PhotonConversion.hpp"
+ #include "ActsFatras/Physics/StandardInteractions.hpp"
++#include "ActsFatras/Selectors/DecayParticleSelector.hpp"
+ #include "ActsFatras/Selectors/SelectorHelpers.hpp"
+ #include "ActsFatras/Selectors/SurfaceSelectors.hpp"
+ 
+@@ -84,12 +86,13 @@ struct FatrasSimulation::Impl {
+   using NeutralStepper = Acts::StraightLineStepper;
+   using NeutralPropagator = Acts::Propagator<NeutralStepper, Acts::Navigator>;
+   // neutral particles w/ photon conversion and no hits
+-  using NeutralSelector = CutPMin;
++  using NeutralSelector =
++      ActsFatras::DecayParticleSelector<ActsFatras::NativeDecay, CutPMin>;
+   using NeutralInteractions =
+       ActsFatras::InteractionList<ActsFatras::PhotonConversion>;
+   using NeutralSimulation = ActsFatras::SingleParticleSimulation<
+       NeutralPropagator, NeutralInteractions, ActsFatras::NoSurface,
+-      ActsFatras::NoDecay>;
++      ActsFatras::NativeDecay>;
+ 
+   // combined simulation type
+   using Simulation =
+@@ -121,7 +124,9 @@ struct FatrasSimulation::Impl {
+     simulation.selectCharged.get<CutPMin>().valMin = cfg.pMin;
+     simulation.selectCharged.get<CutPtMin>().valMin = cfg.pTMin;
+     simulation.charged.selectParticle = simulation.selectCharged;
+-    simulation.selectNeutral.valMin = cfg.pMin;
++    simulation.selectNeutral.selectStable.valMin = cfg.pMin;
++    simulation.selectNeutral.decay.enabled = cfg.enableDecays;
++    simulation.neutral.decay.enabled = cfg.enableDecays;
+     std::shared_ptr<const NuclearInteractionTable> nuclearTable;
+     if (!cfg.nuclearInteractionTable.empty()) {
+       std::ifstream input(cfg.nuclearInteractionTable);
+@@ -224,6 +229,12 @@ ProcessCode FatrasSimulation::execute(const AlgorithmContext &ctx) const {
+   std::vector<ActsFatras::Particle> particlesInput;
+   particlesInput.reserve(inputParticles.size());
+   for (const auto &p : inputParticles) {
++    // Generator adapters should supply undecayed final-state particles. If a
++    // reader explicitly marks a parent as decayed, do not simulate it again.
++    if (m_cfg.enableDecays &&
++        p.outcome() == ActsFatras::SimulationOutcome::Decayed) {
++      continue;
++    }
+     particlesInput.push_back(p.initialState());
+   }
+ 
+diff --git a/Fatras/CMakeLists.txt b/Fatras/CMakeLists.txt
+index 3f1083c803..38eb5925da 100644
+--- a/Fatras/CMakeLists.txt
++++ b/Fatras/CMakeLists.txt
+@@ -13,6 +13,8 @@ acts_add_library(
+     src/Physics/StandardInteractions.cpp
+     src/Physics/NuclearInteractionTable.cpp
+     src/Physics/NuclearInteraction.cpp
++    src/Physics/TwoBodyDecay.cpp
++    src/Physics/NativeDecay.cpp
+     src/Utilities/LandauDistribution.cpp
+     ACTS_INCLUDE_FOLDER include/ActsFatras
+ )
+diff --git a/Fatras/include/ActsFatras/EventData/SimulationOutcome.hpp b/Fatras/include/ActsFatras/EventData/SimulationOutcome.hpp
+index be84739132..06b55213d9 100644
+--- a/Fatras/include/ActsFatras/EventData/SimulationOutcome.hpp
++++ b/Fatras/include/ActsFatras/EventData/SimulationOutcome.hpp
+@@ -22,6 +22,7 @@ enum class SimulationOutcome : std::uint32_t {
+   KilledVolumeExit = 2,
+   KilledTime = 3,
+   KilledSecondaryParticle = 4,
++  Decayed = 5,
+ };
+ 
+ /// Print simulation outcome to output stream
+diff --git a/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp b/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
+index f387261d88..accda0ff27 100644
+--- a/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
++++ b/Fatras/include/ActsFatras/Kernel/detail/SimulationActor.hpp
+@@ -102,6 +102,7 @@ struct SimulationActor {
+       for (const auto &descendant : descendants) {
+         result.generatedParticles.emplace_back(descendant);
+       }
++      result.particle.killParticle(SimulationOutcome::Decayed);
+       result.isAlive = false;
+       return Acts::Result<void>::success();
+     }
+diff --git a/Fatras/src/EventData/SimulationOutcome.cpp b/Fatras/src/EventData/SimulationOutcome.cpp
+index 2c8d3bbe96..6f002a3098 100644
+--- a/Fatras/src/EventData/SimulationOutcome.cpp
++++ b/Fatras/src/EventData/SimulationOutcome.cpp
+@@ -25,6 +25,8 @@ std::ostream &operator<<(std::ostream &os, SimulationOutcome outcome) {
+       return (os << "KilledVolumeExit");
+     case KilledTime:
+       return (os << "KilledTime");
++    case Decayed:
++      return (os << "Decayed");
+     case KilledSecondaryParticle:
+       return (os << "KilledSecondaryParticle");
+   }
+diff --git a/Fatras/src/Physics/NuclearInteraction.cpp b/Fatras/src/Physics/NuclearInteraction.cpp
+index c6c862fd9c..594e089c99 100644
+--- a/Fatras/src/Physics/NuclearInteraction.cpp
++++ b/Fatras/src/Physics/NuclearInteraction.cpp
+@@ -8,27 +8,19 @@
+ 
+ #include "ActsFatras/Physics/Hadronic/NuclearInteraction.hpp"
+ 
+-#include <algorithm>
++#include "ActsFatras/Physics/Decay/TwoBodyDecay.hpp"
++
+ #include <array>
+-#include <cmath>
+ 
+ namespace ActsFatras {
+ std::array<NuclearInteractionTable::Product, 2> NuclearInteraction::decayPi0(
+     const NuclearInteractionTable::Product& pion, double cosTheta, double phi) {
+-  const double sinTheta = std::sqrt(std::max(0., 1 - cosTheta * cosTheta));
+-  const Acts::Vector3 q = 0.5 * pion.mass *
+-                          Acts::Vector3(sinTheta * std::cos(phi),
+-                                        sinTheta * std::sin(phi), cosTheta);
+-  const double energy = std::hypot(pion.mass, pion.momentum.norm());
+-  const double gamma = energy / pion.mass;
+-  const Acts::Vector3 beta = pion.momentum / energy;
++  const auto momenta = twoBodyDecay(pion.momentum, pion.mass, {0, 0},
++                                    cosTheta, phi);
+   std::array<NuclearInteractionTable::Product, 2> photons;
+   for (std::size_t i = 0; i < photons.size(); ++i) {
+-    const Acts::Vector3 rest = i == 0 ? q : Acts::Vector3(-q);
+     photons[i].pdg = Acts::PdgParticle::eGamma;
+-    photons[i].momentum =
+-        rest + beta * (gamma * gamma / (gamma + 1) * beta.dot(rest) +
+-                       gamma * pion.mass * 0.5);
++    photons[i].momentum = momenta[i];
+   }
+   return photons;
+ }
+diff --git a/Python/Examples/python/simulation.py b/Python/Examples/python/simulation.py
+index a71e2265f5..d0bbd785e3 100644
+--- a/Python/Examples/python/simulation.py
++++ b/Python/Examples/python/simulation.py
+@@ -495,6 +495,7 @@ def addFatras(
+     logLevel: Optional[acts.logging.Level] = None,
+     pTMin: Optional[float] = None,
+     nuclearInteractionTable: Optional[str] = None,
++    enableDecays: bool = False,
+ ) -> None:
+     """This function steers the detector simulation using Fatras
+ 
+@@ -507,7 +508,10 @@ def addFatras(
+     rnd : RandomNumbers
+         random number generator
+     enableInteractions : Enable the particle interactions in the simulation
+-    pMin : Minimum absolute momentum of particles simulated by Fatras
++    enableDecays : Enable native K-short, Lambda/anti-Lambda and prompt pi0 decays.
++        Independent of enableInteractions. Input must contain undecayed generator
++        final states. Supported moving decay parents bypass pMin.
++    pMin : Minimum absolute momentum of other particles simulated by Fatras
+     pTMin : Minimum transverse momentum of charged particles, also during transport
+         Relative to the global z axis; defaults to zero (disabled).
+     nuclearInteractionTable : Path to a calibrated hadronic interaction table
+@@ -538,6 +542,7 @@ def addFatras(
+             emPhotonConversion=enableInteractions,
+             pMin=pMin,
+             pTMin=pTMin,
++            enableDecays=enableDecays,
+             nuclearInteractionTable=(
+                 nuclearInteractionTable if enableInteractions else ""
+             ),
+diff --git a/Python/Examples/src/ExampleAlgorithms.cpp b/Python/Examples/src/ExampleAlgorithms.cpp
+index 38fada12fa..97bdcb8c6f 100644
+--- a/Python/Examples/src/ExampleAlgorithms.cpp
++++ b/Python/Examples/src/ExampleAlgorithms.cpp
+@@ -26,7 +26,7 @@ void addExampleAlgorithms(py::module& mex) {
+   ACTS_PYTHON_DECLARE_ALGORITHM(
+       FatrasSimulation, mex, "FatrasSimulation", inputParticles,
+       outputParticles, outputSimHits, randomNumbers, trackingGeometry,
+-      magneticField, pMin, pTMin, nuclearInteractionTable, emScattering,
++      magneticField, pMin, pTMin, nuclearInteractionTable, enableDecays, emScattering,
+       emEnergyLossIonisation, emEnergyLossRadiation, emPhotonConversion,
+       generateHitsOnSensitive, generateHitsOnMaterial, generateHitsOnPassive,
+       averageHitsPerParticle);
+diff --git a/Python/Fatras/src/Fatras.cpp b/Python/Fatras/src/Fatras.cpp
+index 5b59bce7f6..b55905f2a8 100644
+--- a/Python/Fatras/src/Fatras.cpp
++++ b/Python/Fatras/src/Fatras.cpp
+@@ -76,6 +76,7 @@ PYBIND11_MODULE(ActsFatrasPythonBindings, fatras) {
+       .value("KilledVolumeExit",
+              ActsFatras::SimulationOutcome::KilledVolumeExit)
+       .value("KilledTime", ActsFatras::SimulationOutcome::KilledTime)
++      .value("Decayed", ActsFatras::SimulationOutcome::Decayed)
+       .value("KilledSecondaryParticle",
+              ActsFatras::SimulationOutcome::KilledSecondaryParticle);
+ 
+diff --git a/Tests/IntegrationTests/Fatras/FatrasSimulationTests.cpp b/Tests/IntegrationTests/Fatras/FatrasSimulationTests.cpp
+index eba1c1df65..4a5adc38d2 100644
+--- a/Tests/IntegrationTests/Fatras/FatrasSimulationTests.cpp
++++ b/Tests/IntegrationTests/Fatras/FatrasSimulationTests.cpp
+@@ -21,6 +21,10 @@
+ #include "ActsFatras/Kernel/MultiParticleSimulation.hpp"
+ #include "ActsFatras/Kernel/SingleParticleSimulation.hpp"
+ #include "ActsFatras/Physics/Decay/NoDecay.hpp"
++#include "ActsFatras/Physics/Decay/NativeDecay.hpp"
++#include "ActsFatras/Selectors/DecayParticleSelector.hpp"
++#include "ActsFatras/Selectors/KinematicCasts.hpp"
++#include "ActsFatras/Selectors/SelectorHelpers.hpp"
+ #include "ActsFatras/Physics/StandardInteractions.hpp"
+ #include "ActsFatras/Selectors/ParticleSelectors.hpp"
+ #include "ActsFatras/Selectors/SurfaceSelectors.hpp"
+@@ -370,3 +374,119 @@ BOOST_AUTO_TEST_CASE(NuclearDaughtersProduceHitsAndTerminateParent) {
+     BOOST_CHECK(containsParticleId(initial, hit));
+   }
+ }
++
++
++BOOST_AUTO_TEST_CASE(NativeDecayVertexFollowsSampledLifetime) {
++  auto geoCtx = GeometryContext::dangerouslyDefaultConstruct();
++  MagneticFieldContext magCtx;
++  CylindricalTrackingGeometry builder(geoCtx);
++  auto geometry = builder();
++  using NS = SingleParticleSimulation<NeutralPropagator, InteractionList<>,
++                                      NoSurface, NativeDecay>;
++  NS simulation(NeutralPropagator(NeutralStepper(), Navigator({geometry})),
++                getDefaultLogger("NativeDecay", Logging::WARNING));
++  simulation.maxStepSize = 1_m;
++  simulation.pathLimit = 10_m;
++  for (auto pdg : {PdgParticle::eKaon0Short, PdgParticle::eLambda0,
++                    static_cast<PdgParticle>(-PdgParticle::eLambda0)}) {
++    std::size_t decayed = 0;
++    for (double p : {0.01_GeV, 0.1_GeV, 1_GeV, 10_GeV}) {
++      for (unsigned seed = 0; seed < 16; ++seed) {
++        Particle parent(Barcode().withParticle(1), pdg);
++        parent.setAbsoluteMomentum(p).setDirection(1, 0, 0)
++            .setPosition4(0, 0, 0, 5_mm).setProperTime(7_mm);
++        Generator rng(seed), reference(seed);
++        const double age = simulation.decay.generateProperTimeLimit(reference, parent);
++        const double elapsed = age - parent.properTime();
++        const double distance = elapsed * p / parent.mass();
++        const auto result = simulation.simulate(geoCtx, magCtx, rng, parent);
++        BOOST_REQUIRE(result.ok());
++        if (result->particle.outcome() != SimulationOutcome::Decayed) {
++          // World exit before the sampled decay must not produce daughters.
++          BOOST_CHECK(result->generatedParticles.empty());
++          BOOST_CHECK_LT(result->particle.position().norm(), distance);
++          continue;
++        }
++        ++decayed;
++        BOOST_CHECK(!result->isAlive);
++        CHECK_CLOSE_ABS(result->particle.position(), Vector3(distance, 0, 0), 1e-6);
++        CHECK_CLOSE_ABS(result->particle.properTime(), age, 1e-6);
++        CHECK_CLOSE_ABS(result->particle.time(),
++                         parent.time() + elapsed * parent.energy() / parent.mass(), 1e-6);
++        BOOST_REQUIRE_EQUAL(result->generatedParticles.size(), 2u);
++        for (const auto& daughter : result->generatedParticles) {
++          BOOST_CHECK_EQUAL(daughter.fourPosition(), result->particle.fourPosition());
++        }
++      }
++    }
++    BOOST_CHECK_GT(decayed, 32u);
++  }
++}
++
++BOOST_AUTO_TEST_CASE(NativeDecayCascadeTruthAndSecondaryHits) {
++  auto geoCtx = GeometryContext::dangerouslyDefaultConstruct();
++  MagneticFieldContext magCtx;
++  CylindricalTrackingGeometry builder(geoCtx);
++  auto geometry = builder();
++  using Cut = Min<Casts::P>;
++  using CS = SingleParticleSimulation<ChargedPropagator, InteractionList<>,
++                                      EverySurface, NoDecay, Cut>;
++  using NS = SingleParticleSimulation<NeutralPropagator, InteractionList<>,
++                                      NoSurface, NativeDecay>;
++  using SelectNeutral = DecayParticleSelector<NativeDecay, Cut>;
++  auto field = std::make_shared<ConstantBField>(Vector3::Zero());
++  MultiParticleSimulation<Cut, CS, SelectNeutral, NS> simulation(
++      CS(ChargedPropagator(ChargedStepper(field), Navigator({geometry})),
++         getDefaultLogger("Charged", Logging::WARNING)),
++      NS(NeutralPropagator(NeutralStepper(), Navigator({geometry})),
++         getDefaultLogger("Neutral", Logging::WARNING)));
++  simulation.selectCharged.valMin = 50_MeV;
++  simulation.charged.selectParticle = simulation.selectCharged;
++  simulation.selectNeutral.selectStable.valMin = 50_MeV;
++  simulation.charged.pathLimit = 2_m;
++  simulation.neutral.pathLimit = 2_m;
++  std::vector<Particle> input;
++  for (std::size_t i = 1; i <= 120; ++i) {
++    const std::array pdgs{PdgParticle::eKaon0Short, PdgParticle::eLambda0,
++                          static_cast<PdgParticle>(-PdgParticle::eLambda0)};
++    input.push_back(Particle(Barcode().withParticle(i), pdgs[i % 3])
++        .setDirection(1, 0, 0).setAbsoluteMomentum(1_MeV));
++  }
++  std::vector<Particle> initial, final;
++  std::vector<Hit> hits;
++  Generator rng(42);
++  const auto result = simulation.simulate(geoCtx, magCtx, rng, input, initial, final, hits);
++  BOOST_REQUIRE(result.ok());
++  BOOST_REQUIRE(result->empty());
++  BOOST_CHECK_GT(hits.size(), 0u);
++  BOOST_CHECK_EQUAL(initial.size(), final.size());
++  std::size_t pions = 0, cascadePhotons = 0;
++  for (std::size_t i = 0; i < initial.size(); ++i) {
++    const auto& particle = initial[i];
++    if (particle.particleId().generation() == 0) {
++      BOOST_CHECK_EQUAL(final[i].outcome(), SimulationOutcome::Decayed);
++    } else {
++      const auto parent = std::find_if(final.begin(), final.end(), [&](const auto& p) {
++        return p.particleId() == particle.parentParticleId();
++      });
++      BOOST_REQUIRE(parent != final.end());
++      BOOST_CHECK_EQUAL(particle.fourPosition(), parent->fourPosition());
++      BOOST_CHECK_EQUAL(particle.process(), GenerationProcess::eDecay);
++    }
++    if (particle.pdg() == PdgParticle::ePionZero) {
++      ++pions;
++      BOOST_CHECK_EQUAL(final[i].outcome(), SimulationOutcome::Decayed);
++      BOOST_CHECK_EQUAL(final[i].fourPosition(), particle.fourPosition());
++    }
++    cascadePhotons += particle.pdg() == PdgParticle::eGamma &&
++                      particle.particleId().generation() == 2;
++  }
++  BOOST_CHECK_GT(pions, 0u);
++  BOOST_CHECK_GT(cascadePhotons, 0u);
++  sortByParticleId(initial);
++  BOOST_CHECK(areParticleIdsUnique(initial));
++  for (const auto& hit : hits) {
++    BOOST_CHECK_GT(hit.particleId().generation(), 0u);
++    BOOST_CHECK(containsParticleId(initial, hit));
++  }
++}
+diff --git a/Tests/UnitTests/Fatras/Physics/CMakeLists.txt b/Tests/UnitTests/Fatras/Physics/CMakeLists.txt
+index cdba936ce5..75428325df 100644
+--- a/Tests/UnitTests/Fatras/Physics/CMakeLists.txt
++++ b/Tests/UnitTests/Fatras/Physics/CMakeLists.txt
+@@ -5,6 +5,7 @@ add_unittest(FatrasBetheHeitler BetheHeitlerTests.cpp)
+ add_unittest(FatrasScattering ScatteringTests.cpp)
+ add_unittest(FatrasPhotonConversion PhotonConversionTests.cpp)
+ add_unittest(FatrasNuclearInteraction NuclearInteractionTests.cpp)
++add_unittest(FatrasNativeDecay NativeDecayTests.cpp)
+ 
+ if(ACTS_BUILD_FATRAS_GEANT4)
+     set(unittest_extra_libraries Acts::FatrasGeant4)
+diff --git a/docs/groups/fatras.md b/docs/groups/fatras.md
+index 608a867465..439c9b551e 100644
+--- a/docs/groups/fatras.md
++++ b/docs/groups/fatras.md
+@@ -34,13 +34,22 @@ addFatras(
+ )
+ ```
+ 
+-These cuts are illustrative, not tuned defaults. `pMin` applies to all input and
+-secondary particles; `pTMin` applies only to charged particles and is also checked
++These cuts are illustrative, not tuned defaults. `pMin` applies to input and
++secondary particles except supported neutral parents when decays are enabled; `pTMin` applies only to charged particles and is also checked
+ during transport. `enableInteractions=False` disables the hadronic model along
+ with the EM processes. Supplying an unreadable or invalid table fails algorithm
+ construction. Unsupported table regions do not generate nuclear interactions,
+ so material and momentum coverage must be validated for the intended detector.
+ 
++## Optional native decays
++
++Set `enableDecays=True` in `addFatras` (or the C++ Examples configuration) to
++simulate displaced K-short and Lambda/anti-Lambda decays, plus prompt pi0 decay.
++Both charged and neutral channels are included. No Geant4 runtime is required.
++See @ref fatras_decays for the physics approximations, acceptance and generator
++input contract. Decays are disabled by default and configured independently of
++material interactions.
++
+ ## Barcode identifiers {#fatras_barcode_identifiers}
+ 
+ Fatras labels simulated particles and hits with @ref ActsFatras::Barcode. A
+diff --git a/docs/pages/fatras_hadronic.md b/docs/pages/fatras_hadronic.md
+index 2c965acfa0..aeb2b14892 100644
+--- a/docs/pages/fatras_hadronic.md
++++ b/docs/pages/fatras_hadronic.md
+@@ -146,11 +146,11 @@ Geant4 likewise separates the cross-section calculation from the final-state
+ model; see its [hadronic physics description](https://geant4.web.cern.ch/documentation/dev/bftd_html/ForToolkitDeveloper/GuideToExtendFunctionality/HadronicPhysics/hadronics.html).
+ The reference model is an offline calibration choice, not a runtime dependency.
+ 
+-## Decay roadmap
+-
+-The replaceable Fatras decay interface does not require Geant4. A native module
+-can sample proper lifetimes, branching fractions and exact two-body kinematics,
+-starting with K-short and Lambda/anti-Lambda. More complicated channels require
+-appropriate multi-body and angular distributions, with polarization handled
+-explicitly when relevant. `Geant4Decay` can remain an optional reference adapter.
+-This is separate from the prompt pi0 handling included in the nuclear process.
++## Native decays
++
++The optional @ref fatras_decays model samples proper lifetimes and two-body
++channels for K-short and Lambda/anti-Lambda without Geant4. Enable it separately
++with `enableDecays=True` to decay supported products of nuclear interactions as
++well as generator inputs. Its prompt pi0 channel shares the kinematics utility
++with the nuclear process; hadronic pi0 decays remain folded into the nuclear
++vertex. `Geant4Decay` remains an optional reference adapter.
