@@ -1,0 +1,296 @@
+diff --git a/Core/src/Geometry/Layer.cpp b/Core/src/Geometry/Layer.cpp
+index 0417ae2440..47b6233670 100644
+--- a/Core/src/Geometry/Layer.cpp
++++ b/Core/src/Geometry/Layer.cpp
+@@ -21,6 +21,18 @@
+ #include <algorithm>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++struct IntersectPhaseGuard {
++  int previous;
++  explicit IntersectPhaseGuard(int phase) : previous(g_intersectPhase) { g_intersectPhase = phase; }
++  ~IntersectPhaseGuard() { g_intersectPhase = previous; }
++};
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ Layer::Layer(std::unique_ptr<SurfaceArray> surfaceArray, double thickness,
+@@ -116,6 +128,7 @@ void Layer::closeGeometry(const IMaterialDecorator* materialDecorator,
+ boost::container::small_vector<NavigationTarget, 10> Layer::compatibleSurfaces(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const NavigationOptions<Surface>& options) const {
++  detail::IntersectPhaseGuard intersectPhaseGuard(5);
+   // the list of valid intersection
+   boost::container::small_vector<NavigationTarget, 10> surfaceIntersections;
+ 
+diff --git a/Core/src/Geometry/TrackingVolume.cpp b/Core/src/Geometry/TrackingVolume.cpp
+index 1c21d8e309..8121c806a6 100644
+--- a/Core/src/Geometry/TrackingVolume.cpp
++++ b/Core/src/Geometry/TrackingVolume.cpp
+@@ -34,6 +34,18 @@
+ 
+ #include <boost/container/small_vector.hpp>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++struct IntersectPhaseGuard {
++  int previous;
++  explicit IntersectPhaseGuard(int phase) : previous(g_intersectPhase) { g_intersectPhase = phase; }
++  ~IntersectPhaseGuard() { g_intersectPhase = previous; }
++};
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ TrackingVolume::TrackingVolume(
+@@ -361,6 +373,7 @@ TrackingVolume::compatibleBoundaries(const GeometryContext& gctx,
+                                      const Vector3& direction,
+                                      const NavigationOptions<Surface>& options,
+                                      const Logger& logger) const {
++  detail::IntersectPhaseGuard intersectPhaseGuard(6);
+   ACTS_VERBOSE("Finding compatibleBoundaries");
+ 
+   boost::container::small_vector<NavigationTarget, 4> targets;
+@@ -443,6 +456,7 @@ boost::container::small_vector<NavigationTarget, 10>
+ TrackingVolume::compatibleLayers(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const NavigationOptions<Layer>& options) const {
++  detail::IntersectPhaseGuard intersectPhaseGuard(4);
+   // the layer intersections which are valid
+   boost::container::small_vector<NavigationTarget, 10> targets;
+ 
+diff --git a/Core/src/Navigation/NavigationStream.cpp b/Core/src/Navigation/NavigationStream.cpp
+index 8dfb22e484..fea4c18b7c 100644
+--- a/Core/src/Navigation/NavigationStream.cpp
++++ b/Core/src/Navigation/NavigationStream.cpp
+@@ -16,6 +16,18 @@
+ 
+ #include <algorithm>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++struct IntersectPhaseGuard {
++  int previous;
++  explicit IntersectPhaseGuard(int phase) : previous(g_intersectPhase) { g_intersectPhase = phase; }
++  ~IntersectPhaseGuard() { g_intersectPhase = previous; }
++};
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ bool NavigationStream::initialize(const GeometryContext& gctx,
+@@ -23,6 +35,7 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
+                                   const Logger& logger,
+                                   const double onSurfaceTolerance,
+                                   const bool candidatesAreUnique) {
++  detail::IntersectPhaseGuard intersectPhaseGuard(9);
+   // Position and direction from the query point
+   const Vector3& position = queryPoint.position;
+   const Vector3& direction = queryPoint.direction;
+@@ -58,10 +71,12 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
+   for (auto& candidate : m_candidates) {
+     // Get the surface from the object intersection
+     const Surface& surface = candidate.surface();
++    detail::g_intersectPhase = candidate.isPortalTarget() ? 7 : 8;
+     // Intersect the surface
+     auto multiIntersection =
+         surface.intersect(gctx, position, direction,
+                           candidate.boundaryTolerance(), onSurfaceTolerance);
++    detail::g_intersectPhase = 9;
+ 
+     bool firstValid = multiIntersection.at(0).isValid();
+     bool secondValid = multiIntersection.at(1).isValid();
+@@ -138,6 +153,7 @@ bool NavigationStream::initialize(const GeometryContext& gctx,
+ bool NavigationStream::update(const GeometryContext& gctx,
+                               const QueryPoint& queryPoint,
+                               const Logger& logger, double onSurfaceTolerance) {
++  detail::IntersectPhaseGuard intersectPhaseGuard(9);
+   ACTS_VERBOSE("Update from position " << toString(queryPoint.position)
+                                        << " and direction "
+                                        << toString(queryPoint.direction));
+diff --git a/Core/src/Surfaces/ConeSurface.cpp b/Core/src/Surfaces/ConeSurface.cpp
+index 68e88b6499..25437cc28d 100644
+--- a/Core/src/Surfaces/ConeSurface.cpp
++++ b/Core/src/Surfaces/ConeSurface.cpp
+@@ -27,6 +27,13 @@
+ #include <utility>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ using VectorHelpers::perp;
+@@ -281,6 +288,7 @@ MultiIntersection3D ConeSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   // Solve the quadratic equation
+   auto qe = intersectionSolver(gctx, position, direction);
+ 
+diff --git a/Core/src/Surfaces/CylinderSurface.cpp b/Core/src/Surfaces/CylinderSurface.cpp
+index f32bb00dc0..e527085ca8 100644
+--- a/Core/src/Surfaces/CylinderSurface.cpp
++++ b/Core/src/Surfaces/CylinderSurface.cpp
+@@ -33,6 +33,13 @@
+ #include <utility>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ using VectorHelpers::perp;
+@@ -221,6 +228,7 @@ MultiIntersection3D CylinderSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   const auto& gctxTransform = localToGlobalTransform(gctx);
+ 
+   // Solve the quadratic equation
+diff --git a/Core/src/Surfaces/DiscSurface.cpp b/Core/src/Surfaces/DiscSurface.cpp
+index 7c23903bb7..0d15864efe 100644
+--- a/Core/src/Surfaces/DiscSurface.cpp
++++ b/Core/src/Surfaces/DiscSurface.cpp
+@@ -34,6 +34,13 @@
+ #include <utility>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ using VectorHelpers::perp;
+@@ -268,6 +275,7 @@ MultiIntersection3D DiscSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   // Get the contextual transform
+   const Transform3& gctxTransform = localToGlobalTransform(gctx);
+   // Use the intersection helper for planar surfaces
+diff --git a/Core/src/Surfaces/LineSurface.cpp b/Core/src/Surfaces/LineSurface.cpp
+index 6afd839a1b..e138f5e2fd 100644
+--- a/Core/src/Surfaces/LineSurface.cpp
++++ b/Core/src/Surfaces/LineSurface.cpp
+@@ -23,6 +23,13 @@
+ #include <limits>
+ #include <utility>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ LineSurface::LineSurface(const Transform3& transform, double radius,
+@@ -143,6 +150,7 @@ MultiIntersection3D LineSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   // The nomenclature is following the header file and doxygen documentation
+ 
+   const Vector3& ma = position;
+diff --git a/Core/src/Surfaces/PlaneSurface.cpp b/Core/src/Surfaces/PlaneSurface.cpp
+index a907906dbe..c411c7e56e 100644
+--- a/Core/src/Surfaces/PlaneSurface.cpp
++++ b/Core/src/Surfaces/PlaneSurface.cpp
+@@ -32,6 +32,13 @@
+ #include <utility>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ PlaneSurface::PlaneSurface(const PlaneSurface& other)
+@@ -170,6 +177,7 @@ MultiIntersection3D PlaneSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   // Get the contextual transform
+   const auto& gctxTransform = localToGlobalTransform(gctx);
+   // Use the intersection helper for planar surfaces
+diff --git a/Core/src/Surfaces/PointSurface.cpp b/Core/src/Surfaces/PointSurface.cpp
+index ace7c08bc7..854490a967 100644
+--- a/Core/src/Surfaces/PointSurface.cpp
++++ b/Core/src/Surfaces/PointSurface.cpp
+@@ -26,6 +26,13 @@
+ #include <utility>
+ #include <vector>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++extern std::size_t g_intersectCount[10];
++extern int g_intersectPhase;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ namespace {
+@@ -109,6 +116,7 @@ MultiIntersection3D PointSurface::intersect(
+     const GeometryContext& gctx, const Vector3& position,
+     const Vector3& direction, const BoundaryTolerance& boundaryTolerance,
+     double tolerance) const {
++  ++detail::g_intersectCount[detail::g_intersectPhase];
+   // The point (center) and the track ray (position, direction)
+   const Vector3 pc = center(gctx);
+ 
+diff --git a/Core/src/Surfaces/Surface.cpp b/Core/src/Surfaces/Surface.cpp
+index c75e15cced..8843d71a7d 100644
+--- a/Core/src/Surfaces/Surface.cpp
++++ b/Core/src/Surfaces/Surface.cpp
+@@ -20,6 +20,13 @@
+ #include <set>
+ #include <utility>
+ 
++
++namespace Acts::detail {
++// Temporary instrumentation: intersection call counter per navigation phase
++__attribute__((visibility("default"))) std::size_t g_intersectCount[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
++__attribute__((visibility("default"))) int g_intersectPhase = 0;
++}  // namespace Acts::detail
++
+ namespace Acts {
+ 
+ Surface::Surface(const Transform3& transform)
