@@ -1,0 +1,194 @@
+<header class="top">
+  <span class="eyebrow">ACTS · CKF · 23.10.2026 · branch proto-ckf-scattering-tail</span>
+  <h1>CKF scattering tail prototype</h1>
+  <p>Four ways to let the CKF accept a hit after a non-Gaussian scatter, compared with the plain Gaussian CKF at a tight and at inflated chi2 cuts. ODD, ttbar with &lt;μ&gt; = 200, Fatras with the general mixture scattering model, %EVENTS% events.</p>
+</header>
+
+<section id="verdict">
+  <h2>Verdict</h2>
+  <div class="verdict">
+    <p><b>Do not stay with the inflated chi2 cut.</b> At every fake rate, a tail treatment at the tight cut 15/25 finds more tail tracks than an inflated cut. It also fits them better, and it uses less CPU than the 49/100 cut.</p>
+    <p><b>The mixture is the most promising candidate overall.</b> It reaches the tail efficiency of the 25/50 cut (93.7 %, against 90.4 % at 15/25) with no extra fakes (0.204 %). It is the only candidate that makes the pulls correct: the q/p pull q68 is 0.99 for the no-tail tracks and 1.34 for the tail tracks, against 1.12 and 1.59 for the baseline. The CPU cost is +18 % for the CKF.</p>
+    <p><b>The retry gets the most tail efficiency</b> (95.2 %, close to the 95.8 % of 49/100) at a fake rate of 0.26 % instead of 0.69 %, for +14 % CKF time. It needs no API change, so it is the cheapest step to put into ACTS.</p>
+    <p>Retry + branch adds fakes and CPU for 0.15 points of efficiency. Select-only gives the worst tail pulls of all configurations, which shows that the update must open the covariance to capture the kink.</p>
+  </div>
+</section>
+
+<section id="configurations">
+  <h2>Configurations</h2>
+  <p>Each button shows or hides that configuration in the summary table and in all charts. The same buttons stay at the top of the screen while you scroll. C is the predicted covariance of the Gaussian core, D the extra covariance of the scattering tail.</p>
+  <div class="cfglist"></div>
+</section>
+
+<div class="chips" aria-label="Show or hide configurations"></div>
+
+<section id="summary">
+  <h2>Summary</h2>
+  <p>All candidates use the tight cut 15/25 (measurement / outlier chi2). The baselines have no tail treatment. Green marks the best value in a row where a direction is clear. Tail primaries are %TAILFRAC% of the %NPRIM% selected primaries.</p>
+  <div data-chart="summary"></div>
+  <div class="figrow">
+    <div class="figure"><div class="chart" data-chart="tradeoff"></div><p class="caption">Each point is one configuration; hover a point for its name and values. The colours match the buttons above. The baseline cut scan (15/25 to 49/100) shows what an inflated cut buys. A candidate is useful if it lies above and to the left of that curve.</p></div>
+    <div class="figure"><div class="chart" data-chart="cputradeoff"></div><p class="caption">The same efficiency against the CKF time per event, single thread, mean of the timing runs. Hover a point for its name and values.</p></div>
+  </div>
+</section>
+
+<section id="setup">
+  <h2>Setup</h2>
+  <ul>
+    <li>Chain as <code>full_chain_odd.py --ttbar</code>: Pythia8 ttbar with 200 pile-up, Fatras, smearing digitization, default triplet seeding, two-way CKF, greedy ambiguity resolution. Numbers are after the ambiguity resolution.</li>
+    <li>Fatras uses <code>GeneralMixture</code> scattering (Frühwirth–Liendl) instead of Highland. The KF keeps the Highland Gaussian. For thin silicon the truth core is 1.10× Highland, and 0.7–0.9 % of the crossings are beyond 4× Highland.</li>
+    <li>Truth tail flag: Fatras records every scatter with a projected angle above 3× Highland. A primary is a <em>tail primary</em> if at least one scatter is above %RATIO%× Highland at ρ &gt; %RHOMIN% mm, which is inside the tracker.</li>
+    <li>Efficiency: primaries with pT &gt; 1 GeV, |η| &lt; 3, ≥ 9 measurements, matched by <code>TrackTruthMatcher</code>. Fake rate: tracks classified as fake. Resolution: matched tracks, q68 is the 68 % quantile of |residual|.</li>
+    <li>CPU: <code>TrackFindingAlgorithm</code> time per event, single thread, 20 events per run, configurations interleaved and repeated. Same machine, RelWithDebInfo with forced assertions.</li>
+  </ul>
+</section>
+
+<section id="model">
+  <h2>Tail model</h2>
+  <p>The reconstruction needs a tail weight ε and a tail width k for each crossing. A two-Gaussian fit (EM, 2M samples) to the Fatras semi-Gaussian model of one projected angle gives both as a function of x/X0. The CKF interpolates this table in ln(x/X0). The model uses Z = 14 and β = 1 for every material.</p>
+  <div class="figrow">
+    <div class="figure"><div class="chart" data-chart="model"></div><p class="caption">The two-Gaussian fit reproduces the fraction beyond 4× Highland to within 10 %. The Highland Gaussian that the KF uses has almost nothing there.</p></div>
+    <div class="figure" style="align-content:start"><div data-chart="modeltable"></div><p class="caption">k is in units of the Highland width, so the tail variance is k² times the KF scattering variance.</p></div>
+  </div>
+</section>
+
+<section id="implementation">
+  <h2>Implementation</h2>
+  <ul>
+    <li><code>detail::ScatteringTailState</code> in the CKF result holds Σ ε<sub>i</sub> D<sub>i</sub> and Σ ε<sub>i</sub> since the last accepted measurement. Each material interaction adds D<sub>i</sub> = (k² − 1) Q<sub>i</sub>. The tail covariance is the ε-weighted mean D = Σ ε<sub>i</sub> D<sub>i</sub> / Σ ε<sub>i</sub>, because one scatterer is assumed to be in the tail.</li>
+    <li>The state is transported with the segment jacobian that <code>filter()</code> already has: one 6×6 sandwich per surface. It is reset after each accepted measurement and when a branch restarts.</li>
+    <li>A gate skips the tail when D adds less than 5 % to the predicted loc0 and loc1 variance.</li>
+    <li><b>Retry</b>: if the core selection gives a hole or an outlier, call the track state creator again with C + D. The update then uses C + D.</li>
+    <li><b>Retry + branch</b>: as retry, but the hole or outlier stays as a second branch.</li>
+    <li><b>Select only</b>: as retry, but the update uses C. This is the "inflate only the selection" option.</li>
+    <li><b>Mixture</b>: one selection with χ²<sub>mix</sub> = −2 ln[(1−ε) N(r; S<sub>c</sub>) + ε N(r; S<sub>t</sub>)], shifted so that it equals the core chi2 for a small residual. Each selected state gets the posterior covariance C + w<sub>t</sub> D, with the posterior tail weight w<sub>t</sub>. New delegates <code>createTrackStatesWithTail</code> and <code>MeasurementSelector::selectWithTail</code>.</li>
+    <li>Each state stores the chi2 that the selection used; the track chi2 stays the Kalman sum.</li>
+  </ul>
+</section>
+
+<section id="efficiency">
+  <h2>Efficiency</h2>
+  <div class="figure">
+    <div class="controls">
+      <div class="seg" data-state="effSel"><button type="button" data-v="tail">Tail primaries</button><button type="button" data-v="core">No-tail primaries</button></div>
+      <div class="seg" data-state="effVar"><button type="button" data-v="pt">vs pT</button><button type="button" data-v="eta">vs η</button></div>
+    </div>
+    <div class="chart" data-chart="eff"></div>
+  </div>
+  <ul>
+    <li>The tail efficiency of the 15/25 baseline falls to 88 % at 1 GeV, because there the scattering dominates the prediction error. All treatments recover most of this loss. Below 5 GeV the order is the same in every bin: retry + branch ≈ retry &gt; select only &gt; mixture &gt; 15/25. Above 5 GeV all configurations agree within the errors.</li>
+    <li>The no-tail efficiency also rises by 0.2–0.3 points with every treatment. These particles have scatters just below the 4× threshold of the truth flag, or several medium scatters.</li>
+    <li>The retry has the most efficiency because it accepts any hit that passes 15/25 under C + D. The mixture also pays the prior penalty −2 ln[ε/(1−ε)] and the det term ln(det S<sub>t</sub>/det S<sub>c</sub>), so the tail must describe a hit clearly better than the core does.</li>
+  </ul>
+</section>
+
+<section id="fakes">
+  <h2>Fake rate</h2>
+  <div class="figure">
+    <div class="controls"><div class="seg" data-state="fakeVar"><button type="button" data-v="pt">vs pT</button><button type="button" data-v="eta">vs η</button></div></div>
+    <div class="chart" data-chart="fake"></div>
+  </div>
+  <ul>
+    <li>The mixture keeps the fake rate of 15/25 (0.204 % against 0.208 %). Select only adds 0.01 points, retry 0.06, retry + branch 0.12. The inflated cut adds 0.03 (25/50), 0.16 (35/70) and 0.48 points (49/100).</li>
+    <li>The inflated cut adds fakes in every pT bin. The largest absolute rise is at 1–1.5 GeV (0.30 % to 1.03 % for 49/100). Above 5 GeV, where 15/25 has almost no fakes, 49/100 has about 0.4 %.</li>
+  </ul>
+</section>
+
+<section id="resolution">
+  <h2>Resolution and pulls</h2>
+  <div class="figrow">
+    <div class="figure">
+      <div class="controls"><div class="seg" data-state="resMetric">
+        <button type="button" data-v="pull_eQOP_q68">q/p pull</button><button type="button" data-v="pull_eQOP_gt5">q/p pull &gt; 5</button><button type="button" data-v="pull_eLOC0_q68">d0 pull</button><button type="button" data-v="qop_rel_q68">q/p res.</button><button type="button" data-v="d0_q68_um">d0 res.</button><button type="button" data-v="z0_q68_um">z0 res.</button>
+      </div></div>
+      <div class="chart" data-chart="res"></div>
+    </div>
+    <div class="figure">
+      <div class="controls"><div class="seg" data-state="dist">
+        <button type="button" data-v="pullqop_tail">q/p pull</button><button type="button" data-v="pulld0_tail">d0 pull</button><button type="button" data-v="d0_tail">d0 residual</button>
+      </div></div>
+      <div class="chart" data-chart="dist"></div>
+    </div>
+  </div>
+  <ul>
+    <li>An inflated cut accepts the tail hit but keeps the core covariance, so the fit must absorb the kink with the other parameters. The q/p pull q68 of tail tracks grows from 1.59 (15/25) to 1.69 (49/100). This is the bias the design note expected.</li>
+    <li>Retry and retry + branch update with C + D and lower the tail q/p pull q68 to 1.56, and the fraction beyond 5σ from 2.25 % to 1.62 %. Select only uses the same hits but updates with C, and gives 1.65 and 2.70 %, the worst of all.</li>
+    <li>The mixture gives 1.34 and 0.93 %. It also brings the no-tail q/p pull q68 from 1.12 to 0.99. The likely reason: the truth core is 1.10× Highland, so the plain KF is slightly too confident, and the small posterior tail weight on every hit adds the missing variance. This is not verified separately.</li>
+    <li>The d0 residual q68 of tail tracks is 64–65 µm with every treatment, against 67 µm for 15/25. The no-tail resolution does not change.</li>
+  </ul>
+</section>
+
+<section id="pvalues">
+  <h2>p-values</h2>
+  <div class="figrow">
+    <div class="figure">
+      <div class="controls"><div class="seg" data-state="pv">
+        <button type="button" data-v="state_tail">state, tail</button><button type="button" data-v="state_core">state, no tail</button><button type="button" data-v="state_all">state, all</button><button type="button" data-v="track_tail">track, tail</button><button type="button" data-v="track_core">track, no tail</button><button type="button" data-v="track_all">track, all</button>
+      </div></div>
+      <div class="chart" data-chart="pv"></div>
+    </div>
+    <div class="figure">
+      <div class="controls"><div class="seg" data-state="pvLog"><button type="button" data-v="state_all">state</button><button type="button" data-v="track_all">track</button></div></div>
+      <div class="chart" data-chart="pvlog"></div>
+    </div>
+  </div>
+  <p class="caption">State p-value: the predicted chi2 that the selection used (mixture: χ²<sub>mix</sub>; select only: the chi2 with C + D), with ndf = measurement dimension (pixel 3 incl. time, short strip 2, long strip 1). The three innermost measurements of each track are left out, because the wide seed covariance absorbs them with a chi2 near 0. Track p-value: the Kalman chi2Sum with NDF − 6. The first measurements fix the 6 track parameters (time included) from the wide seed covariance and add almost no chi2, so NDF alone pushes the p-value towards 1.</p>
+  <ul>
+    <li>The state p-value of the selection has an excess at low p for all configurations; it is the scattering tail. The inflated cuts extend it down to 1e-11, so 1.46 % of the non-seed states of 49/100 have p &lt; 1e-3, against 0.21 % for 15/25.</li>
+    <li>The track p-value shows the cost of the inflated cut most clearly: 8.0 % of the 49/100 tracks have p &lt; 1e-3, and 5.3 % of the 35/70 tracks, against 1.2 % for 15/25, 1.0 % for the mixture and 2.4 % for the retry. A later p-value cut on the CKF chi2 would remove the tail tracks again that the inflated cut found.</li>
+    <li>The mixture gives the best calibrated track chi2: chi2 / (NDF − 6) is 1.04 for matched tracks, and its track p-value is almost flat. 15/25 has 1.10 and a falling slope, because the KF core (Highland) is 10 % narrower than the truth core. 49/100 has 1.27 and a spike at p ≈ 0 from the accepted tail hits.</li>
+    <li>Per state, chi2/ndf is 1.00–1.03 for the mixture, 1.02–1.12 for 15/25 and 1.14–1.30 for 49/100 (states 4 and later from the inside). The three innermost states have 0.41: they absorb the track parameters.</li>
+  </ul>
+</section>
+
+<section id="cpu">
+  <h2>CPU</h2>
+  <div class="figure"><div class="chart" data-chart="cpu"></div></div>
+  <ul>
+    <li>Baseline 15/25: 2.13 s per event. Every looser setting costs CPU, because more branches survive and branches live longer. The inflated cut costs +7.8 % (25/50), +14.0 % (35/70) and +24.7 % (49/100).</li>
+    <li>Select only +12.4 %, retry +13.9 %, mixture +18.5 %, retry + branch +20.1 %. The repeated runs agree within 1.5 %; the 15/25 and 49/100 anchors of the two timing sessions agree within 1.5 %.</li>
+    <li>The tail bookkeeping itself is cheap: one 6×6 sandwich per surface. The likely main cost is the extra branches that the tail keeps alive; this is not profiled. The retry accepts 8 200 tail states per event, but the output has only 901 tracks per event (17 more than 15/25), so most tail states sit on branches that are dropped later.</li>
+    <li>The mixture prototype computes the core and the tail chi2 and two determinants for every candidate when the gate passes, and gives every selected state its own prediction. A lazy tail term (only when the core chi2 is large) should remove part of its extra 4.6 points over the retry. Not measured.</li>
+  </ul>
+</section>
+
+<section id="conclusion">
+  <h2>Conclusion</h2>
+  <div class="verdict">
+    <p><b>Stay with the inflated cut?</b> No. On this sample the inflated cut is the worst way to buy tail efficiency. Each step from 15/25 to 49/100 adds fakes, makes the tail pulls worse and spoils the track p-value: 8.0 % of the 49/100 tracks have p &lt; 1e-3, against 1.2 % for 15/25. It is also not cheap: 35/70 costs as much CPU as the retry, and 49/100 costs more than any treatment.</p>
+  </div>
+  <div class="tablewrap prose"><table>
+    <thead><tr><th>Candidate</th><th>Compared with the inflated cut at the same CPU or efficiency</th><th>Assessment</th></tr></thead>
+    <tbody>
+      <tr><td>Mixture</td><td>Same tail efficiency as 25/50 (93.7 % against 93.6 %), fewer fakes (0.204 % against 0.234 %), q/p pull q68 1.34 against 1.62. Costs +18.5 % against +7.8 %.</td><td><b>Most promising overall.</b> The only candidate with correct pulls and track p-values. Needs the API change and CPU work.</td></tr>
+      <tr><td>Retry</td><td>Same CPU as 35/70 (+13.9 % against +14.0 %), more tail efficiency (95.2 % against 94.9 %), fewer fakes (0.263 % against 0.372 %), q/p pull q68 1.56 against 1.65.</td><td><b>Best first step.</b> Most efficiency per CPU, no API change.</td></tr>
+      <tr><td>Retry + branch</td><td>+0.15 points of tail efficiency over the retry for +0.065 points of fakes and +6 points of CPU.</td><td>Not worth it.</td></tr>
+      <tr><td>Select only</td><td>Efficiency between mixture and retry, but tail q/p pulls worse than 49/100 (2.70 % beyond 5σ).</td><td>Rejected. The update must open the covariance.</td></tr>
+    </tbody>
+  </table></div>
+  <ol class="steps">
+    <li>Run the mixture with a looser cut (25/50) to see if it reaches the retry efficiency and keeps its pulls and fakes. It may dominate the retry at the same CPU.</li>
+    <li>Make the mixture tail term lazy and measure the CPU again.</li>
+    <li>Test robustness: simulate with a different scattering model or material than the reconstruction tail model assumes.</li>
+    <li>Repeat on ITk (Athena), where no refit follows the CKF, so the pulls of the CKF output matter directly.</li>
+  </ol>
+</section>
+
+<section id="caveats">
+  <h2>Caveats</h2>
+  <ul>
+    <li>The simulation and the reconstruction tail model come from the same Fatras model. Real material, other Z and low β change ε and k. The result shows what a correct tail model gives, not how robust it is to a wrong one.</li>
+    <li>One sample, one detector, one seeding. The statistical errors are small (tail efficiency ± 0.2 points), but all configurations share the events, so the differences are more significant than the errors suggest.</li>
+    <li>The CKF time includes the forced assertions of the dev3 build. The relative numbers should hold, the absolute ones are not production numbers.</li>
+    <li>The truth flag uses a projected angle above 4× Highland. Tail primaries with a scatter just below the threshold count as no-tail, which is why the no-tail efficiency also moves.</li>
+  </ul>
+</section>
+
+<section id="files">
+  <h2>Files</h2>
+  <ul>
+    <li>Code: acts dev3, branch <code>proto-ckf-scattering-tail</code> (Core: <code>CombinatorialKalmanFilter.hpp</code>, <code>detail/ScatteringTail.hpp</code>, <code>TrackStateCreator.hpp</code>, <code>MeasurementSelector.*</code>; Fatras recorder and <code>GeneralMixture</code> switch; Examples wiring).</li>
+    <li>Scripts: <code>~/cern/scripts/acts/ckf-scattering-tail/</code> (<code>run.py</code>, <code>run_all.sh</code>, <code>run_scan.sh</code>, <code>timing.sh</code>, <code>fitmix.py</code>, <code>analyze.py</code>, <code>make_report.py</code>).</li>
+    <li>Design note: <code>2026-10-23_ckf-scattering-tail-second-covariance.md</code>.</li>
+  </ul>
+</section>
