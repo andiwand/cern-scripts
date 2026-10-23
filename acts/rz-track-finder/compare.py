@@ -62,6 +62,8 @@ def main():
     p.add_argument("--window-sigmas", type=float, default=5.0)
     p.add_argument("--max-per-layer", type=int, default=2)
     p.add_argument("--qop-scale", type=float, default=1.0)
+    p.add_argument("--material-tables", action="store_true", help="RZ: tabulated material effects per band")
+    p.add_argument("--batch", type=int, default=0, help="RZ: seeds followed in lockstep, stop by stop (0 = one at a time)")
     args = p.parse_args()
 
     out = args.out
@@ -205,6 +207,8 @@ def main():
             maxHoles=args.max_holes,
             maxConsecutiveHoles=args.max_consecutive_holes,
             windowSigmas=args.window_sigmas,
+            materialTables=args.material_tables,
+            batchSize=args.batch,
             maxMeasurementsPerLayer=args.max_per_layer,
             backwardQOverPScale=args.qop_scale,
         )
