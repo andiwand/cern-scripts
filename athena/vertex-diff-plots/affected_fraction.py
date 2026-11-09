@@ -28,6 +28,9 @@ import numpy as np
 # nev_cmp is what diff-root compared, not what the job reconstructed: q449
 # reco'd 100 events but diff-root stops at 60, so its counts are a ~60% sample
 # and are expected to undershoot the measured value.
+# These counts are for athena!90327 only. For another MR, take the
+# PrimaryVerticesAux.trackWeights / .covariance counts from its CI log,
+# or ignore the CI_* columns.
 CI = {
     'q442': dict(test='RecoRun2Data',        nev_cmp=25,  cov=341, tw=403),
     'q452': dict(test='RecoRun2MC',          nev_cmp=25,  cov=26,  tw=27),

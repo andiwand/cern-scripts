@@ -4,6 +4,14 @@
 #   ./run_all.sh [workdir]              # default workdir: $PWD
 #   SAMPLES="q454 q449" ./run_all.sh    # restrict the set
 #
+# Other MRs: set the CI output folder and the reference versions
+# (from Tools/WorkflowTestRunner/python/References.py of the MR), e.g.
+#   EOS_DIR=/eos/atlas/atlascerngroupdisk/proj-ascig/gitlabci/MR92328_<sha> \
+#   REF_VERSIONS="q442=v131 q452=v98 q449=v191 q454=v118 q447=v48" ./run_all.sh
+# EOS_DIR can also be a local copy with the same layout,
+# <dir>/<test>/myAOD.pool.root, for hosts without the EOS FUSE mount:
+#   EOS_MGM_URL=root://eosatlas.cern.ch eos cp <eos>/<test>/myAOD.pool.root <dir>/<test>/
+#
 # Reads the CI outputs saved on EOS by the frozen-Tier0 check and the matching
 # references on cvmfs.  No reco re-run needed.
 #
@@ -22,19 +30,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORK="${1:-$PWD}"
 mkdir -p "$WORK/npz" "$WORK/plots"
 
-EOS=/eos/atlas/atlascerngroupdisk/proj-ascig/gitlabci/MR90327_39b6a18ac8b5f4c87c88b10b285298eae939f267
+EOS="${EOS_DIR:-/eos/atlas/atlascerngroupdisk/proj-ascig/gitlabci/MR90327_39b6a18ac8b5f4c87c88b10b285298eae939f267}"
 REF=/cvmfs/atlas-nightlies.cern.ch/repo/data/data-art/WorkflowReferences/main
+# Reference versions of athena!90327; override with REF_VERSIONS.
+declare -A REFV=( [q442]=v123 [q452]=v88 [q449]=v184 [q454]=v112 [q447]=v11 )
+for kv in ${REF_VERSIONS:-}; do REFV[${kv%%=*}]=${kv#*=}; done
 
 declare -A NEWF=( [q442]=$EOS/RecoRun2Data/myAOD.pool.root
                   [q452]=$EOS/RecoRun2MC/myAOD.pool.root
                   [q449]=$EOS/RecoRun3Data_Checks/myAOD.pool.root
                   [q454]=$EOS/RecoRun3MC/myAOD.pool.root
                   [q447]=$EOS/RecoRun4MC/myAOD.pool.root )
-declare -A REFF=( [q442]=$REF/q442/v123/myAOD.pool.root
-                  [q452]=$REF/q452/v88/myAOD.pool.root
-                  [q449]=$REF/q449/v184/myAOD.pool.root
-                  [q454]=$REF/q454/v112/myAOD.pool.root
-                  [q447]=$REF/q447/v11/myAOD.pool.root )
+declare -A REFF
+for s in q442 q452 q449 q454 q447; do REFF[$s]=$REF/$s/${REFV[$s]}/myAOD.pool.root; done
 
 SAMPLES="${SAMPLES:-q442 q452 q449 q454 q447}"
 
@@ -80,6 +88,7 @@ echo "== comparing"
            "$s" "$WORK/plots/$s" || exit 1
   done
   python "$HERE/affected_fraction.py" "$WORK/npz" | tee "$WORK/plots/affected_fraction.txt"
+  python "$HERE/swapcheck.py" "$WORK/npz" $SAMPLES | tee "$WORK/plots/swapcheck.txt"
 ) || exit 1
 
 cat "$WORK"/plots/*/summary.md > "$WORK/plots/ALL_summary.md"
