@@ -30,6 +30,7 @@ Scripts:
 - `cycle3.sh`, `cycle4.sh` - `cycle2.sh` on `run2.sh` / `run3.sh`
 - `tracean.py <trace>` - failure rate and hole classes of pure seeds; `failclass.py <trace> [--recoverable]` - cause
   per failing seed; `tracecmp.py <retry trace>` - full attempt vs recovering sub-seed
-- `fakes.py dir...` - fake rate from truthMatchProbability over all tracks; `fakes4.py <dir>` - 4-SP seed composition
+- `fakes.py dir...` - fake rate from truthMatchProbability over all tracks; `fakes4.py <dir>` - 4-SP seed composition;
+  `seedpurity.py <dump>` - seed purity by size (any pixel seeder), layer-skipping 4-SP seeds
 - `timesum2.py <dir> <ref> <variant>...` - per-algorithm CPU normalised to ActsPixelClusterizationAlg
 - `acts_unittests.sh` - ACTS seeding unit tests on `acts-pr/` (PR https://github.com/acts-project/acts/pull/6552)
