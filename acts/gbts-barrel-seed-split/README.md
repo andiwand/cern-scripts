@@ -13,3 +13,11 @@ suite + `Tests/Benchmarks/SeedEtaReport.hpp`), built Release in
 - `agg.py <file>`: sums the per-|eta| report over events.
 
 Grid reference: `ActsBenchmarkGridTripletSeeding --layout itk --seed $s --runs 1`.
+
+## Connection table (note `acts/notebook/2026-11-17_gbts-connection-table.md`)
+
+- Athena table: `run.sh athena --connection-table <athena>/Trigger/TrigAlgorithms/TrigFastTrackFinder/share/binTables_ITK_RUN4.txt`
+- Hand-written table: `run.sh hand --connection-table none`
+- Learn the shipped ITk table (branch default, reproduces `Fatras/data/itk-gbts-connections.txt`):
+  `ActsBenchmarkGbtsSeeding --layout itk --train-connection-table out.txt`
+  (100 events, seeds 1001+, primaries pT > 0.9 GeV, adjacent + skip-one links, kept if seen >= 1000 times)
