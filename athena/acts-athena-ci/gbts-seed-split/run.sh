@@ -8,6 +8,7 @@ R=$A/run/gbts-seed-split/$TAG; mkdir -p $R
 T="cfg.getEventAlgo('ActsPixelSeedingAlg').SeedTool"
 S="cfg.getEventAlgo('ActsStripSeedingAlg').SeedTool"
 F="cfg.getEventAlgo('ActsTrackFindingAlg')"
+TR="$F.traceFile='trace.txt';"
 D="cfg.getEventAlgo('ActsTrackFindingAlg').SeedDestiny=['ActsPixelSeedsDestiny','ActsStripSeedsDestiny'];from AthenaConfiguration.ComponentFactory import CompFactory;cfg.addEventAlgo(CompFactory.ActsTrk.GbtsSplitDiagAlg());"
 P() { echo "[setattr(t, k, v) for t in cfg.getEventAlgo('ActsTrackFindingAlg').TrackParamsEstimationTool if t.name == 'PixelTrackParamsEstimationTool' for k, v in $1.items()];"; }
 post() {   # variant -> postExec
@@ -32,10 +33,22 @@ post() {   # variant -> postExec
     off-retry06)    echo "$T.maxSeedSplitEta=0.0;$F.retrySubSeedsMinSize=4;$F.retrySubSeedsMaxAbsEta=0.6;";;
     off-retry)      echo "$T.maxSeedSplitEta=0.0;$F.retrySubSeedsMinSize=4;";;
     on-retry)       echo "$F.retrySubSeedsMinSize=4;";;
+    tr)        echo "$T.maxSeedSplitEta=0.0;$TR";;
+    tr-retry)  echo "$T.maxSeedSplitEta=0.0;$F.retrySubSeedsMinSize=4;$F.retrySubSeedsMaxAbsEta=0.6;$TR";;
+    tr-covT)   echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [0.25, 0.25, 0.25, 0.25, 0.25, 1.]}")";;
+    tr-covL)   echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [4., 4., 4., 4., 4., 1.]}")";;
+    tr-covL4)  echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [16., 16., 16., 16., 16., 1.]}")";;
+    tr-chi5|tr-chi9|tr-chi12|tr-holes2) echo "$T.maxSeedSplitEta=0.0;$TR";;
     *) return 1;;
   esac
 }
-pre() { case $1 in *-nf) echo "flags.Acts.forceTrackOnSeed=False;";; *) echo "";; esac; }
+pre() { case $1 in
+  *-nf) echo "flags.Acts.forceTrackOnSeed=False;";;
+  tr-chi5)  echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[5.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[10.];";;
+  tr-chi9)  echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];";;
+  tr-chi12) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[12.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[15.];";;
+  tr-holes2) echo "flags.Tracking.ITkActsPass.maxHoles=[2];";;
+  *) echo "";; esac; }
 run() {
   local v=$1 p; p=$(post $v) || { echo "bad variant $v"; return; }
   d=$R/$v; rm -rf $d; mkdir -p $d
