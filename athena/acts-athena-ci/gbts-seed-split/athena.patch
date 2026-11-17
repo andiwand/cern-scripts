@@ -1,0 +1,292 @@
+diff --git a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
+index fff05e58d76..a47cf619230 100644
+--- a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
++++ b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
+@@ -35,7 +35,9 @@ atlas_add_component( ActsPatternRecognition
+                TrkParameters
+                TrkSpacePoint
+                xAODInDetMeasurement
+-               xAODTracking )
++               xAODTracking
++               xAODTruth
++               TruthUtils )
+ 
+ 
+ 
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.cxx b/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.cxx
+index c091a40ded0..57d23dc0ecc 100644
+--- a/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.cxx
++++ b/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.cxx
+@@ -279,6 +279,10 @@ namespace ActsTrk {
+     m_graphCfg.tauRatioCut = m_tauRatioCut; 
+     m_graphCfg.tauRatioPrecut = m_tauRatioPrecut;
+     m_finderCfg.hitShareThreshold = m_hitShareThreshold;
++    m_finderCfg.maxSeedSplitEta = m_maxSeedSplitEta;
++    m_finderCfg.maxInvRadDiff = m_maxInvRadDiff;
++    m_finderCfg.minSplitSeedSize = m_minSplitSeedSize;
++    m_finderCfg.maxSplitSeedSize = m_maxSplitSeedSize;
+     m_finderCfg.maxEndcapClusterWidth = m_maxEndcapClusterwidth;
+     m_graphCfg.d0Max = m_d0Max;
+ 
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.h b/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.h
+index 85b4c54be2b..0d9dc042982 100644
+--- a/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.h
++++ b/Tracking/Acts/ActsPatternRecognition/src/GbtsSeedingTool.h
+@@ -167,6 +167,10 @@ namespace ActsTrk {
+     Gaudi::Property<float> m_addHit {this, "addHit", 14.0, "reward added to tracks for each accepted hit before chi2"};
+     Gaudi::Property<float> m_maxCurvature {this, "maxCurvature", 1e-3f, "maximum curvature allowed for candiadte tracklet"};
+     Gaudi::Property<float> m_filterMaxZ0 {this, "filterMaxZ0", 170.0, "maximum z0 allowed for candidate tracklet"};
++    Gaudi::Property<float> m_maxSeedSplitEta {this, "maxSeedSplitEta", 0.6, "max |eta| of a seed considered for splitting into drop-out candidates, 0 disables the split"};
++    Gaudi::Property<float> m_maxInvRadDiff {this, "maxInvRadDiff", 0.7e-5, "max 1/(2R) difference [1/mm] between the sub-triplets of a seed before it is split"};
++    Gaudi::Property<unsigned int> m_minSplitSeedSize {this, "minSplitSeedSize", 4, "smallest seed size that is split"};
++    Gaudi::Property<unsigned int> m_maxSplitSeedSize {this, "maxSplitSeedSize", 5, "largest seed size that is split"};
+     Gaudi::Property<float> m_hitShareThreshold {this, "hitShareThreshold", 0.49, "threshold of hits that are shared between seeds before one seed is labelled a clone"};
+ 
+     // GbtsNodeStorage
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.cxx b/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.cxx
+new file mode 100644
+index 00000000000..2afb4fbd45e
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.cxx
+@@ -0,0 +1,91 @@
++/*
++  Copyright (C) 2002-2026 CERN for the benefit of the ATLAS collaboration
++*/
++#include "GbtsSplitDiagAlg.h"
++#include "TruthUtils/MagicNumbers.h"
++#include <array>
++#include <cmath>
++#include <iomanip>
++
++namespace {
++// GraphBasedTrackSeeder::estimateCurvature (ACTS v48.5.0), 1/(2R) in 1/mm
++float curvature(const std::array<const xAOD::SpacePoint*, 3>& n) {
++  const float x0 = n[2]->x(), y0 = n[2]->y();
++  const float r0 = std::hypot(x0, y0);
++  const float cosA = x0 / r0, sinA = y0 / r0;
++  std::array<float, 2> u{}, v{};
++  for (int k = 0; k < 2; ++k) {
++    const float dx = n[k]->x() - x0, dy = n[k]->y() - y0;
++    const float r2Inv = 1.0f / (dx * dx + dy * dy);
++    u[k] = (dx * cosA + dy * sinA) * r2Inv;
++    v[k] = (-dx * sinA + dy * cosA) * r2Inv;
++  }
++  const float du = u[0] - u[1];
++  if (du == 0.f) return 0.f;
++  const float A = (v[0] - v[1]) / du;
++  const float B = v[1] - A * u[1];
++  return B / std::sqrt(1 + A * A);
++}
++}
++
++namespace ActsTrk {
++StatusCode GbtsSplitDiagAlg::initialize() {
++  ATH_CHECK(m_seedsKey.initialize());
++  ATH_CHECK(m_truthKey.initialize());
++  ATH_CHECK(m_destinyKey.initialize(!m_destinyKey.empty()));
++  m_out.open(m_outFile.value());
++  return StatusCode::SUCCESS;
++}
++StatusCode GbtsSplitDiagAlg::finalize() { m_out.close(); return StatusCode::SUCCESS; }
++
++StatusCode GbtsSplitDiagAlg::execute(const EventContext& ctx) const {
++  SG::ReadHandle<ActsTrk::SeedContainer> seeds(m_seedsKey, ctx);
++  SG::ReadHandle<ActsTrk::MeasurementToTruthParticleAssociation> truth(m_truthKey, ctx);
++  ATH_CHECK(seeds.isValid());
++  ATH_CHECK(truth.isValid());
++  const std::vector<int>* destiny = nullptr;
++  if (!m_destinyKey.empty()) {
++    SG::ReadHandle<std::vector<int>> dh(m_destinyKey, ctx);
++    ATH_CHECK(dh.isValid());
++    destiny = dh.cptr();
++  }
++  const auto ev = ctx.eventID().event_number();
++  std::lock_guard<std::mutex> lock(m_mutex);
++  m_out << std::setprecision(7);
++  for (std::size_t is = 0; is < seeds->size(); ++is) {
++    const ActsTrk::Seed seed = seeds->at(is);
++    const auto& sps = seed.sp();
++    const std::size_t n = sps.size();
++    const xAOD::SpacePoint* a = sps.front();
++    const xAOD::SpacePoint* b = sps.back();
++    const float dr = std::hypot(b->x(), b->y()) - std::hypot(a->x(), a->y());
++    const float eta = std::asinh((b->z() - a->z()) / dr);
++    if (std::abs(eta) > m_maxAbsEta) continue;
++    // S ev seedIdx n eta invR0 invR1 invR2   (three sub-triplets as in the ACTS split check; 0 if n<4)
++    std::array<float, 3> inv{0, 0, 0};
++    if (n >= 4) {
++      std::vector<const xAOD::SpacePoint*> d1(sps.begin() + 1, sps.end()), d2;
++      for (std::size_t k = 0; k < n; ++k) if (k != n / 2) d2.push_back(sps[k]);
++      inv[0] = curvature({sps[0], sps[n / 2], sps[n - 1]});
++      inv[1] = curvature({d1[0], d1[(n - 1) / 2], d1[n - 2]});
++      inv[2] = curvature({d2[0], d2[(n - 1) / 2], d2[n - 2]});
++    }
++    m_out << "S " << ev << ' ' << is << ' ' << n << ' ' << eta << ' ' << inv[0] << ' ' << inv[1] << ' ' << inv[2];
++    // per SP: r phi z | ncontrib uid pt eta (first contributor) [uid2]
++    for (const xAOD::SpacePoint* sp : sps) {
++      m_out << " | " << std::hypot(sp->x(), sp->y()) << ' ' << std::atan2(sp->y(), sp->x()) << ' ' << sp->z();
++      const xAOD::UncalibratedMeasurement* meas = sp->measurements().front();
++      const auto& tps = truth->at(meas->index());
++      m_out << ' ' << tps.size();
++      for (std::size_t k = 0; k < std::min<std::size_t>(tps.size(), 2); ++k) {
++        const xAOD::TruthParticle* tp = tps[k];
++        if (tp) m_out << ' ' << HepMC::uniqueID(tp) << ' ' << tp->pt() << ' ' << tp->eta();
++        else m_out << " -1 0 0";
++      }
++    }
++    // destiny: 0 unknown, 1 succeed, 2 duplicate, 3 failure, -1 not stored
++    m_out << " | D " << (destiny ? destiny->at(is) : -1) << '\n';
++  }
++  return StatusCode::SUCCESS;
++}
++}
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.h b/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.h
+new file mode 100644
+index 00000000000..d63416c8824
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/GbtsSplitDiagAlg.h
+@@ -0,0 +1,32 @@
++/*
++  Copyright (C) 2002-2026 CERN for the benefit of the ATLAS collaboration
++*/
++// Throwaway diagnostic: GBTS seed split check + space point truth, one line per seed.
++#ifndef ACTSTRK_GBTSSPLITDIAGALG_H
++#define ACTSTRK_GBTSSPLITDIAGALG_H
++
++#include "AthenaBaseComps/AthReentrantAlgorithm.h"
++#include "StoreGate/ReadHandleKey.h"
++#include "ActsEvent/SeedContainer.h"
++#include "ActsEvent/MeasurementToTruthParticleAssociation.h"
++#include <fstream>
++#include <mutex>
++
++namespace ActsTrk {
++class GbtsSplitDiagAlg final : public AthReentrantAlgorithm {
++ public:
++  using AthReentrantAlgorithm::AthReentrantAlgorithm;
++  virtual StatusCode initialize() override;
++  virtual StatusCode execute(const EventContext& ctx) const override;
++  virtual StatusCode finalize() override;
++ private:
++  SG::ReadHandleKey<ActsTrk::SeedContainer> m_seedsKey{this, "InputSeeds", "ActsPixelSeeds"};
++  SG::ReadHandleKey<ActsTrk::MeasurementToTruthParticleAssociation> m_truthKey{this, "PixelTruthAssociationMap", "ITkPixelClustersToTruthParticles"};
++  SG::ReadHandleKey<std::vector<int>> m_destinyKey{this, "SeedDestiny", "ActsPixelSeedsDestiny"};
++  Gaudi::Property<std::string> m_outFile{this, "OutputFile", "gbtssplit.txt"};
++  Gaudi::Property<float> m_maxAbsEta{this, "MaxAbsEta", 0.8};
++  mutable std::mutex m_mutex;
++  mutable std::ofstream m_out;
++};
++}
++#endif
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
+index 12fa129afe4..d8046bbaf21 100644
+--- a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
++++ b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
+@@ -8,6 +8,7 @@
+ // Tools
+ #include "src/GbtsLayerTool.h"
+ #include "src/GbtsSeedingTool.h"
++#include "src/GbtsSplitDiagAlg.h"
+ #include "src/GnnSeedingTool.h"
+ #include "src/GridTripletSeedingTool.h"
+ #include "src/TrackParamsEstimationTool.h"
+@@ -21,3 +22,4 @@ DECLARE_COMPONENT(ActsTrk::GbtsSeedingTool)
+ DECLARE_COMPONENT(ActsTrk::GnnSeedingTool)
+ DECLARE_COMPONENT(ActsTrk::TrackParamsEstimationTool)
+ DECLARE_COMPONENT(ActsTrk::GridTripletSeedingTool)
++DECLARE_COMPONENT( ActsTrk::GbtsSplitDiagAlg )
+diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
+index 67da80389e0..c180a1e5f55 100644
+--- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
++++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
+@@ -144,6 +144,10 @@ namespace ActsTrk
+   // === finalize ============================================================
+ 
+   StatusCode TrackFindingAlg::finalize() {
++    if (m_retrySubSeedsMinSize > 0) {
++      ATH_MSG_INFO("Sub-seed retry: seeds " << m_nRetrySeeds << ", attempts " << m_nRetryAttempts
++                   << ", recovered " << m_nRetryRecovered);
++    }
+     ATH_CHECK(TrackFindingBaseAlg::finalize());
+     return StatusCode::SUCCESS;
+   }
+@@ -641,6 +645,47 @@ namespace ActsTrk
+                 *optTrackParams));
+         }
+ 
++        // Fallback for seeds the CKF could not follow: retry with sub-seeds
++        if (ntracks == 0 && m_retrySubSeedsMinSize > 0 && seed.sp().size() >= m_retrySubSeedsMinSize &&
++            std::abs(etaInitial) < m_retrySubSeedsMaxAbsEta) {
++          ++m_nRetrySeeds;
++          const auto sps = seed.sp();
++          const std::size_t nSp = sps.size();
++          for (const std::size_t drop : std::array<std::size_t, 2>{0ul, nSp / 2}) {
++            std::vector<const xAOD::SpacePoint*> subSps;
++            subSps.reserve(nSp - 1);
++            for (std::size_t k = 0; k < nSp; ++k) {
++              if (k != drop) subSps.push_back(sps[k]);
++            }
++            ActsTrk::SeedContainer subContainer;
++            const ActsTrk::Seed subSeed = subContainer.push_back(
++              ActsTrk::SpacePointRange(subSps.data(), subSps.size()), seed.quality(), seed.vertexZ());
++            const auto& [subParams, subStatus] =
++              m_paramEstimationTool[typeIndex]->estimateTrackParameters(subSeed,
++                                                                        detContext.geometry,
++                                                                        detContext.magField,
++                                                                        detContext.calib,
++                                                                        retrieveSurfaceFunction);
++            if (!subParams) continue;
++            ++m_nRetryAttempts;
++            tracksContainerTemp.clear();
++            auto subRangesForced =
++              m_forceTrackOnSeed ? measurements.createMeasurementRangesForced(subSeed, measurementIndex)
++                                 : std::unique_ptr<ActsTrk::detail::MeasurementRangeListFlat>();
++            measurementSelector->setMeasurementRangesForced(subRangesForced.get());
++            ATH_CHECK(runTrackFinder<TrackFinderOptions>(
++                detContext, pSurface, extrapolationStrategy, sharedHits, actsTracksContainer,
++                measurementIndex, tracksContainerTemp, seedDeduplicator, destiny, event_stat,
++                ntracks, iseed, category_i, seedType, trackCategories, options, secondOptions,
++                *subParams));
++            measurementSelector->setMeasurementRangesForced(nullptr);
++            if (ntracks > 0) {
++              ++m_nRetryRecovered;
++              break;
++            }
++          }
++        }
++
+         if (m_storeDestinies) {
+           if (ntracks == 0) {
+             destiny->at(iseed) = DestinyType::FAILURE;
+diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
+index f1c9101bf9d..b1be2a7fa87 100644
+--- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
++++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
+@@ -7,6 +7,7 @@
+ 
+ // Base Class
+ #include "src/TrackFindingBaseAlg.h"
++#include <atomic>
+ 
+ // ACTS
+ #include "Acts/TrackFinding/TrackStateCreator.hpp"
+@@ -38,6 +39,7 @@
+ #include "src/detail/Definitions.h"
+ #include "src/detail/MeasurementIndex.h"
+ 
++#include <atomic>
+ namespace ActsTrk
+ {
+   using AtlUncalibSourceLinkAccessor = detail::UncalibSourceLinkAccessor;
+@@ -139,6 +141,11 @@ namespace ActsTrk
+     Gaudi::Property<unsigned int> m_seedMeasOffset{this,"seedMeasOffset", 0, "Reduce the requirement on the space points on seed to mark a seed as duplicate, e.g seedMeasOffset=1, only N-1 measurements on seed are sufficient deduplicate the seed"};
+     Gaudi::Property<bool> m_countSharedHits{this, "countSharedHits", true, "add shared hit flags to tracks"};
+     Gaudi::Property<bool> m_forceTrackOnSeed{this, "forceTrackOnSeed", true, "force track to use measurements from the seed"};
++    Gaudi::Property<unsigned int> m_retrySubSeedsMinSize{this, "retrySubSeedsMinSize", 0u,
++      "If > 0: when the CKF finds no track for a seed with at least this many space points, retry with the seed "
++      "without its first and then without its middle space point (what the GBTS seed split emits up front)"};
++    Gaudi::Property<double> m_retrySubSeedsMaxAbsEta{this, "retrySubSeedsMaxAbsEta", 100., "only retry seeds with |eta| below this"};
++    mutable std::atomic<std::size_t> m_nRetrySeeds{0}, m_nRetryAttempts{0}, m_nRetryRecovered{0};
+ 
+ 
+     // Ambiguity resolution
