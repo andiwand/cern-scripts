@@ -1,8 +1,8 @@
 diff --git a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
-index fff05e58d76..70c83193206 100644
+index fff05e58d76..1c0a00fd103 100644
 --- a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
 +++ b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
-@@ -33,9 +33,15 @@ atlas_add_component( ActsPatternRecognition
+@@ -33,9 +33,17 @@ atlas_add_component( ActsPatternRecognition
                 StoreGateLib
                 TrkEventUtils
                 TrkParameters
@@ -11,6 +11,8 @@ index fff05e58d76..70c83193206 100644
 +               TrkPrepRawData
 +               TrkSurfaces
                 TrkSpacePoint
++               TrkTruthData
++               GeneratorObjects
                 xAODInDetMeasurement
 -               xAODTracking )
 +               xAODTracking
@@ -266,25 +268,195 @@ index 00000000000..d64ce59658d
 +  mutable std::ofstream m_out;
 +};
 +}
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx
+new file mode 100644
+index 00000000000..2e151dbf3f4
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx
+@@ -0,0 +1,117 @@
++#include "src/SeedTruthDumpAlg.h"
++#include "xAODMeasurementBase/UncalibratedMeasurement.h"
++#include "xAODInDetMeasurement/SpacePoint.h"
++#include "xAODTruth/TruthParticle.h"
++#include "TrkPrepRawData/PrepRawData.h"
++#include "TruthUtils/MagicNumbers.h"
++#include <cmath>
++#include <set>
++#include <map>
++#include <sstream>
++namespace ActsTrk {
++StatusCode SeedTruthDumpAlg::initialize() {
++  ATH_CHECK(m_seedKeys.initialize(!m_legacy));
++  ATH_CHECK(m_xspKeys.initialize(!m_legacy));
++  ATH_CHECK(m_pixTruthKey.initialize(!m_legacy));
++  ATH_CHECK(m_strTruthKey.initialize(!m_legacy));
++  ATH_CHECK(m_spKeys.initialize(m_legacy));
++  ATH_CHECK(m_overlapKey.initialize(m_legacy && !m_overlapKey.key().empty()));
++  ATH_CHECK(m_prdPixTruthKey.initialize(m_legacy));
++  ATH_CHECK(m_prdStrTruthKey.initialize(m_legacy));
++  m_out.open(m_file.value());
++  return StatusCode::SUCCESS;
++}
++StatusCode SeedTruthDumpAlg::finalize() { m_out.close(); return StatusCode::SUCCESS; }
++
++StatusCode SeedTruthDumpAlg::execute(const EventContext& ctx) const {
++  std::ostringstream o;
++  const auto ev = ctx.eventID().event_number();
++  if (!m_legacy) {
++    // one line per seed with a single truth particle on every measurement: "P ev key nsp uid pt eta"
++    SG::ReadHandle<ActsTrk::MeasurementToTruthParticleAssociation> hp(m_pixTruthKey, ctx), hs(m_strTruthKey, ctx);
++    ATH_CHECK(hp.isValid()); ATH_CHECK(hs.isValid());
++    auto truthOf = [&](const xAOD::UncalibratedMeasurement* m) -> const xAOD::TruthParticle* {
++      const auto* map = m->type() == xAOD::UncalibMeasType::PixelClusterType ? hp.cptr() : hs.cptr();
++      if (m->index() >= map->size()) return nullptr;
++      const auto& v = map->at(m->index());
++      return v.empty() ? nullptr : v[0];
++    };
++    for (std::size_t ik = 0; ik < m_seedKeys.size(); ++ik) {
++      SG::ReadHandle<ActsTrk::SeedContainer> h(m_seedKeys[ik], ctx);
++      ATH_CHECK(h.isValid());
++      std::set<const xAOD::TruthParticle*> done;
++      for (const ActsTrk::Seed seed : *h) {
++        const xAOD::TruthParticle* tp = nullptr; bool pure = true; std::size_t nsp = 0;
++        for (const xAOD::SpacePoint* sp : seed.sp()) {
++          ++nsp;
++          for (const auto* m : sp->measurements()) {
++            const auto* t = truthOf(m);
++            if (!t || (tp && t != tp)) { pure = false; break; }
++            tp = t;
++          }
++          if (!pure) break;
++        }
++        if (!pure || !tp || std::abs(tp->eta()) > m_maxAbsEta || !done.insert(tp).second) continue;
++        o << "P " << ev << ' ' << ik << ' ' << nsp << ' ' << tp->uid() << ' ' << tp->pt() << ' ' << tp->eta() << '\n';
++      }
++    }
++    // space points with one truth particle: "Q ev x y z uid pt eta" (to match legacy seeds by position)
++    for (const auto& k : m_xspKeys) {
++      SG::ReadHandle<xAOD::SpacePointContainer> h(k, ctx);
++      ATH_CHECK(h.isValid());
++      for (const xAOD::SpacePoint* sp : *h) {
++        const xAOD::TruthParticle* tp = nullptr; bool pure = true;
++        for (const auto* m : sp->measurements()) {
++          const auto* t = truthOf(m);
++          if (!t || (tp && t != tp)) { pure = false; break; }
++          tp = t;
++        }
++        if (!pure || !tp || std::abs(tp->eta()) > m_maxAbsEta || tp->pt() < 900.) continue;
++        const auto g = sp->globalPosition();
++        o << "Q " << ev << ' ' << g.x() << ' ' << g.y() << ' ' << g.z() << ' ' << tp->uid() << ' ' << tp->pt() << ' ' << tp->eta() << '\n';
++      }
++    }
++  } else {
++    // one line per space point whose clusters share one truth particle: "Q ev x y z uid pt eta"
++    SG::ReadHandle<PRD_MultiTruthCollection> tp(m_prdPixTruthKey, ctx), ts(m_prdStrTruthKey, ctx);
++    ATH_CHECK(tp.isValid()); ATH_CHECK(ts.isValid());
++    auto parts = [&](const Trk::PrepRawData* prd, const PRD_MultiTruthCollection& c) {
++      std::map<int, std::pair<double, double>> r;
++      auto range = c.equal_range(prd->identify());
++      for (auto it = range.first; it != range.second; ++it) {
++        const auto& link = it->second;
++        auto gp = link.cptr();
++        if (!gp) continue;
++        r[HepMC::uniqueID(link)] = {gp->momentum().perp(), gp->momentum().pseudoRapidity()};
++      }
++      return r;
++    };
++    auto dump = [&](const Trk::SpacePoint* sp) {
++      const auto& g = sp->globalPosition();
++      const auto& cl = sp->clusterList();
++      const bool pix = cl.second == nullptr;
++      auto a = parts(cl.first, pix ? *tp : *ts);
++      if (!pix) {
++        auto b = parts(cl.second, *ts);
++        for (auto it = a.begin(); it != a.end();) it = b.contains(it->first) ? std::next(it) : a.erase(it);
++      }
++      for (const auto& [uid, pe] : a)
++        if (std::abs(pe.second) < m_maxAbsEta && pe.first > 900.)  // the particle, not the SP position (vertex z spread)
++        o << "Q " << ev << ' ' << g.x() << ' ' << g.y() << ' ' << g.z() << ' ' << uid << ' ' << pe.first << ' ' << pe.second << '\n';
++    };
++    for (const auto& k : m_spKeys) {
++      SG::ReadHandle<SpacePointContainer> h(k, ctx);
++      ATH_CHECK(h.isValid());
++      for (const SpacePointCollection* coll : *h) for (const Trk::SpacePoint* sp : *coll) dump(sp);
++    }
++    if (!m_overlapKey.key().empty()) {
++      SG::ReadHandle<SpacePointOverlapCollection> h(m_overlapKey, ctx);
++      ATH_CHECK(h.isValid());
++      for (const Trk::SpacePoint* sp : *h) dump(sp);
++    }
++  }
++  std::lock_guard<std::mutex> lock(m_mutex);
++  m_out << o.str();
++  return StatusCode::SUCCESS;
++}
++}
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.h b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.h
+new file mode 100644
+index 00000000000..7616cfa4c99
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.h
+@@ -0,0 +1,39 @@
++// Throwaway: truth content of the ACTS seeds, and truth of the legacy space points (to match the legacy seed
++// ntuple by position), for the GBTS seed split study.
++#pragma once
++#include "AthenaBaseComps/AthReentrantAlgorithm.h"
++#include "StoreGate/ReadHandleKey.h"
++#include "StoreGate/ReadHandleKeyArray.h"
++#include "ActsEvent/SeedContainer.h"
++#include "xAODInDetMeasurement/SpacePointContainer.h"
++#include "ActsEvent/MeasurementToTruthParticleAssociation.h"
++#include "TrkSpacePoint/SpacePointContainer.h"
++#include "TrkSpacePoint/SpacePointOverlapCollection.h"
++#include "TrkTruthData/PRD_MultiTruthCollection.h"
++#include <fstream>
++#include <mutex>
++namespace ActsTrk {
++class SeedTruthDumpAlg : public AthReentrantAlgorithm {
++public:
++  using AthReentrantAlgorithm::AthReentrantAlgorithm;
++  StatusCode initialize() override;
++  StatusCode execute(const EventContext& ctx) const override;
++  StatusCode finalize() override;
++private:
++  // ACTS mode
++  SG::ReadHandleKeyArray<ActsTrk::SeedContainer> m_seedKeys{this, "SeedContainerKeys", {}};
++  SG::ReadHandleKeyArray<xAOD::SpacePointContainer> m_xspKeys{this, "XAODSpacePointKeys", {}};
++  SG::ReadHandleKey<ActsTrk::MeasurementToTruthParticleAssociation> m_pixTruthKey{this, "PixelTruth", "ITkPixelClustersToTruthParticles"};
++  SG::ReadHandleKey<ActsTrk::MeasurementToTruthParticleAssociation> m_strTruthKey{this, "StripTruth", "ITkStripClustersToTruthParticles"};
++  // legacy mode
++  SG::ReadHandleKeyArray<SpacePointContainer> m_spKeys{this, "SpacePointKeys", {}};
++  SG::ReadHandleKey<SpacePointOverlapCollection> m_overlapKey{this, "OverlapSpacePointKey", ""};
++  SG::ReadHandleKey<PRD_MultiTruthCollection> m_prdPixTruthKey{this, "PRDPixelTruth", "PRD_MultiTruthITkPixel"};
++  SG::ReadHandleKey<PRD_MultiTruthCollection> m_prdStrTruthKey{this, "PRDStripTruth", "PRD_MultiTruthITkStrip"};
++  Gaudi::Property<bool> m_legacy{this, "Legacy", false};
++  Gaudi::Property<std::string> m_file{this, "File", "seedtruth.txt"};
++  Gaudi::Property<double> m_maxAbsEta{this, "maxAbsEta", 0.8};
++  mutable std::mutex m_mutex;
++  mutable std::ofstream m_out;
++};
++}
 diff --git a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
-index 12fa129afe4..c9190beafd7 100644
+index 12fa129afe4..879dd558ada 100644
 --- a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
 +++ b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
-@@ -8,6 +8,8 @@
+@@ -8,6 +8,9 @@
  // Tools
  #include "src/GbtsLayerTool.h"
  #include "src/GbtsSeedingTool.h"
 +#include "src/GbtsSplitDiagAlg.h"
 +#include "src/LegacyTrackDumpAlg.h"
++#include "src/SeedTruthDumpAlg.h"
  #include "src/GnnSeedingTool.h"
  #include "src/GridTripletSeedingTool.h"
  #include "src/TrackParamsEstimationTool.h"
-@@ -21,3 +23,5 @@ DECLARE_COMPONENT(ActsTrk::GbtsSeedingTool)
+@@ -21,3 +24,6 @@ DECLARE_COMPONENT(ActsTrk::GbtsSeedingTool)
  DECLARE_COMPONENT(ActsTrk::GnnSeedingTool)
  DECLARE_COMPONENT(ActsTrk::TrackParamsEstimationTool)
  DECLARE_COMPONENT(ActsTrk::GridTripletSeedingTool)
 +DECLARE_COMPONENT( ActsTrk::GbtsSplitDiagAlg )
 +DECLARE_COMPONENT( ActsTrk::LegacyTrackDumpAlg )
++DECLARE_COMPONENT( ActsTrk::SeedTruthDumpAlg )
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
 index 67da80389e0..352d2ed76d3 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx

@@ -41,6 +41,9 @@ post() {   # variant -> postExec
     tr-chi5|tr-chi9|tr-chi12|tr-holes2|tr-chi9-holes2) echo "$T.maxSeedSplitEta=0.0;$TR";;
     legacy)      echo "";;
     legacyd)     echo "from AthenaConfiguration.ComponentFactory import CompFactory;cfg.addEventAlgo(CompFactory.ActsTrk.LegacyTrackDumpAlg());";;
+    seeds)       echo "$T.maxSeedSplitEta=0.0;from AthenaConfiguration.ComponentFactory import CompFactory;cfg.addEventAlgo(CompFactory.ActsTrk.SeedTruthDumpAlg(SeedContainerKeys=['ActsPixelSeeds','ActsStripSeeds'],XAODSpacePointKeys=['ITkPixelSpacePoints','ITkStripSpacePoints','ITkStripOverlapSpacePoints']));";;
+    legacys)     echo "";;
+    legacyn)     echo "from AthenaConfiguration.ComponentFactory import CompFactory;cfg.addEventAlgo(CompFactory.ActsTrk.LegacyTrackDumpAlg());";;
     tr-nav1)     echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.navEdgeTolerance=1.0;";;
     tr-nav2)     echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=2.0;$F.navEdgeTolerance=2.0;";;
     tr-nav1-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.navEdgeTolerance=1.0;$F.branchLayers=[23,2,2,23,4,2];";;
@@ -74,6 +77,8 @@ post() {   # variant -> postExec
 pre() { case $1 in
   *-nf) echo "flags.Acts.forceTrackOnSeed=False;";;
   legacy|legacyd) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;";;
+  legacys) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;flags.Tracking.writeSeedValNtuple=True;";;
+  legacyn) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;flags.Tracking.writeSeedValNtuple=True;flags.Tracking.doITkFastTracking=False;";;
   tr-chi5)  echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[5.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[10.];";;
   tr-chi9-holes2) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];flags.Tracking.ITkActsPass.maxHoles=[2];";;
   tr-br2-chi9|on-br2-chi9) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];";;

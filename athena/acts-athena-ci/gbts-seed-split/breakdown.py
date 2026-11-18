@@ -93,8 +93,9 @@ for k in A:
     if fl is None or fa == fl: continue
     sign = 1 if fl else -1
     p = P.get(k)
-    if p is None: c = "seeding: no traced pixel seed (>= 4 SPs, majority the particle)"
-    elif p["okany"]: c = "after the CKF: a seed made a track, particle not found (resolver / selection / matching)"
+    if sign < 0: c = "ACTS finds, legacy does not (legacy side not diagnosed)"
+    elif p is None: c = "seeding: no ACTS pixel seed of the particle (>= 4 SPs, majority)"
+    elif p["okany"]: c = "after the CKF: an ACTS seed made a track, particle not found (resolver / selection / matching)"
     elif p["ns"] < 9: c = "not reconstructible: < 9 own clusters (interaction)"
     else:
         fl = p["fails"] or p["failany"]
@@ -111,3 +112,9 @@ for c in cs:
     g, l = C[(c, 1)], C[(c, -1)]
     print(f"{c:86s} {g:8d} {l:9d} {100*(g-l)/N:+7.2f}%  " + "  ".join(f"{100*R[(c, n)]/max(g,1):9.0f}%" for n, _ in VF))
 print(f"CKF failures classified through impure or 4-SP seeds only (included above): {sum(SEEDK.values())}")
+# efficiency on the reconstructible denominator: drop particles known to leave < 9 own clusters (traced, ns < 9)
+NR = {k for k in A if k in P and P[k]["ns"] < 9}
+Nr = N - len(NR)
+ea = sum(1 for k in A if A[k] and k not in NR) / Nr; el = sum(1 for k in A if L.get(k) and k not in NR) / Nr
+print(f"reconstructible denominator (drop {len(NR)} particles with < 9 own clusters): {Nr} particles, ACTS {100*ea:.2f}%, legacy {100*el:.2f}%, gap {100*(el-ea):+.2f}%")
+print(f"standard denominator: ACTS {100*sum(A.values())/N:.2f}%, legacy {100*sum(1 for k in A if L.get(k))/N:.2f}%")
