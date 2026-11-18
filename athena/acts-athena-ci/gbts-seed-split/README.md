@@ -35,6 +35,7 @@ Scripts:
   `seedpurity.py <dump>` - seed purity by size (any pixel seeder), layer-skipping 4-SP seeds
 - `deepdive.py <trace> [--rint 600]` - truth breakdown of failing pure seeds: end vertex, continuation, pulls vs truth,
   pixel-helix kink, overlaps (needs the T/E/H/K trace lines of `athena.patch`); `edgecheck.py <trace>` - distance of
-  strip predictions to the surface edge
+  strip predictions to the surface edge; `ownclusters.py <trace>` - own clusters of failing particles vs minClusters;
+  `legacycmp.py <trace> <acts dir> <legacy dir>` - per particle ACTS vs legacy (`run4.sh ... legacy`, splitsum caches)
 - `timesum2.py <dir> <ref> <variant>...` - per-algorithm CPU normalised to ActsPixelClusterizationAlg
 - `acts_unittests.sh` - ACTS seeding unit tests on `acts-pr/` (PR https://github.com/acts-project/acts/pull/6552)

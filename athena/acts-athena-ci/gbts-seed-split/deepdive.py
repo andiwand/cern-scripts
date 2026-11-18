@@ -9,6 +9,7 @@ import numpy as np
 
 fn = sys.argv[1]; NSP = int(sys.argv[sys.argv.index("--n") + 1]) if "--n" in sys.argv else 5
 BZ = 2.0  # T, ITk solenoid; only used for the truth phi at a radius
+MINSURF = int(sys.argv[sys.argv.index("--minsurf") + 1]) if "--minsurf" in sys.argv else 0
 RINT = float(sys.argv[sys.argv.index("--rint") + 1]) if "--rint" in sys.argv else 420.
 
 def geo(v):
@@ -131,6 +132,7 @@ SV = collections.Counter(); ER = collections.Counter(); ER2 = collections.Counte
 C = collections.Counter(); P = collections.defaultdict(list); OV = collections.Counter(); TR = collections.Counter()
 for a in attempts():
     if a["n"] != NSP or not a["pure"] or a["att"] != 0 or a["T"] is None: continue
+    if len({h["geo"] for h in a["H"]}) < MINSURF: continue
     k = cls(a); T = a["T"]; C[k] += 1
     if T["pt"] <= 0: continue
     # truth

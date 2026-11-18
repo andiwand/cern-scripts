@@ -39,6 +39,7 @@ post() {   # variant -> postExec
     tr-covL)   echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [4., 4., 4., 4., 4., 1.]}")";;
     tr-covL4)  echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [16., 16., 16., 16., 16., 1.]}")";;
     tr-chi5|tr-chi9|tr-chi12|tr-holes2|tr-chi9-holes2) echo "$T.maxSeedSplitEta=0.0;$TR";;
+    legacy)      echo "";;
     tr-edge1)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;";;
     tr-edge2)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=2.0;";;
     tr-edge1-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.branchLayers=[23,2,2,23,4,2];";;
@@ -63,6 +64,7 @@ post() {   # variant -> postExec
 }
 pre() { case $1 in
   *-nf) echo "flags.Acts.forceTrackOnSeed=False;";;
+  legacy) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;";;
   tr-chi5)  echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[5.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[10.];";;
   tr-chi9-holes2) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];flags.Tracking.ITkActsPass.maxHoles=[2];";;
   tr-br2-chi9|on-br2-chi9) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];";;
@@ -77,7 +79,7 @@ run() {
   local v=$1 p; p=$(post $v) || { echo "bad variant $v"; return; }
   d=$R/$v; rm -rf $d; mkdir -p $d
   ( cd $d && source ~/scripts/athena/acts-athena-ci/gbts-seed-split/env.sh && \
-    { [ $v = nightly ] || source $A/athena-build-gbtssplit/x86_64-el9-gcc15-opt/setup.sh >/dev/null 2>&1; } && \
+    { [ $v = nightly ] || [ $v = legacy ] || source $A/athena-build-gbtssplit/x86_64-el9-gcc15-opt/setup.sh >/dev/null 2>&1; } && \
     EXTRA_PRE="$(pre $v)" EXTRA_POST="$p" bash ~/scripts/athena/acts-athena-ci/mr92381/spotjob.sh $NT $NEV ${MODE:-mt} | sed "s/^/$v /" )
 }
 i=0
