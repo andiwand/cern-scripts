@@ -40,6 +40,9 @@ Scripts:
 - `tracedown.py <trace> <acts dir> <legacy dir> [legacytracks.txt]` - legacy-only particles: missed own strip hits and
   holes vs edge distance, double-sided misses, what the legacy track has where ACTS took a foreign hit
   (`legacytracks.txt` from `LegacyTrackDumpAlg`, `run4.sh ... legacyd`)
+- `navcmp.py name=trace ...`, `navcmp2.py`, `navcmp3.py <base trace> <nav trace>`, `navcmp4.py <base trace> <nav trace>` -
+  navigator-tolerance variants: out-of-bounds visits, own vs foreign hits there, seed outcome paired with the baseline,
+  states on out-of-bounds modules of lost seeds
 - `recover.py <baseline trace> <baseline dir> <legacy dir> name=dir ...` - legacy-only particles recovered per variant,
   gained/lost particles vs baseline
 - `run4.sh` navigator variants: `tr-nav{1,2,3}` (`navEdgeTolerance` mm on the strip barrel modules near the seed, passed
