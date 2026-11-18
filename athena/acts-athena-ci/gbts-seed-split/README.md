@@ -37,5 +37,13 @@ Scripts:
   pixel-helix kink, overlaps (needs the T/E/H/K trace lines of `athena.patch`); `edgecheck.py <trace>` - distance of
   strip predictions to the surface edge; `ownclusters.py <trace>` - own clusters of failing particles vs minClusters;
   `legacycmp.py <trace> <acts dir> <legacy dir>` - per particle ACTS vs legacy (`run4.sh ... legacy`, splitsum caches)
+- `tracedown.py <trace> <acts dir> <legacy dir> [legacytracks.txt]` - legacy-only particles: missed own strip hits and
+  holes vs edge distance, double-sided misses, what the legacy track has where ACTS took a foreign hit
+  (`legacytracks.txt` from `LegacyTrackDumpAlg`, `run4.sh ... legacyd`)
+- `recover.py <baseline trace> <baseline dir> <legacy dir> name=dir ...` - legacy-only particles recovered per variant,
+  gained/lost particles vs baseline
+- `run4.sh` navigator variants: `tr-nav{1,2,3}` (`navEdgeTolerance` mm on the strip barrel modules near the seed, passed
+  as `extendedSurfaces`), `-b` adds `boundChi2=9` (skip hits on a surface the prediction does not reach), `-brL12`
+  branching on the first two strip layers
 - `timesum2.py <dir> <ref> <variant>...` - per-algorithm CPU normalised to ActsPixelClusterizationAlg
 - `acts_unittests.sh` - ACTS seeding unit tests on `acts-pr/` (PR https://github.com/acts-project/acts/pull/6552)

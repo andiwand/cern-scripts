@@ -40,6 +40,15 @@ post() {   # variant -> postExec
     tr-covL4)  echo "$T.maxSeedSplitEta=0.0;$TR$(P "{'initialVarInflation': [16., 16., 16., 16., 16., 1.]}")";;
     tr-chi5|tr-chi9|tr-chi12|tr-holes2|tr-chi9-holes2) echo "$T.maxSeedSplitEta=0.0;$TR";;
     legacy)      echo "";;
+    legacyd)     echo "from AthenaConfiguration.ComponentFactory import CompFactory;cfg.addEventAlgo(CompFactory.ActsTrk.LegacyTrackDumpAlg());";;
+    tr-nav1)     echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.navEdgeTolerance=1.0;";;
+    tr-nav2)     echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=2.0;$F.navEdgeTolerance=2.0;";;
+    tr-nav1-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.navEdgeTolerance=1.0;$F.branchLayers=[23,2,2,23,4,2];";;
+    tr-nav3)     echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=3.0;$F.navEdgeTolerance=3.0;";;
+    tr-nav3-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=3.0;$F.navEdgeTolerance=3.0;$F.branchLayers=[23,2,2,23,4,2];";;
+    tr-nav1b)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.navEdgeTolerance=1.0;$F.boundChi2=9.0;";;
+    tr-nav3b)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=3.0;$F.navEdgeTolerance=3.0;$F.boundChi2=9.0;";;
+    tr-nav3b-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=3.0;$F.navEdgeTolerance=3.0;$F.boundChi2=9.0;$F.branchLayers=[23,2,2,23,4,2];";;
     tr-edge1)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;";;
     tr-edge2)    echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=2.0;";;
     tr-edge1-brL12) echo "$T.maxSeedSplitEta=0.0;$TR$F.EdgeHoleBorderWidth=1.0;$F.branchLayers=[23,2,2,23,4,2];";;
@@ -64,7 +73,7 @@ post() {   # variant -> postExec
 }
 pre() { case $1 in
   *-nf) echo "flags.Acts.forceTrackOnSeed=False;";;
-  legacy) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;";;
+  legacy|legacyd) echo "from TrkConfig.TrkConfigFlags import TrackingComponent;flags.Tracking.recoChain=[TrackingComponent.AthenaChain];flags.Reco.EnableHGTDExtension=False;";;
   tr-chi5)  echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[5.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[10.];";;
   tr-chi9-holes2) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];flags.Tracking.ITkActsPass.maxHoles=[2];";;
   tr-br2-chi9|on-br2-chi9) echo "flags.Tracking.ITkActsPass.Xi2maxSigma=[9.];flags.Tracking.ITkActsPass.Xi2maxNoAddSigma=[12.];";;

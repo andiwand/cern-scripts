@@ -1,9 +1,15 @@
 diff --git a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
-index fff05e58d76..a47cf619230 100644
+index fff05e58d76..70c83193206 100644
 --- a/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
 +++ b/Tracking/Acts/ActsPatternRecognition/CMakeLists.txt
-@@ -35,7 +35,9 @@ atlas_add_component( ActsPatternRecognition
+@@ -33,9 +33,15 @@ atlas_add_component( ActsPatternRecognition
+                StoreGateLib
+                TrkEventUtils
                 TrkParameters
++               TrkTrack
++               TrkRIO_OnTrack
++               TrkPrepRawData
++               TrkSurfaces
                 TrkSpacePoint
                 xAODInDetMeasurement
 -               xAODTracking )
@@ -178,28 +184,112 @@ index 00000000000..d63416c8824
 +};
 +}
 +#endif
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.cxx b/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.cxx
+new file mode 100644
+index 00000000000..d1d576da3f6
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.cxx
+@@ -0,0 +1,48 @@
++#include "src/LegacyTrackDumpAlg.h"
++#include "TrkTrack/Track.h"
++#include "TrkTrack/TrackStateOnSurface.h"
++#include "TrkRIO_OnTrack/RIO_OnTrack.h"
++#include "TrkPrepRawData/PrepRawData.h"
++#include "InDetPrepRawData/SiCluster.h"
++#include "TrkSurfaces/Surface.h"
++#include "TrkParameters/TrackParameters.h"
++#include <cmath>
++namespace ActsTrk {
++StatusCode LegacyTrackDumpAlg::initialize() {
++  ATH_CHECK(m_tracksKey.initialize());
++  m_out.open(m_file.value());
++  return StatusCode::SUCCESS;
++}
++StatusCode LegacyTrackDumpAlg::finalize() { m_out.close(); return StatusCode::SUCCESS; }
++StatusCode LegacyTrackDumpAlg::execute(const EventContext& ctx) const {
++  SG::ReadHandle<TrackCollection> h(m_tracksKey, ctx);
++  ATH_CHECK(h.isValid());
++  std::ostringstream o;
++  std::size_t it = 0;
++  for (const Trk::Track* t : *h) {
++    ++it;
++    const Trk::Perigee* per = t->perigeeParameters();
++    if (!per || std::abs(per->eta()) > m_maxAbsEta) continue;
++    o << "L " << ctx.eventID().event_number() << ' ' << it << ' ' << per->pT() << ' ' << per->eta();
++    for (const Trk::TrackStateOnSurface* ts : *t->trackStateOnSurfaces()) {
++      const bool meas = ts->type(Trk::TrackStateOnSurface::Measurement);
++      const bool outl = ts->type(Trk::TrackStateOnSurface::Outlier);
++      const bool hole = ts->type(Trk::TrackStateOnSurface::Hole);
++      if (meas || outl) {
++        const auto* rot = dynamic_cast<const Trk::RIO_OnTrack*>(ts->measurementOnTrack());
++        const auto* cl = rot ? dynamic_cast<const InDet::SiCluster*>(rot->prepRawData()) : nullptr;
++        if (!cl) continue;
++        const auto& g = cl->globalPosition();
++        o << " | " << (outl ? 'o' : 'm') << ' ' << g.x() << ' ' << g.y() << ' ' << g.z();
++      } else if (hole && ts->trackParameters()) {
++        const auto& g = ts->trackParameters()->position();
++        o << " | h " << g.x() << ' ' << g.y() << ' ' << g.z();
++      }
++    }
++    o << '\n';
++  }
++  std::lock_guard<std::mutex> lock(m_mutex);
++  m_out << o.str();
++  return StatusCode::SUCCESS;
++}
++}
+diff --git a/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.h b/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.h
+new file mode 100644
+index 00000000000..d64ce59658d
+--- /dev/null
++++ b/Tracking/Acts/ActsPatternRecognition/src/LegacyTrackDumpAlg.h
+@@ -0,0 +1,22 @@
++// Throwaway: dump the measurements (and stored holes) of the legacy ITk tracks, for the GBTS seed split study
++#pragma once
++#include "AthenaBaseComps/AthReentrantAlgorithm.h"
++#include "StoreGate/ReadHandleKey.h"
++#include "TrkTrack/TrackCollection.h"
++#include <fstream>
++#include <mutex>
++namespace ActsTrk {
++class LegacyTrackDumpAlg : public AthReentrantAlgorithm {
++public:
++  using AthReentrantAlgorithm::AthReentrantAlgorithm;
++  StatusCode initialize() override;
++  StatusCode execute(const EventContext& ctx) const override;
++  StatusCode finalize() override;
++private:
++  SG::ReadHandleKey<TrackCollection> m_tracksKey{this, "Tracks", "CombinedITkTracks"};
++  Gaudi::Property<std::string> m_file{this, "File", "legacytracks.txt"};
++  Gaudi::Property<double> m_maxAbsEta{this, "maxAbsEta", 0.8};
++  mutable std::mutex m_mutex;
++  mutable std::ofstream m_out;
++};
++}
 diff --git a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
-index 12fa129afe4..d8046bbaf21 100644
+index 12fa129afe4..c9190beafd7 100644
 --- a/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
 +++ b/Tracking/Acts/ActsPatternRecognition/src/components/ActsPatternRecognition_entries.cxx
-@@ -8,6 +8,7 @@
+@@ -8,6 +8,8 @@
  // Tools
  #include "src/GbtsLayerTool.h"
  #include "src/GbtsSeedingTool.h"
 +#include "src/GbtsSplitDiagAlg.h"
++#include "src/LegacyTrackDumpAlg.h"
  #include "src/GnnSeedingTool.h"
  #include "src/GridTripletSeedingTool.h"
  #include "src/TrackParamsEstimationTool.h"
-@@ -21,3 +22,4 @@ DECLARE_COMPONENT(ActsTrk::GbtsSeedingTool)
+@@ -21,3 +23,5 @@ DECLARE_COMPONENT(ActsTrk::GbtsSeedingTool)
  DECLARE_COMPONENT(ActsTrk::GnnSeedingTool)
  DECLARE_COMPONENT(ActsTrk::TrackParamsEstimationTool)
  DECLARE_COMPONENT(ActsTrk::GridTripletSeedingTool)
 +DECLARE_COMPONENT( ActsTrk::GbtsSplitDiagAlg )
++DECLARE_COMPONENT( ActsTrk::LegacyTrackDumpAlg )
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
-index 67da80389e0..c2486e79899 100644
+index 67da80389e0..352d2ed76d3 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
-@@ -32,6 +32,14 @@
+@@ -32,6 +32,16 @@
  #include "detail/Definitions.h"
  #include "src/detail/TrackFindingMeasurements.h"
  #include "src/detail/SharedHitCounter.h"
@@ -211,10 +301,12 @@ index 67da80389e0..c2486e79899 100644
 +#include "xAODInDetMeasurement/PixelCluster.h"
 +#include "xAODInDetMeasurement/StripCluster.h"
 +#include <map>
++#include <set>
++#include <cmath>
  
  // STL
  #include <Acts/Propagator/StandardAborters.hpp>
-@@ -114,6 +122,10 @@ namespace ActsTrk
+@@ -114,6 +124,10 @@ namespace ActsTrk
      ATH_CHECK(m_beamSpotKey.initialize());
      ATH_CHECK(m_caloClusterROIKey.initialize(m_doBremRecovery.value()));
  
@@ -225,7 +317,7 @@ index 67da80389e0..c2486e79899 100644
      m_storeDestinies = not m_seedDestiny.empty();
      ATH_CHECK(m_seedDestiny.initialize(m_storeDestinies));
  
-@@ -144,6 +156,11 @@ namespace ActsTrk
+@@ -144,6 +158,11 @@ namespace ActsTrk
    // === finalize ============================================================
  
    StatusCode TrackFindingAlg::finalize() {
@@ -237,7 +329,7 @@ index 67da80389e0..c2486e79899 100644
      ATH_CHECK(TrackFindingBaseAlg::finalize());
      return StatusCode::SUCCESS;
    }
-@@ -451,9 +468,185 @@ namespace ActsTrk
+@@ -451,9 +470,185 @@ namespace ActsTrk
      std::size_t category_i = 0;
      const auto &trackSelectorCfg = trackFinder().trackSelector.config();
  
@@ -424,7 +516,7 @@ index 67da80389e0..c2486e79899 100644
      };
      options.extensions.branchStopper.connect(stopBranchProxy);
  
-@@ -466,7 +659,9 @@ namespace ActsTrk
+@@ -466,7 +661,9 @@ namespace ActsTrk
                                       const detail::RecoTrackContainer::TrackStateProxy &trackState) -> BranchStopperResult {
        const BranchStopperResult result =
          stopBranch(track, trackState, trackSelectorCfg, detContext.geometry, measurementIndex, typeIndex, event_stat[category_i]);
@@ -435,17 +527,47 @@ index 67da80389e0..c2486e79899 100644
      };
      if (m_doSecondPassBranchStopper) {
        secondOptions.extensions.branchStopper.connect(stopSecondBranchProxy);
-@@ -594,6 +789,9 @@ namespace ActsTrk
+@@ -594,6 +791,39 @@ namespace ActsTrk
          if (measurementRangesForced)
            event_stat[category_i][kNForcedSeedMeasurements] += measurementRangesForced->size();
  
++        if (m_navEdgeTolerance > 0.) {
++          std::call_once(m_navSurfOnce, [&]() {
++            std::set<std::pair<int, int>> lays;
++            for (std::size_t i = 0; i + 1 < m_navEdgeLayers.size(); i += 2) lays.emplace(m_navEdgeLayers[i], m_navEdgeLayers[i + 1]);
++            m_trackingGeometrySvc->trackingGeometry()->visitSurfaces([&](const Acts::Surface* sf) {
++              const auto id = sf->geometryId();
++              if (!lays.contains({static_cast<int>(id.volume()), static_cast<int>(id.layer())})) return;
++              const auto c = sf->center(detContext.geometry);
++              m_navSurfs.push_back({sf, std::hypot(c.x(), c.y()), std::atan2(c.y(), c.x()), c.z()});
++            }, true);
++            ATH_MSG_INFO("navEdgeTolerance " << m_navEdgeTolerance.value() << " mm on " << m_navSurfs.size() << " surfaces");
++          });
++          const Acts::Vector3 pos = optTrackParams->position(detContext.geometry);
++          const Acts::Vector3 dir = optTrackParams->direction();
++          const double phi0 = std::atan2(dir.y(), dir.x());
++          const double cotTheta = dir.z() / std::hypot(dir.x(), dir.y());
++          const double radius = std::max(1., optTrackParams->transverseMomentum()) / 0.6 * 1000.;  // mm, 2 T, pT in GeV
++          auto& ext = options.propagatorPlainOptions.navigation.extendedSurfaces;
++          ext.clear();
++          const auto tol = Acts::BoundaryTolerance::AbsoluteEuclidean(m_navEdgeTolerance.value());
++          for (const NavSurf& n : m_navSurfs) {
++            const double bend = std::asin(std::min(1., n.r / (2. * radius)));
++            const double dphi = std::abs(std::remainder(n.phi - phi0, 2. * M_PI));
++            if (dphi > 1.2 * bend + 60. / n.r) continue;
++            if (std::abs(n.z - (pos.z() + (n.r - std::hypot(pos.x(), pos.y())) * cotTheta)) > 60. + 0.05 * n.r) continue;
++            ext.push_back(Acts::ExtendedSurface{n.surface, tol});
++          }
++          secondOptions.propagatorPlainOptions.navigation.extendedSurfaces = ext;
++        }
++
 +        const bool traceThis = m_traceOut.is_open() && seed.sp().size() >= 4 &&
 +          std::abs(etaInitial) < m_traceMaxAbsEta && std::string_view(seedType) == "PPP";
 +        if (traceThis) traceBegin();
          std::size_t ntracks = 0ul;
          // Get the Acts tracks, given this seed
          ATH_CHECK(runTrackFinder<TrackFinderOptions>(
-@@ -641,6 +839,51 @@ namespace ActsTrk
+@@ -641,6 +871,51 @@ namespace ActsTrk
                  *optTrackParams));
          }
  
@@ -497,7 +619,7 @@ index 67da80389e0..c2486e79899 100644
          if (m_storeDestinies) {
            if (ntracks == 0) {
              destiny->at(iseed) = DestinyType::FAILURE;
-@@ -1051,6 +1294,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
+@@ -1051,6 +1326,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
        ATH_MSG_DEBUG("Running track finding for " << seedType << " seed " << iseed << ".");
  
        auto rootBranch = tracksContainerTemp.makeTrack();
@@ -505,7 +627,7 @@ index 67da80389e0..c2486e79899 100644
        Acts::Result<std::vector<TrkProxy> > result = findTracksCKF(seedParameters, options, tracksContainerTemp, rootBranch);
  
        if (not result.ok()){
-@@ -1122,6 +1366,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
+@@ -1122,6 +1398,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
              secondRootBranch.copyFromWithoutStates(firstTrack); // #3634
  
              // perform track finding
@@ -514,7 +636,7 @@ index 67da80389e0..c2486e79899 100644
              if (secondResult.ok()){
                  secondTracksForSeed = std::move(secondResult.value());
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
-index f1c9101bf9d..519a196c9a4 100644
+index f1c9101bf9d..2ee111dd377 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.h
 @@ -7,6 +7,10 @@
@@ -536,7 +658,7 @@ index f1c9101bf9d..519a196c9a4 100644
  namespace ActsTrk
  {
    using AtlUncalibSourceLinkAccessor = detail::UncalibSourceLinkAccessor;
-@@ -139,6 +144,18 @@ namespace ActsTrk
+@@ -139,6 +144,25 @@ namespace ActsTrk
      Gaudi::Property<unsigned int> m_seedMeasOffset{this,"seedMeasOffset", 0, "Reduce the requirement on the space points on seed to mark a seed as duplicate, e.g seedMeasOffset=1, only N-1 measurements on seed are sufficient deduplicate the seed"};
      Gaudi::Property<bool> m_countSharedHits{this, "countSharedHits", true, "add shared hit flags to tracks"};
      Gaudi::Property<bool> m_forceTrackOnSeed{this, "forceTrackOnSeed", true, "force track to use measurements from the seed"};
@@ -545,6 +667,13 @@ index f1c9101bf9d..519a196c9a4 100644
 +      "without its first and then without its middle space point (what the GBTS seed split emits up front)"};
 +    Gaudi::Property<double> m_retrySubSeedsMaxAbsEta{this, "retrySubSeedsMaxAbsEta", 100., "only retry seeds with |eta| below this"};
 +    // CKF trace (GBTS seed split study): pixel seeds with >= 4 SPs and |eta| < traceMaxAbsEta
++    // Relax the navigator's bounds check of the strip barrel modules near each seed, so that the CKF also visits a
++    // module the prediction misses by less than the tolerance (Gen1 resolves sensitive surfaces without one)
++    Gaudi::Property<double> m_navEdgeTolerance{this, "navEdgeTolerance", 0., "mm; 0 = off"};
++    Gaudi::Property<std::vector<int>> m_navEdgeLayers{this, "navEdgeLayers", {23, 2, 23, 4, 23, 6, 23, 8}, "(volume, layer) pairs"};
++    struct NavSurf { const Acts::Surface* surface; double r, phi, z; };
++    mutable std::once_flag m_navSurfOnce;
++    mutable std::vector<NavSurf> m_navSurfs;
 +    Gaudi::Property<std::string> m_traceFile{this, "traceFile", "", "if set, write a CKF trace of the traced seeds"};
 +    Gaudi::Property<double> m_traceMaxAbsEta{this, "traceMaxAbsEta", 0.6, "trace seeds below this |eta|"};
 +    SG::ReadHandleKey<ActsTrk::MeasurementToTruthParticleAssociation> m_tracePixelTruthKey{this, "tracePixelTruth", "ITkPixelClustersToTruthParticles"};
@@ -556,10 +685,10 @@ index f1c9101bf9d..519a196c9a4 100644
  
      // Ambiguity resolution
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.cxx b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.cxx
-index 64cc663329b..6f4d965ffce 100644
+index 64cc663329b..0a50ecd225d 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.cxx
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.cxx
-@@ -235,7 +235,15 @@ namespace ActsTrk {
+@@ -235,7 +235,16 @@ namespace ActsTrk {
          m_measurementSelectorConfig.m_etaBins,
          m_measurementSelectorConfig.m_chi2CutOffOutlier,
          m_numMeasurementsCutOff.value(),
@@ -572,37 +701,41 @@ index 64cc663329b..6f4d965ffce 100644
 +                           static_cast<std::size_t>(m_branchLayers[i + 2]));
 +          }
 +          return o;
-+        }());
++        }(),
++        m_boundChi2.value());
  
      measurementSelector->connect(&options.extensions.createTrackStates);
  
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.h b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.h
-index 4d39b54f90f..4e144750da8 100644
+index 4d39b54f90f..57481430dde 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.h
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingBaseAlg.h
-@@ -119,6 +119,7 @@ namespace ActsTrk {
+@@ -119,7 +119,9 @@ namespace ActsTrk {
         "MeasurementSelector: maximum local chi2 contribution for each eta bin, in sigma of a 1D Gaussian. The p-value of a two-sided cut at this number of sigma gives the chi2 cut for each measurement dimension."};
      Gaudi::Property<std::vector<double>> m_chi2OutlierCutOffSigma{this, "chi2OutlierCutOffSigma", {},
         "MeasurementSelector: maximum local chi2 contribution for outliers for each eta bin, in sigma, see chi2CutOffSigma. If empty, there is no cut."};
 +    Gaudi::Property<std::vector<int>> m_branchLayers{this, "branchLayers", {}, "flattened (volume, layer, nMeasurements) triplets: measurements kept per surface on these ACTS layers"};
      Gaudi::Property<std::vector<size_t>> m_numMeasurementsCutOff{this, "numMeasurementsCutOff", {}, "MeasurementSelector: maximum number of associated measurements on a single surface"};
++    Gaudi::Property<double> m_boundChi2{this, "boundChi2", 0., "if > 0: search a surface only if the prediction reaches its bounds within this chi2"};
      Gaudi::Property<double> m_edgeHoleBorderWidth{this,"EdgeHoleBorderWidth", 0. ,"Width of the border of surfaces (mm) within which holes are not counted as holes."};
      Gaudi::Property<std::vector<std::size_t>> m_ptMinMeasurements{this, "ptMinMeasurements", {}, "if specified for the given seed collection, applies ptMin cut in branch stopper once ptMinMinMeasurements have been encountered"};
+     Gaudi::Property<std::vector<std::size_t>> m_absEtaMaxMeasurements{this, "absEtaMaxMeasurements", {}, "if specified for the given seed collection, applies absEtaMax cut in branch stopper once absEtaMaxMeasurements have been encountered"};
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.cxx b/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.cxx
-index b6ff19072a1..ca0a2a61d4e 100644
+index b6ff19072a1..f2d40144536 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.cxx
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.cxx
-@@ -400,7 +400,8 @@ std::unique_ptr<ActsTrk::IMeasurementSelector>  getMeasurementSelector(const Eve
+@@ -400,7 +400,9 @@ std::unique_ptr<ActsTrk::IMeasurementSelector>  getMeasurementSelector(const Eve
         const std::vector<float> &etaBinsf,
         const std::vector<std::array<std::pair<float, float>, 4> > &chi2CutOffOutlier,
         const std::vector<size_t> &numMeasurementsCutOff,
 -       double edge_hole_border_width) {
 +       double edge_hole_border_width,
-+       const std::vector<std::pair<Acts::GeometryIdentifier, std::size_t>> &numMeasurementsOverride) {
++       const std::vector<std::pair<Acts::GeometryIdentifier, std::size_t>> &numMeasurementsOverride,
++       double boundChi2) {
  
      // set calibrators per measurement container type (order does not matter);
      ActsTrk::MeasurementCalibrator<detail::RecoTrackStateContainer> atl_measurement_calibrator(ctx,
-@@ -412,20 +413,24 @@ std::unique_ptr<ActsTrk::IMeasurementSelector>  getMeasurementSelector(const Eve
+@@ -412,20 +414,25 @@ std::unique_ptr<ActsTrk::IMeasurementSelector>  getMeasurementSelector(const Eve
      using AtlMeasurementSelector = AtlasActsMeasurmentSelector<detail::RecoTrackStateContainer>;
      using AtlMeasurementSelectorConfig = AtlMeasurementSelector::TheAtlasMeasurementSelector::Config;
  
@@ -613,7 +746,7 @@ index b6ff19072a1..ca0a2a61d4e 100644
 -                           AtlMeasurementSelectorConfig{
 -                              {Acts::GeometryIdentifier(),
 -                                    AtlMeasurementSelectorCuts{ etaBinsf,
-+    const AtlMeasurementSelectorCuts globalCuts{ etaBinsf,
++    AtlMeasurementSelectorCuts globalCuts{ etaBinsf,
                                         chi2CutOffOutlier,
                                         numMeasurementsCutOff,
                                         edge_hole_border_width==0.
@@ -622,6 +755,7 @@ index b6ff19072a1..ca0a2a61d4e 100644
 -                                    }
 -                              }}));
 +                                    };
++    globalCuts.boundChi2 = boundChi2;
 +    std::vector<std::pair<Acts::GeometryIdentifier, AtlMeasurementSelectorCuts>> cfgElements{{Acts::GeometryIdentifier(), globalCuts}};
 +    for (const auto& [geoId, nMeas] : numMeasurementsOverride) {
 +       AtlMeasurementSelectorCuts c = globalCuts;
@@ -637,16 +771,17 @@ index b6ff19072a1..ca0a2a61d4e 100644
  }
  }
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.h b/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.h
-index c8b3e684bcd..27ec8755feb 100644
+index c8b3e684bcd..eb49b86504b 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.h
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/detail/AtlasMeasurementSelector.h
-@@ -31,7 +31,8 @@ namespace ActsTrk::detail {
+@@ -31,7 +31,9 @@ namespace ActsTrk::detail {
             const std::vector<float> &etaBinsf,
             const std::vector<std::array<std::pair<float, float>, 4> > &chi2CutOffOutlier,
             const std::vector<size_t> &numMeasurementsCutOff,
 -           double edge_hole_border_width);
 +           double edge_hole_border_width,
-+           const std::vector<std::pair<Acts::GeometryIdentifier, std::size_t>> &numMeasurementsOverride = {});
++           const std::vector<std::pair<Acts::GeometryIdentifier, std::size_t>> &numMeasurementsOverride = {},
++       double boundChi2 = 0.);
  
  }
  
@@ -675,7 +810,7 @@ index 00000000000..1dec0ddcef9
 +  inline thread_local std::vector<Stop>* stops = nullptr;
 +}
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h b/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
-index 96af9f2eada..72ff76cd9bd 100644
+index 96af9f2eada..f0e0743f7f5 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
 @@ -12,6 +12,7 @@
@@ -686,7 +821,34 @@ index 96af9f2eada..72ff76cd9bd 100644
  #include "Acts/Utilities/Result.hpp"
  #include "Acts/Utilities/Delegate.hpp"
  #include "Acts/EventData/SourceLink.hpp"
-@@ -535,6 +536,36 @@ protected:
+@@ -311,6 +312,8 @@ struct AtlasMeasurementSelectorCuts {
+   std::vector<std::size_t> numMeasurementsCutOff{1};
+   /// Optional (expected negative) boundary tolerance to label edge holes as no measurement expected
+   std::optional<Acts::BoundaryTolerance> edgeTolerance{};
++  /// If > 0: only search a surface whose bounds the prediction reaches within this chi2 (2D, bound covariance)
++  double boundChi2{0.};
+ };
+ 
+ // Measurement type specific measirement selector
+@@ -505,6 +508,17 @@ protected:
+       auto preCalibrator = derived().template preCalibrator<DIM, BaseElementType>();
+       auto postCalibrator = derived().template postCalibrator<DIM, BaseElementType>();
+       TopCollection<NMeasMax, TheMatchingMeasurement > selected_measurements(numMeasurementsCut);
++      bool outOfReach = false;
++      if (!forced) {
++         auto cfgIt = m_config.find(surface.geometryId());
++         if (cfgIt != m_config.end() && cfgIt->boundChi2 > 0.) {
++            const auto &bp = derived().boundParams(boundState);
++            const Acts::SquareMatrix2 c2 = bp.covariance().value().template topLeftCorner<2, 2>();
++            outOfReach = !surface.insideBounds(bp.parameters().template head<2>(),
++                                               Acts::BoundaryTolerance::Chi2Bound(c2.inverse(), cfgIt->boundChi2));
++         }
++      }
++      if (!outOfReach)
+       for ( const auto &measurement : measurement_range ) {
+          TheMatchingMeasurement &matching_measurement=selected_measurements.slot();
+          if (forced && postCalibrator) {
+@@ -535,6 +549,36 @@ protected:
           }
        }
  
