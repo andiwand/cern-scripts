@@ -40,6 +40,8 @@ Scripts:
 - `tracedown.py <trace> <acts dir> <legacy dir> [legacytracks.txt]` - legacy-only particles: missed own strip hits and
   holes vs edge distance, double-sided misses, what the legacy track has where ACTS took a foreign hit
   (`legacytracks.txt` from `LegacyTrackDumpAlg`, `run4.sh ... legacyd`)
+- `breakdown.py <trace> <acts dir> <legacy dir> name=dir ...` - barrel efficiency gap legacy vs ACTS, one cause per
+  particle (seeding / not reconstructible / CKF first defect / after the CKF), with the fraction each fix variant recovers
 - `navcmp.py name=trace ...`, `navcmp2.py`, `navcmp3.py <base trace> <nav trace>`, `navcmp4.py <base trace> <nav trace>` -
   navigator-tolerance variants: out-of-bounds visits, own vs foreign hits there, seed outcome paired with the baseline,
   states on out-of-bounds modules of lost seeds
