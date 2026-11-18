@@ -196,21 +196,25 @@ index 12fa129afe4..d8046bbaf21 100644
  DECLARE_COMPONENT(ActsTrk::GridTripletSeedingTool)
 +DECLARE_COMPONENT( ActsTrk::GbtsSplitDiagAlg )
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
-index 67da80389e0..443b91d05e3 100644
+index 67da80389e0..c2486e79899 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/TrackFindingAlg.cxx
-@@ -32,6 +32,10 @@
+@@ -32,6 +32,14 @@
  #include "detail/Definitions.h"
  #include "src/detail/TrackFindingMeasurements.h"
  #include "src/detail/SharedHitCounter.h"
 +#include "src/detail/CkfTrace.h"
 +#include "ActsCalibrators/xAODUncalibMeasCalibrator.h"
 +#include "TruthUtils/MagicNumbers.h"
++#include "xAODTruth/TruthParticle.h"
++#include "xAODTruth/TruthVertex.h"
++#include "xAODInDetMeasurement/PixelCluster.h"
++#include "xAODInDetMeasurement/StripCluster.h"
 +#include <map>
  
  // STL
  #include <Acts/Propagator/StandardAborters.hpp>
-@@ -114,6 +118,10 @@ namespace ActsTrk
+@@ -114,6 +122,10 @@ namespace ActsTrk
      ATH_CHECK(m_beamSpotKey.initialize());
      ATH_CHECK(m_caloClusterROIKey.initialize(m_doBremRecovery.value()));
  
@@ -221,7 +225,7 @@ index 67da80389e0..443b91d05e3 100644
      m_storeDestinies = not m_seedDestiny.empty();
      ATH_CHECK(m_seedDestiny.initialize(m_storeDestinies));
  
-@@ -144,6 +152,11 @@ namespace ActsTrk
+@@ -144,6 +156,11 @@ namespace ActsTrk
    // === finalize ============================================================
  
    StatusCode TrackFindingAlg::finalize() {
@@ -233,7 +237,7 @@ index 67da80389e0..443b91d05e3 100644
      ATH_CHECK(TrackFindingBaseAlg::finalize());
      return StatusCode::SUCCESS;
    }
-@@ -451,9 +464,87 @@ namespace ActsTrk
+@@ -451,9 +468,185 @@ namespace ActsTrk
      std::size_t category_i = 0;
      const auto &trackSelectorCfg = trackFinder().trackSelector.config();
  
@@ -245,6 +249,39 @@ index 67da80389e0..443b91d05e3 100644
 +      SG::ReadHandle<ActsTrk::MeasurementToTruthParticleAssociation> h2(m_traceStripTruthKey, ctx);
 +      trPix = h1.cptr(); trStr = h2.cptr();
 +    }
++    // particle -> its clusters, for the traced particles' truth hits
++    std::map<const xAOD::TruthParticle*, std::vector<const xAOD::UncalibratedMeasurement*>> trOwn;
++    if (m_traceOut.is_open()) {
++      for (const auto& key : m_uncalibratedMeasurementContainerKeys) {
++        SG::ReadHandle<xAOD::UncalibratedMeasurementContainer> hc(key, ctx);
++        if (!hc.isValid()) continue;
++        for (const xAOD::UncalibratedMeasurement* m : *hc) {
++          const ActsTrk::MeasurementToTruthParticleAssociation* map =
++            m->type() == xAOD::UncalibMeasType::PixelClusterType ? trPix :
++            m->type() == xAOD::UncalibMeasType::StripClusterType ? trStr : nullptr;
++          if (!map || m->index() >= map->size()) continue;
++          for (const auto* tp : map->at(m->index())) if (tp) trOwn[tp].push_back(m);
++        }
++      }
++    }
++    auto truthPart = [&](const void* p) -> const xAOD::TruthParticle* {
++      if (!p) return nullptr;
++      const auto* m = static_cast<const xAOD::UncalibratedMeasurement*>(p);
++      const ActsTrk::MeasurementToTruthParticleAssociation* map =
++        m->type() == xAOD::UncalibMeasType::PixelClusterType ? trPix :
++        m->type() == xAOD::UncalibMeasType::StripClusterType ? trStr : nullptr;
++      if (!map || m->index() >= map->size()) return nullptr;
++      const auto& v = map->at(m->index());
++      return v.empty() ? nullptr : v[0];
++    };
++    const auto* trSurfMap = m_trackingGeometrySvc->surfaceIdMap();
++    const auto* trGeo = m_trackingGeometrySvc->trackingGeometry().get();
++    auto measSurface = [&](const xAOD::UncalibratedMeasurement* meas) -> const Acts::Surface* {
++      const auto it = trSurfMap->find(ActsTrk::makeDetectorElementKey(meas->type(), meas->identifierHash()));
++      if (it == trSurfMap->end()) return nullptr;
++      const Acts::Surface* sf = DetectorElementToActsGeometryIdMap::getSurface(*it);
++      return sf ? sf : trGeo->findSurface(DetectorElementToActsGeometryIdMap::getValue(*it));
++    };
 +    auto truthUid = [&](const void* p) -> long {
 +      if (!p) return -3;
 +      const auto* m = static_cast<const xAOD::UncalibratedMeasurement*>(p);
@@ -281,7 +318,8 @@ index 67da80389e0..443b91d05e3 100644
 +      trVisits.clear(); trStops.clear();
 +      detail::ckftrace::visits = &trVisits; detail::ckftrace::stops = &trStops;
 +    };
-+    auto traceEnd = [&](unsigned int iseed, int attempt, const ActsTrk::Seed& tseed, double eta, std::size_t ntr) {
++    auto traceEnd = [&](unsigned int iseed, int attempt, const ActsTrk::Seed& tseed, double eta, std::size_t ntr,
++                        const Acts::BoundTrackParameters& sPar) {
 +      detail::ckftrace::visits = nullptr; detail::ckftrace::stops = nullptr;
 +      std::map<long, int> cnt;
 +      for (const xAOD::SpacePoint* sp : tseed.sp()) ++cnt[truthUid(sp->measurements().front())];
@@ -292,6 +330,69 @@ index 67da80389e0..443b91d05e3 100644
 +      std::ostream& o = m_traceOut;
 +      o << "A " << ctx.eventID().event_number() << ' ' << iseed << ' ' << attempt << ' ' << tseed.sp().size() << ' ' << eta
 +        << ' ' << pure << ' ' << uid << ' ' << ntr << '\n';
++      const xAOD::TruthParticle* tp = nullptr;
++      for (const xAOD::SpacePoint* sp : tseed.sp()) {
++        const auto* t = truthPart(sp->measurements().front());
++        if (t && HepMC::uniqueID(t) == uid) { tp = t; break; }
++      }
++      {
++        const auto& par = sPar.parameters(); const auto& cov = sPar.covariance().value();
++        const auto pos = sPar.position(detContext.geometry);
++        o << "T " << (tp ? tp->pdgId() : 0) << ' ' << (tp ? tp->charge() : 0.) << ' ' << (tp ? tp->pt() : 0.) << ' '
++          << (tp ? tp->eta() : 0.) << ' ' << (tp ? tp->phi() : 0.) << ' ';
++        if (tp && tp->hasProdVtx()) o << tp->prodVtx()->x() << ' ' << tp->prodVtx()->y() << ' ' << tp->prodVtx()->z() << ' ';
++        else o << "0 0 0 ";
++        o << (tp && tp->hasDecayVtx() ? tp->decayVtx()->perp() : -1.) << ' '
++          << par[Acts::eBoundQOverP] << ' ' << par[Acts::eBoundTheta] << ' ' << par[Acts::eBoundPhi] << ' '
++          << std::sqrt(cov(Acts::eBoundQOverP, Acts::eBoundQOverP)) << ' ' << std::sqrt(cov(Acts::eBoundTheta, Acts::eBoundTheta)) << ' '
++          << std::sqrt(cov(Acts::eBoundPhi, Acts::eBoundPhi)) << ' ' << std::hypot(pos.x(), pos.y()) << '\n';
++      }
++      if (tp && tp->hasDecayVtx()) {
++        // outgoing particles of the end vertex: a surviving particle gets a new id in the truth record
++        const auto* dv = tp->decayVtx();
++        o << "E " << dv->perp() << ' ' << dv->z();
++        for (std::size_t i = 0; i < dv->nOutgoingParticles(); ++i) {
++          const auto* c = dv->outgoingParticle(i);
++          if (c) o << ' ' << c->pdgId() << ' ' << c->pt() << ' ' << HepMC::uniqueID(c);
++        }
++        o << '\n';
++        // clusters of a surviving continuation (same pdg, > 50% of the pT)
++        for (std::size_t i = 0; i < dv->nOutgoingParticles(); ++i) {
++          const auto* c = dv->outgoingParticle(i);
++          if (!c || c->pdgId() != tp->pdgId() || c->pt() < 0.5 * tp->pt()) continue;
++          const auto it = trOwn.find(c);
++          if (it == trOwn.end()) continue;
++          for (const auto* m : it->second) {
++            const Acts::Surface* sf = measSurface(m);
++            if (!sf) continue;
++            Eigen::Vector3f g;
++            if (m->type() == xAOD::UncalibMeasType::PixelClusterType) g = static_cast<const xAOD::PixelCluster*>(m)->globalPosition();
++            else g = static_cast<const xAOD::StripCluster*>(m)->globalPosition();
++            const auto cc = sf->center(detContext.geometry);
++            const Acts::RotationMatrix3 rot = sf->localToGlobalTransform(detContext.geometry).rotation();
++            o << "K " << (m->type() == xAOD::UncalibMeasType::PixelClusterType ? 0 : 1) << ' ' << sf->geometryId().value() << ' '
++              << g.x() << ' ' << g.y() << ' ' << g.z() << ' ' << cc.x() << ' ' << cc.y() << ' ' << cc.z() << ' '
++              << rot(0, 0) << ' ' << rot(1, 0) << ' ' << rot(2, 0) << ' ' << rot(0, 1) << ' ' << rot(1, 1) << ' ' << rot(2, 1) << '\n';
++          }
++        }
++      }
++      if (tp) {
++        const auto it = trOwn.find(tp);
++        if (it != trOwn.end()) {
++          for (const auto* m : it->second) {
++            const Acts::Surface* sf = measSurface(m);
++            if (!sf) continue;
++            Eigen::Vector3f g;
++            if (m->type() == xAOD::UncalibMeasType::PixelClusterType) g = static_cast<const xAOD::PixelCluster*>(m)->globalPosition();
++            else g = static_cast<const xAOD::StripCluster*>(m)->globalPosition();
++            const auto c = sf->center(detContext.geometry);
++            const Acts::RotationMatrix3 rot = sf->localToGlobalTransform(detContext.geometry).rotation();
++            o << "H " << (m->type() == xAOD::UncalibMeasType::PixelClusterType ? 0 : 1) << ' ' << sf->geometryId().value() << ' '
++              << g.x() << ' ' << g.y() << ' ' << g.z() << ' ' << c.x() << ' ' << c.y() << ' ' << c.z() << ' '
++              << rot(0, 0) << ' ' << rot(1, 0) << ' ' << rot(2, 0) << ' ' << rot(0, 1) << ' ' << rot(1, 1) << ' ' << rot(2, 1) << '\n';
++          }
++        }
++      }
 +      for (const auto& v : trVisits) {
 +        int nPass = 0; float best = 1e9f; long bestUid = -9; float pChi2 = -1.f, pRes0 = 0.f, pRes1 = 0.f;
 +        for (std::size_t k = 0; k < v.meas.size(); ++k) {
@@ -302,7 +403,8 @@ index 67da80389e0..443b91d05e3 100644
 +        }
 +        o << "V " << v.pass << ' ' << v.r << ' ' << v.z << ' ' << v.cut << ' ' << v.cutOut << ' ' << v.sig0 << ' ' << v.sig1 << ' '
 +          << v.meas.size() << ' ' << nPass << ' ' << (v.meas.empty() ? -1.f : best) << ' ' << (bestUid == uid && uid >= 0) << ' '
-+          << pChi2 << ' ' << pRes0 << ' ' << pRes1 << ' ' << v.vol << ' ' << v.lay << '\n';
++          << pChi2 << ' ' << pRes0 << ' ' << pRes1 << ' ' << v.vol << ' ' << v.lay << ' ' << v.geo << ' '
++          << v.loc0 << ' ' << v.loc1 << ' ' << v.phi << ' ' << v.theta << ' ' << v.qop << ' ' << v.sPhi << ' ' << v.sTheta << ' ' << v.sQop << ' ' << bestUid << '\n';
 +      }
 +      for (const auto& st : trStops) {
 +        o << "S " << st.pass << ' ' << st.result << ' ' << st.nMeas << ' ' << st.nHoles << ' ' << st.nOut;
@@ -322,7 +424,7 @@ index 67da80389e0..443b91d05e3 100644
      };
      options.extensions.branchStopper.connect(stopBranchProxy);
  
-@@ -466,7 +557,9 @@ namespace ActsTrk
+@@ -466,7 +659,9 @@ namespace ActsTrk
                                       const detail::RecoTrackContainer::TrackStateProxy &trackState) -> BranchStopperResult {
        const BranchStopperResult result =
          stopBranch(track, trackState, trackSelectorCfg, detContext.geometry, measurementIndex, typeIndex, event_stat[category_i]);
@@ -333,7 +435,7 @@ index 67da80389e0..443b91d05e3 100644
      };
      if (m_doSecondPassBranchStopper) {
        secondOptions.extensions.branchStopper.connect(stopSecondBranchProxy);
-@@ -594,6 +687,9 @@ namespace ActsTrk
+@@ -594,6 +789,9 @@ namespace ActsTrk
          if (measurementRangesForced)
            event_stat[category_i][kNForcedSeedMeasurements] += measurementRangesForced->size();
  
@@ -343,11 +445,11 @@ index 67da80389e0..443b91d05e3 100644
          std::size_t ntracks = 0ul;
          // Get the Acts tracks, given this seed
          ATH_CHECK(runTrackFinder<TrackFinderOptions>(
-@@ -641,6 +737,51 @@ namespace ActsTrk
+@@ -641,6 +839,51 @@ namespace ActsTrk
                  *optTrackParams));
          }
  
-+        if (traceThis) traceEnd(iseed, 0, seed, etaInitial, ntracks);
++        if (traceThis) traceEnd(iseed, 0, seed, etaInitial, ntracks, *optTrackParams);
 +
 +        // Fallback for seeds the CKF could not follow: retry with sub-seeds
 +        if (ntracks == 0 && m_retrySubSeedsMinSize > 0 && seed.sp().size() >= m_retrySubSeedsMinSize &&
@@ -384,7 +486,7 @@ index 67da80389e0..443b91d05e3 100644
 +                ntracks, iseed, category_i, seedType, trackCategories, options, secondOptions,
 +                *subParams));
 +            measurementSelector->setMeasurementRangesForced(nullptr);
-+            if (traceThis) traceEnd(iseed, drop == 0 ? 1 : 2, subSeed, etaInitial, ntracks);
++            if (traceThis) traceEnd(iseed, drop == 0 ? 1 : 2, subSeed, etaInitial, ntracks, *subParams);
 +            if (ntracks > 0) {
 +              ++m_nRetryRecovered;
 +              break;
@@ -395,7 +497,7 @@ index 67da80389e0..443b91d05e3 100644
          if (m_storeDestinies) {
            if (ntracks == 0) {
              destiny->at(iseed) = DestinyType::FAILURE;
-@@ -1051,6 +1192,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
+@@ -1051,6 +1294,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
        ATH_MSG_DEBUG("Running track finding for " << seedType << " seed " << iseed << ".");
  
        auto rootBranch = tracksContainerTemp.makeTrack();
@@ -403,7 +505,7 @@ index 67da80389e0..443b91d05e3 100644
        Acts::Result<std::vector<TrkProxy> > result = findTracksCKF(seedParameters, options, tracksContainerTemp, rootBranch);
  
        if (not result.ok()){
-@@ -1122,6 +1264,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
+@@ -1122,6 +1366,7 @@ Acts::Result<void> TrackFindingAlg::extrapolateTrackToReferenceSurface(
              secondRootBranch.copyFromWithoutStates(firstTrack); // #3634
  
              // perform track finding
@@ -550,19 +652,22 @@ index c8b3e684bcd..27ec8755feb 100644
  
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/detail/CkfTrace.h b/Tracking/Acts/ActsTrackReconstruction/src/detail/CkfTrace.h
 new file mode 100644
-index 00000000000..0bfeeac88d3
+index 00000000000..1dec0ddcef9
 --- /dev/null
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/detail/CkfTrace.h
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,18 @@
 +// Throwaway CKF trace for the GBTS seed split study: every non-forced surface visit and every branch-stopper decision
 +#pragma once
 +#include <vector>
 +#include <utility>
++#include <cstdint>
 +namespace xAOD { class UncalibratedMeasurement_v1; }
 +namespace ActsTrk::detail::ckftrace {
 +  struct Visit { int pass{0}; unsigned vol{0}, lay{0}; float r{0}, z{0}; float cut{0}, cutOut{0}; float sig0{0}, sig1{0};
 +                 // per candidate: measurement, chi2, residual 0, residual 1
-+                 std::vector<const void*> meas; std::vector<float> chi2, res0, res1; };
++                 std::vector<const void*> meas; std::vector<float> chi2, res0, res1;
++                 // predicted state on the surface
++                 unsigned long long geo{0}; float loc0{0}, loc1{0}, phi{0}, theta{0}, qop{0}, sPhi{0}, sTheta{0}, sQop{0}; };
 +  struct State { float r{0}, z{0}; int type{0}; float chi2{0}; const void* meas{nullptr}; };   // type 0 meas, 1 outlier, 2 hole, 3 other
 +  struct Stop { int pass{0}; int result{0}; unsigned nMeas{0}, nHoles{0}, nOut{0}; float pt{0}; std::vector<State> states; };
 +  inline thread_local int pass = 0;
@@ -570,7 +675,7 @@ index 00000000000..0bfeeac88d3
 +  inline thread_local std::vector<Stop>* stops = nullptr;
 +}
 diff --git a/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h b/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
-index 96af9f2eada..699c2c33381 100644
+index 96af9f2eada..72ff76cd9bd 100644
 --- a/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
 +++ b/Tracking/Acts/ActsTrackReconstruction/src/detail/MeasurementSelector.h
 @@ -12,6 +12,7 @@
@@ -581,7 +686,7 @@ index 96af9f2eada..699c2c33381 100644
  #include "Acts/Utilities/Result.hpp"
  #include "Acts/Utilities/Delegate.hpp"
  #include "Acts/EventData/SourceLink.hpp"
-@@ -535,6 +536,25 @@ protected:
+@@ -535,6 +536,36 @@ protected:
           }
        }
  
@@ -591,6 +696,17 @@ index 96af9f2eada..699c2c33381 100644
 +         const auto c = surface.center(geometryContext);
 +         v.r = std::hypot(c.x(), c.y()); v.z = c.z();
 +         v.vol = surface.geometryId().volume(); v.lay = surface.geometryId().layer();
++         v.geo = surface.geometryId().value();
++         {
++            const auto &bp = derived().boundParams(boundState);
++            const auto &par = bp.parameters();
++            const auto &cov = bp.covariance().value();
++            v.loc0 = par[Acts::eBoundLoc0]; v.loc1 = par[Acts::eBoundLoc1]; v.phi = par[Acts::eBoundPhi];
++            v.theta = par[Acts::eBoundTheta]; v.qop = par[Acts::eBoundQOverP];
++            v.sPhi = std::sqrt(std::max(0., static_cast<double>(cov(Acts::eBoundPhi, Acts::eBoundPhi))));
++            v.sTheta = std::sqrt(std::max(0., static_cast<double>(cov(Acts::eBoundTheta, Acts::eBoundTheta))));
++            v.sQop = std::sqrt(std::max(0., static_cast<double>(cov(Acts::eBoundQOverP, Acts::eBoundQOverP))));
++         }
 +         v.cut = maxChi2Cut.first; v.cutOut = maxChi2Cut.second;
 +         v.sig0 = std::sqrt(std::max(0., static_cast<double>(predicted.second(0, 0))));
 +         if constexpr (DIM > 1) v.sig1 = std::sqrt(std::max(0., static_cast<double>(predicted.second(1, 1))));
