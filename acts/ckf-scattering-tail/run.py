@@ -42,6 +42,15 @@ p.add_argument("--pu", type=int, default=200)
 p.add_argument("--mode", type=int, default=0)
 p.add_argument("--chi2", type=float, nargs=2, default=[15.0, 25.0])
 p.add_argument(
+    "--opt",
+    type=int,
+    default=None,
+    help="ScatteringTailOpt bit mask (needs the -perf build)",
+)
+p.add_argument(
+    "--rgate", type=float, default=None, help="threshold of the residual gate"
+)
+p.add_argument(
     "--record-scatters", action="store_true", help="write the truth scatter CSVs"
 )
 p.add_argument("--no-writers", action="store_true", help="timing runs")
@@ -76,7 +85,9 @@ if args.record_scatters:
 else:
     os.environ.pop("PROTO_SCATTER_DIR", None)
 
-actsDir = pathlib.Path("/Users/andreas/cern/source/acts/acts/dev3")
+actsDir = pathlib.Path(
+    os.environ.get("ACTS_SOURCE", "/Users/andreas/cern/source/acts/acts/dev3")
+)
 geoDir = getOpenDataDetectorDirectory()
 oddMaterialDeco = acts.IMaterialDecorator.fromFile(
     geoDir / "data/odd-material-maps.root"
@@ -249,6 +260,13 @@ addCKFTracks(
         maxStripHoles=2,
         constrainToVolumes=[2, 32, 4, 16, 17, 18, 20, 23, 24, 25, 26, 8, 28, 29, 30],
         scatteringTailMode=args.mode,
+        **(
+            {}
+            if args.opt is None
+            else dict(
+                scatteringTailOpt=args.opt, scatteringTailResidualGate=args.rgate
+            )
+        ),
     ),
     outputDirRoot=outRoot,
     writeCovMat=True,

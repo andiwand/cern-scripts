@@ -37,6 +37,14 @@ CONFIGS = [
     ("selonly15", "select only 15/25", "#008300", "P"),
     ("base25", "baseline 25/50", "#6250d6", "X"),
     ("base35", "baseline 35/70", "#e34948", "*"),
+    # CPU fixes of the mixture (ScatteringTailOpt bit masks)
+    ("mix15o1", "mixture 15/25, slab", "#b07800", "D"),
+    ("mix15o5", "mixture 15/25, slab + fast math", "#9a6a00", "D"),
+    ("mix15o13", "mixture 15/25, + share", "#8a5e00", "D"),
+    ("mix15o15", "mixture 15/25, exact fixes", "#7a4a00", "D"),
+    ("mix15o31", "mixture 15/25, + residual gate", "#5c3800", "D"),
+    ("mix15o47", "mixture 15/25, exact fixes + lazy reject", "#4a2d00", "D"),
+    ("mix15o111", "mixture 15/25, core first", "#c0392b", "D"),
 ]
 INK = "#0b0b0b"
 INK2 = "#52514e"
