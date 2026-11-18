@@ -270,10 +270,10 @@ index 00000000000..d64ce59658d
 +}
 diff --git a/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx
 new file mode 100644
-index 00000000000..2e151dbf3f4
+index 00000000000..ee9d3146ffc
 --- /dev/null
 +++ b/Tracking/Acts/ActsPatternRecognition/src/SeedTruthDumpAlg.cxx
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,138 @@
 +#include "src/SeedTruthDumpAlg.h"
 +#include "xAODMeasurementBase/UncalibratedMeasurement.h"
 +#include "xAODInDetMeasurement/SpacePoint.h"
@@ -316,7 +316,28 @@ index 00000000000..2e151dbf3f4
 +      SG::ReadHandle<ActsTrk::SeedContainer> h(m_seedKeys[ik], ctx);
 +      ATH_CHECK(h.isValid());
 +      std::set<const xAOD::TruthParticle*> done;
++      std::set<std::pair<const xAOD::TruthParticle*, std::size_t>> doneM;
 +      for (const ActsTrk::Seed seed : *h) {
++        // majority matching: SPs whose measurements are all from one particle, best particle; "M ev key nsp nbest uid pt eta"
++        // for seeds with >= 3 SPs of the particle and >= 50% of the seed's SPs (one line per particle and nbest)
++        {
++          std::map<const xAOD::TruthParticle*, std::size_t> cnt; std::size_t nsp = 0;
++          for (const xAOD::SpacePoint* sp : seed.sp()) {
++            ++nsp;
++            const xAOD::TruthParticle* t0 = nullptr; bool one = true;
++            for (const auto* m : sp->measurements()) {
++              const auto* t = truthOf(m);
++              if (!t || (t0 && t != t0)) { one = false; break; }
++              t0 = t;
++            }
++            if (one && t0) ++cnt[t0];
++          }
++          for (const auto& [t, n] : cnt) {
++            if (n < 3 || 2 * n < nsp || std::abs(t->eta()) > m_maxAbsEta || t->pt() < 900.) continue;
++            if (!doneM.insert({t, n * 100 + nsp}).second) continue;
++            o << "M " << ev << ' ' << ik << ' ' << nsp << ' ' << n << ' ' << t->uid() << ' ' << t->pt() << ' ' << t->eta() << '\n';
++          }
++        }
 +        const xAOD::TruthParticle* tp = nullptr; bool pure = true; std::size_t nsp = 0;
 +        for (const xAOD::SpacePoint* sp : seed.sp()) {
 +          ++nsp;

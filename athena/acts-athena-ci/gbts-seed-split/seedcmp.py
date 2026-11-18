@@ -4,7 +4,7 @@ with at least one pure seed (every SP of the seed from that one particle).
 ACTS: SeedTruthDumpAlg lines "P ev key nsp uid pt eta" (key 0 pixel, 1 strip).
 Legacy: SeedMakerValidation.root seeds, SPs matched by position to the ACTS-job pixel SPs with truth ("Q ev x y z uid pt eta";
 the legacy PRD truth resolves only hard-scatter particles here).
-usage: seedcmp.py <acts seeds dir> <legacy seeds dir> <truth dir with splitsum_pu.pkl> [--test]"""
+Also majority matching from "M ev key nsp nbest uid pt eta" lines.\nusage: seedcmp.py <acts seeds dir> <legacy seeds dir> <truth dir with splitsum_pu.pkl> [--test]"""
 import sys, os, pickle, collections
 import numpy as np
 dA, dL, dT = sys.argv[1:4]; TEST = "--test" in sys.argv
@@ -17,11 +17,11 @@ if not TEST:
     idx = collections.defaultdict(list)
     for k in D: idx[(k[0], k[1])].append(k)
 # ACTS
-A = collections.defaultdict(set)
+A = collections.defaultdict(set); AM = collections.defaultdict(set)
 for line in open(os.path.join(dA, "seedtruth.txt")):
     f = line.split()
-    if f[0] != "P": continue
-    A[int(f[2])].add((int(f[1]), int(f[4]), float(f[5]), float(f[6])))
+    if f[0] == "P": A[int(f[2])].add((int(f[1]), int(f[4]), float(f[5]), float(f[6])))
+    elif f[0] == "M": AM[int(f[2])].add((int(f[1]), int(f[5]), float(f[6]), float(f[7])))   # >= 3 SPs and >= 50%
 # legacy SP truth
 Q = collections.defaultdict(list)
 for line in open(os.path.join(dA, "seedtruth.txt")):
@@ -71,3 +71,9 @@ print(f"{'legacy':10s} {pc(LP):>8s} {pc(LS):>8s} {pc(LP | LS):>8s}")
 print(f"{'legacy-ACTS':10s} {100*(len(LP)-len(AP))/N:+7.2f}% {100*(len(LS)-len(AS))/N:+7.2f}% {100*(len(LP|LS)-len(AP|AS))/N:+7.2f}%")
 LA, AA = LP | LS, AP | AS
 print(f"any seed: legacy only {len(LA - AA)}, ACTS only {len(AA - LA)}")
+AMP, AMS = eff(AM[0]), eff(AM[1])
+print(f"\nmajority matching (>= 3 SPs of the particle and >= 50% of the seed's SPs; legacy 3-SP seeds: same as pure):")
+print(f"{'':10s} {'pixel':>8s} {'strip':>8s} {'any':>8s}")
+print(f"{'ACTS':10s} {pc(AMP):>8s} {pc(AMS):>8s} {pc(AMP | AMS):>8s}")
+print(f"{'legacy':10s} {pc(LP):>8s} {pc(LS):>8s} {pc(LP | LS):>8s}")
+print(f"{'legacy-ACTS':10s} {100*(len(LP)-len(AMP))/N:+7.2f}% {100*(len(LS)-len(AMS))/N:+7.2f}% {100*(len(LP|LS)-len(AMP|AMS))/N:+7.2f}%")
