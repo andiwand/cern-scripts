@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Barrel (|eta| < 0.6, pT > 1 GeV, HS + PU) efficiency gap legacy vs ACTS, broken down by cause, one cause per particle.
 Particles legacy finds and ACTS not: no pure 5-SP seed / seed ok but track lost / < 9 own clusters / CKF failure;
-CKF failures classified by the first defect along r on the longest dropped pass-1 branch of their pure seeds.
+CKF failures classified by the first defect along r on the longest dropped pass-1 branch (pure 5-SP seeds preferred,
+else impure or 4-SP seeds).
 Each class also shows the fraction a fix variant recovers.
 usage: breakdown.py <trace> <acts dir> <legacy dir> name=dir ..."""
 import sys, os, pickle, collections, math
@@ -75,11 +76,14 @@ for a in attempts():
     if a["att"] != 0 or a["T"] is None: continue
     T = a["T"]; k = key(a["ev"], a["uid"], T["pt"] * 1000., T["eta"])
     if k is None: continue
-    p = P.setdefault(k, dict(pure=False, ok=False, ns=0, fails=[]))
+    p = P.setdefault(k, dict(pure=False, ok=False, ns=0, fails=[], okany=False, failany=[]))
+    p["ns"] = max(p["ns"], len({h["geo"] for h in a["H"]}))
+    p["okany"] |= a["ntr"] > 0
+    if a["ntr"] == 0: p["failany"].append(a)
     if a["n"] != 5 or not a["pure"]: continue
-    p["pure"] = True; p["ok"] |= a["ntr"] > 0; p["ns"] = max(p["ns"], len({h["geo"] for h in a["H"]}))
+    p["pure"] = True; p["ok"] |= a["ntr"] > 0
     if a["ntr"] == 0: p["fails"].append(a)
-C = collections.Counter(); R = collections.Counter()
+C = collections.Counter(); R = collections.Counter(); SEEDK = collections.Counter()
 def add(c, k, sign):
     C[(c, sign)] += 1
     if sign > 0:
@@ -89,13 +93,14 @@ for k in A:
     if fl is None or fa == fl: continue
     sign = 1 if fl else -1
     p = P.get(k)
-    if p is None: c = "seeding: no seed of the particle"
-    elif not p["pure"]: c = "seeding: only impure or 4-SP seeds"
-    elif p["ok"]: c = "after the CKF: a pure seed made a track, particle not found (resolver / selection / matching)"
+    if p is None: c = "seeding: no traced pixel seed (>= 4 SPs, majority the particle)"
+    elif p["okany"]: c = "after the CKF: a seed made a track, particle not found (resolver / selection / matching)"
     elif p["ns"] < 9: c = "not reconstructible: < 9 own clusters (interaction)"
     else:
-        a = max(p["fails"], key=lambda a: max([s["nm"] for s in a["S"] if s["p"] == 1] or [0]))
+        fl = p["fails"] or p["failany"]
+        a = max(fl, key=lambda a: max([s["nm"] for s in a["S"] if s["p"] == 1] or [0]))
         c = "CKF: " + classify(a)
+        if not p["pure"]: SEEDK[c] += 1
     add(c, k, sign)
 gain = sum(v for (c, s), v in C.items() if s > 0); loss = sum(v for (c, s), v in C.items() if s < 0)
 print(f"barrel |eta| < 0.6, pT > 1 GeV, HS + PU: {N} particles. legacy finds {gain} ACTS does not, ACTS {loss} legacy does not:"
@@ -105,3 +110,4 @@ cs = sorted({c for c, _ in C}, key=lambda c: -(C[(c, 1)] - C[(c, -1)]))
 for c in cs:
     g, l = C[(c, 1)], C[(c, -1)]
     print(f"{c:86s} {g:8d} {l:9d} {100*(g-l)/N:+7.2f}%  " + "  ".join(f"{100*R[(c, n)]/max(g,1):9.0f}%" for n, _ in VF))
+print(f"CKF failures classified through impure or 4-SP seeds only (included above): {sum(SEEDK.values())}")
