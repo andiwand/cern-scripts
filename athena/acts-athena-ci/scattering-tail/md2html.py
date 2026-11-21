@@ -17,6 +17,7 @@ EXTRA = """<style>
 .colh { font-size: 0.9rem; font-weight: 600; color: var(--fg-2); }
 details > .grid2 { margin-top: 10px; }
 @media (max-width: 760px) { .gridps { grid-template-columns: minmax(0, 1fr); } .colh { display: none; } } .cap { font-size: 0.82rem; color: var(--fg-2); }
+ol { padding-left: 22px; display: grid; gap: 6px; max-width: 72ch; }
 details h4 { font-size: 0.84rem; font-weight: 600; margin: 12px 0 4px; }
 </style>"""
 base = os.path.dirname(os.path.abspath(md_path))
@@ -88,6 +89,13 @@ while i < len(L):
         for r in body:
             t += "<tr>" + "".join(f'<td{" class=n" if c < len(isnum) and isnum[c] else ""}>{inline(x)}</td>' for c, x in enumerate(r)) + "</tr>"
         out.append(t + "</tbody></table></div>"); continue
+    if re.match(r"\d+\. ", l):
+        items = []
+        while i < len(L) and (re.match(r"\d+\. ", L[i]) or (L[i].startswith("   ") and items)):
+            if re.match(r"\d+\. ", L[i]): items.append(re.sub(r"^\d+\. ", "", L[i]).strip())
+            else: items[-1] += " " + L[i].strip()
+            i += 1
+        out.append("<ol>" + "".join(f"<li>{inline(x)}</li>" for x in items) + "</ol>"); continue
     if l.startswith("- "):
         blk = []
         while i < len(L) and (L[i].startswith("- ") or L[i].startswith("  ") or
