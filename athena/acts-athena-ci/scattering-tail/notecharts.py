@@ -57,5 +57,6 @@ C["more"]["tail"] = "x/X0 = 0.03 and 0.08"
 if CPU:
     P = json.load(open(CPU))
     C["figs"]["cpu"] = P["figs"]; C["notes"]["cpu"] = P["note"]
+    if "more" in P: C["more"]["cpu"] = P["more"]
 json.dump(C, open(CH, "w"), separators=(",", ":"))
 print(CH, sorted(C["figs"]))

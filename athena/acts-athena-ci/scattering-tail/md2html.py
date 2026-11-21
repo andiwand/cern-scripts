@@ -36,7 +36,7 @@ def inline(t):
     return re.sub(r"\0(\d+)\0", lambda m: f"<code>{codes[int(m.group(1))]}</code>", t)
 def slug(h): return re.sub("[^a-z0-9]+", "-", h.lower()).strip("-")
 cells = lambda l: [c.strip() for c in re.split(r"(?<!\\)\|", l.strip().strip("|"))]
-NUM = re.compile(r"^[\d\s.,%/–≥<>()+−-]+$|^\*\*[\d.,%]+\*\*$")
+NUM = re.compile(r"^[\d\s.,%/–≥<>()+−*-]+$|^\*\*[\d.,%]+\*\*$")
 
 def render_list(lines):
     """lines of a list block -> nested <ul>; an item keeps its paragraphs and sub-items in source order."""
