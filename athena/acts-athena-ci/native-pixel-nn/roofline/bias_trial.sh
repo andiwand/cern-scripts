@@ -20,14 +20,13 @@ assert before in source
 for name,body in [('reference',source),('bias',source.replace(before,after))]:
  (Path(sys.argv[2])/(name+'.cxx')).write_text(body)
 PY
- native_crypto=$(sed -n 's|^OPENSSL_CRYPTO_LIBRARY:FILEPATH=||p' "$native_root/athena-build-native-pixel-nn/CMakeCache.txt")
  for native_isa in sse avx2; do
   native_flags='-march=x86-64-v2'
   if [[ $native_isa == avx2 ]]; then native_flags="$native_flags -mavx2 -mfma -DEIGEN_MAX_ALIGN_BYTES=16"; fi
   for native_case in reference bias; do
    native_name=${native_case}_${native_isa}
    g++ -O2 -DNDEBUG -std=c++23 -fPIC $native_flags -I"$native_pkg" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3" -c "$native_out/$native_case.cxx" -o "$native_out/$native_name.o"
-   g++ -shared "$native_out/../../loader.o" "$native_out/$native_name.o" -L"$NN_STUDY_EXTERNALS/lib" -lonnxruntime "$native_crypto" -Wl,-rpath,"$NN_STUDY_EXTERNALS/lib" -o "$native_out/libNative_$native_name.so"
+   g++ -shared "$native_out/../../loader.o" "$native_out/$native_name.o" -L"$NN_STUDY_EXTERNALS/lib" -lonnxruntime -Wl,-rpath,"$NN_STUDY_EXTERNALS/lib" -o "$native_out/libNative_$native_name.so"
    g++ "$native_out/../../bench.o" -L"$native_out" -lNative_$native_name -L"$NN_STUDY_EXTERNALS/lib" -lonnxruntime -Wl,-rpath,"$native_out:$NN_STUDY_EXTERNALS/lib" -o "$native_out/bench_$native_name"
   done
  done

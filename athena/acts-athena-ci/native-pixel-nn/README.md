@@ -1,6 +1,6 @@
 # Native pixel NN integration
 
-Production branch: `acts-native-pixel-nn` in
+Candidate branch: `acts-native-pixel-nn` in
 `~/source/acts/acts-athena-ci/athena-native-pixel-nn`, based on Athena main
 `41da040949efeca5de0e5adbd84054868a5165c6` (2026-11-24).
 Build: `../athena-build-native-pixel-nn`; results: `../run/native-pixel-nn`.
@@ -57,3 +57,13 @@ completed physics records and accepted timing runs are unaffected.
 
 Follow-up note: `atlas/tsi/notebook/2026-11-24_native-pixel-nn.md` in
 https://github.com/andiwand/cern-notes.
+
+Final review replaces graph fingerprints with required-tensor validation and a
+64-input startup comparison against ONNX. `validate_layout.sh` exercises changed
+weights/metadata, extra unused tensors and deliberate semantic mismatches through
+the actual Athena library. `mutate_models.py` constructs these offline fixtures.
+No OpenSSL linkage is needed by the final loader. Older fingerprint/dispatch
+probes remain as study history, outside the production candidate.
+
+Final implementation overview:
+`atlas/tsi/notebook/2026-11-24_native-pixel-nn-final-candidate.md` in the notes repo.
