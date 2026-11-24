@@ -7,6 +7,7 @@ python3 "$nn_scripts/summarize.py" > "$nn_results/final-summary.log"
 python3 "$nn_scripts/audit.py"
 python3 "$nn_scripts/compare_outcomes.py" > "$nn_results/outcome-comparison.log"
 python3 "$nn_scripts/calibration_fraction.py" > "$nn_results/calibration-fraction.log"
+python3 "$nn_scripts/count_loc.py" > "$nn_results/loc-counts.log"
 set +e
 source "$nn_scripts/env.sh" > "$nn_results/report-environment.log" 2>&1
 set -e

@@ -55,7 +55,7 @@ remain as in the preceding primary-only post-calibration study.
    comparisons (three jobs concurrently), excluded from timing. Do not run these
    alongside either isolated or integrated timing.
 9. `summarize.py`, `kernel_summary.py`, `plot.py`, `kernel_plot.py` in the release
-   environment, then `update_note.py` and `render_note.py`
+   environment, then `count_loc.py`, `update_note.py` and `render_note.py`
    in the isolated Python environment. `provenance.py` records code/model hashes
    and compiler/BLAS settings; source `athena_preload.sh` before it as well.
    `finalize_report.sh` performs these collection/rendering steps together;
@@ -63,6 +63,14 @@ remain as in the preceding primary-only post-calibration study.
    jobs and 60 isolated processes.
    Copy compact results/plots, not trained weights,
    into the note's companion directory.
+
+`count_loc.py` adds the local implementation-size comparison before rendering
+(also called by `finalize_report.sh`). It attributes frozen source ranges to
+each backend, counting shared inference helpers once per backend and conversion
+code alongside C++. SOFIE-generated headers are separate. It excludes common
+benchmark/build/test machinery and library internals; hashes guard the line
+ranges against source changes. Counts are physical lines, not complexity or
+production-diff estimates. The audit is saved as `loc-counts.json` with the note.
 
 All jobs keep AODs, logs, library hashes and outcome records. Output directories
 are never silently overwritten. `v1/` retains preliminary scalar-direct timing

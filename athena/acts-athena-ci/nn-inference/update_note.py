@@ -13,6 +13,7 @@ paired=json.loads((R/'blocked/paired-summary.json').read_text())
 uncal_path=R/'uncalibrated-reference/summary.json'
 uncal=json.loads(uncal_path.read_text()) if uncal_path.exists() else None
 fraction=json.loads((R/'calibration-fraction.json').read_text())
+loc=json.loads((R/'loc-counts.json').read_text())['backends']
 labels={'original':'Current ONNX','ort_cached':'Cached ONNX','ort_simple':'Simplified ONNX','direct':'Direct C++ (SSE)','direct_blocked':'Direct C++ (blocked SSE)','direct_avx2':'Direct C++ (AVX2)','sofie':'SOFIE (GEMM)','sofie_gemv':'SOFIE (GEMV)','lwtnn':'LWTNN float','lwtnn_double':'LWTNN double'}
 done=len(d['integrated'])==len(labels) and all(len(x['runs'])==3 for x in d['integrated'].values()) and len(d['physics'].get('physics',{}))==len(labels)
 prefix=A.name
@@ -29,19 +30,29 @@ def change(b,field):
 status='Completed benchmark; see validation limits.' if done and uncal and uncal['complete_pairs']==3 else 'Backend benchmark complete; matched uncalibrated reference in progress.' if done else 'Isolated and 100-event physics comparisons complete; repeated reconstruction timings in progress.'
 text=['# Pixel NN inference latency','',f"2026-11-24. {status}",'',
       '**Result:** both networks take '+fmt(d['isolated']['direct_blocked']['0'])+' μs with register-blocked SSE, '+fmt(d['isolated']['direct_avx2']['0'])+' μs with AVX2, and '+fmt(d['isolated']['original']['0'])+' μs through the current ONNX wrapper. Portable SSE dense kernels are already competitive. Runtime overhead and matrix-kernel choice both matter.','',
-      '| Backend | Two networks [μs] | After cache sweep [μs] | CKF CPU Δ [%] | Event CPU Δ [%] |',
-      '| --- | ---: | ---: | ---: | ---: |']
+      '| Backend | Two networks [μs] | After cache sweep [μs] | CKF CPU Δ [%] | Event CPU Δ [%] | LOC: hand / gen |',
+      '| --- | ---: | ---: | ---: | ---: | ---: |']
 if done:
     gains=d['integrated']['direct_blocked']['comparisons']
     text[4]+=f" In Athena, blocked SSE reduces primary CKF CPU by {100*(1-gains['ckf_ms']['normalized_ratio']):.1f}% and event CPU by {100*(1-gains['event_ms']['normalized_ratio']):.1f}% on this sample."
 for b,label in labels.items():
     x=d['isolated'].get(b)
+    code=f"{loc[b]['handwritten_loc']} / {loc[b]['generated_loc']}"
     if not x:
-        text.append(f'| {label} | pending | pending | pending | pending |')
+        text.append(f'| {label} | pending | pending | pending | pending | {code} |')
         continue
-    text.append(f"| {label} | {fmt(x['0'])} | {fmt(x['1048576'])} | {change(b,'ckf_ms')} | {change(b,'event_ms')} |")
+    text.append(f"| {label} | {fmt(x['0'])} | {fmt(x['1048576'])} | {change(b,'ckf_ms')} | {change(b,'event_ms')} | {code} |")
 text+=['',
        'μs values cover **multiplicity plus the selected position network**, excluding cluster preparation. ± is cycle-to-cycle SD, not a confidence interval. CKF/event changes are against current ONNX, normalized to unchanged pixel clusterization. The synthetic 1 MiB cache sweep is excluded from timing; its per-call timer overhead is included. Blocked SSE was added later, with a separate paired comparison below.','',
+       'LOC = handwritten / generated nonblank, noncomment physical lines across all four models. Handwritten totals include local loading, inference, transforms, kernels and model conversion/generation; shared inference helpers count once per backend. Common harness, includes/imports, build/tests, weights and upstream library code are excluded. These are attributed prototype counts, not production diffs or formatting-independent complexity measures.', '',
+       '<details markdown="1"><summary>LOC breakdown and counting scope</summary>', '',
+       '| Backend | C++ LOC | Conversion / generator LOC |',
+       '| --- | ---: | ---: |']
+for b,label in labels.items():
+    text.append(f"| {label} | {loc[b]['cpp_loc']} | {loc[b]['conversion_loc']} |")
+text+=['',
+       f'SOFIE’s generated total includes the four complete headers; the handwritten count includes the generator repairs and, for GEMV, its specialization. Blocked SSE counts the handwritten kernel in the assembled source snapshot. The original ONNX row counts the benchmark adapter, not all existing Athena code. Source hashes and exact attributed ranges: [LOC audit]({prefix}/loc-counts.json).',
+       '</details>', '',
        '**Timing limit:** runs are pinned and alternate sequentially, with load/control statistics retained. Two late backend runs and the initial raw control hit host load 30–40; they are retained but excluded and were repeated at lower load. All six accepted raw/NN runs stayed below load 10. Large gains are clear; close backend rankings still need quiet-host confirmation.','',
        '## Remaining cost versus uncalibrated','',
        'The NN charge/size thresholds are zero; the normal **7σ/10σ CKF gates and SeedOnly policy remain active**. Both networks run on each pixel post-calibration call, including repeat visits on different track candidates. Strips and LRT remain uncalibrated.', '']
@@ -160,6 +171,7 @@ for filename,source in [('summary.json',R/'summary.json'),('model-manifest.json'
     shutil.copy2(source,A/filename)
 validation=json.loads((R/'validation-real-athena/validation.json').read_text())
 shutil.copy2(R/'calibration-fraction.json',A/'calibration-fraction.json')
+shutil.copy2(R/'loc-counts.json',A/'loc-counts.json')
 shutil.copy2(R/'timing-exclusions.json',A/'timing-exclusions.json')
 if uncal_path.exists():shutil.copy2(uncal_path,A/'uncalibrated-reference.json')
 shutil.copy2(R/'tracking-counter-comparison.json', A/'tracking-counter-comparison.json')
