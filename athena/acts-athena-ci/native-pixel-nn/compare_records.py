@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import gzip,json,math,sys
 from pathlib import Path
-R=Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn/physics')
+R=Path(sys.argv[2])/'physics' if len(sys.argv)>2 else Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn/physics')
 def load(backend):
     with gzip.open(R/backend/'outcomes.txt.gz','rt') as stream:
         rows=[s.split() for s in stream]

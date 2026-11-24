@@ -35,7 +35,7 @@ for path in git('diff',BASE,'--name-only').splitlines():
     cmake_masks={'+':test_build_lines(current),'-':test_build_lines(previous)}
     base='glue'
     if path.endswith('NativePixelClusterNNFromOnnx.cxx'):base='conversion'
-    elif Path(path).name in ('NativePixelClusterNN.cxx','NativePixelClusterNN.h'):base='inference'
+    elif Path(path).name in ('NativePixelClusterNN.cxx','NativePixelClusterNN.h','NativePixelClusterNNKernel.icc','NativePixelClusterNNBaseline.cxx','NativePixelClusterNNAvx2.cxx'):base='inference'
     elif '/test/' in path:base='tests'
     counts=collections.defaultdict(lambda:dict(added=0,removed=0))
     old=new=0

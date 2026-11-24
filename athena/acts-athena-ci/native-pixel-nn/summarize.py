@@ -5,9 +5,10 @@ import hashlib
 import json
 import re
 import statistics as st
+import sys
 import tarfile
 from pathlib import Path
-R=Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn')
+R=Path(sys.argv[1]) if len(sys.argv)>1 else Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn')
 out={'physics':{},'timing':{}}
 records={};truths={}
 for backend in ['OnnxRuntime','Native']:
