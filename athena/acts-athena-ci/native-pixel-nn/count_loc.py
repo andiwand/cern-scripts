@@ -5,10 +5,11 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 ROOT=Path('/home/astefl/source/acts/acts-athena-ci/athena-native-pixel-nn')
 BASE='41da040949efeca5de0e5adbd84054868a5165c6'
-OUT=ROOT.parent/'run/native-pixel-nn/loc.json'
+OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT.parent/'run/native-pixel-nn/loc.json'
 def git(*args):
     return subprocess.check_output(['git','-C',str(ROOT),*args],text=True,stderr=subprocess.DEVNULL)
 def code_lines(text,suffix):
@@ -35,7 +36,7 @@ for path in git('diff',BASE,'--name-only').splitlines():
     cmake_masks={'+':test_build_lines(current),'-':test_build_lines(previous)}
     base='glue'
     if path.endswith('NativePixelClusterNNFromOnnx.cxx'):base='conversion'
-    elif Path(path).name in ('NativePixelClusterNN.cxx','NativePixelClusterNN.h','NativePixelClusterNNKernel.icc','NativePixelClusterNNBaseline.cxx','NativePixelClusterNNAvx2.cxx'):base='inference'
+    elif Path(path).name in ('NativePixelClusterNN.cxx','NativePixelClusterNN.h','NativePixelClusterNNKernel.icc','NativePixelClusterNNBaseline.cxx','NativePixelClusterNNAvx2.cxx','NativePixelClusterNNConstants.h','PixelClusterNNLayout.h'):base='inference'
     elif '/test/' in path:base='tests'
     counts=collections.defaultdict(lambda:dict(added=0,removed=0))
     old=new=0
@@ -47,6 +48,11 @@ for path in git('diff',BASE,'--name-only').splitlines():
         index=new if sign=='+' else old
         if index in masks[sign]:
             category='tests' if Path(path).name=='CMakeLists.txt' and index in cmake_masks[sign] else base
+            if Path(path).name=='NativePixelClusterNN.cxx':
+                source = current if sign=='+' else previous
+                dispatcher = next(i for i,line in enumerate(source.splitlines(),1)
+                                  if line.startswith('void NativePixelClusterNN::infer('))
+                category = 'conversion' if index < dispatcher else 'inference'
             key='added' if sign=='+' else 'removed'
             counts[category][key]+=1;totals[category][key]+=1
         if sign=='+':new+=1

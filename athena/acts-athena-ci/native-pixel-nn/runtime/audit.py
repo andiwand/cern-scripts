@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """Read-only ISA/symbol audit of the final GCC and Clang objects."""
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 
 root = Path('/home/astefl/source/acts/acts-athena-ci')
-result = root/'run/native-pixel-nn/runtime-mr'
+result = Path(os.environ.get('NATIVE_NN_RUN_ROOT', str(root/'run/native-pixel-nn/mr-review')))
 objects = {
     'gcc': root/'athena-build-native-pixel-nn/InnerDetector/InDetRecTools/SiClusterizationTool/CMakeFiles/SiClusterizationToolLib.dir/src',
-    'clang': result/'standalone/clang',
+    'clang': Path(os.environ.get('NATIVE_NN_CLANG_OBJECT_DIR', str(result/'standalone/clang'))),
 }
 report = {}
 for compiler, directory in objects.items():
     report[compiler] = {}
-    for name in ['NativePixelClusterNN', 'NativePixelClusterNNFromOnnx',
+    for name in ['NativePixelClusterNN',
                  'NativePixelClusterNNBaseline', 'NativePixelClusterNNAvx2']:
         path = directory/(name + ('.cxx.o' if compiler == 'gcc' else '.o'))
         assembly = subprocess.check_output(['objdump', '-d', '--no-show-raw-insn', str(path)], text=True)

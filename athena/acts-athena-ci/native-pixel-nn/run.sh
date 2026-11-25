@@ -12,7 +12,10 @@ source /home/astefl/source/acts/acts-athena-ci/athena-build-native-pixel-nn/x86_
 export ATHENA_CORE_NUMBER=${nn_threads:-1} TRF_ECHO=1
 nn_mt=False
 if ((nn_threads>0)); then nn_mt=True; else export ATHENA_CORE_NUMBER=1; fi
-nn_pre="flags.Reco.EnableHGTDExtension=False;from ActsConfig.ActsConfigFlags import PixelNNInferenceBackend;flags.Acts.PixelNNInferenceBackend=PixelNNInferenceBackend.$nn_backend;"
+nn_pre="flags.Reco.EnableHGTDExtension=False;"
+if [[ $nn_backend != Default ]]; then
+ nn_pre+="from ActsConfig.ActsConfigFlags import PixelNNInferenceBackend;flags.Acts.PixelNNInferenceBackend=PixelNNInferenceBackend.$nn_backend;"
+fi
 nn_post="exec(open('/home/astefl/scripts/athena/acts-athena-ci/native-pixel-nn/config.py').read())"
 sha256sum /home/astefl/source/acts/acts-athena-ci/athena-build-native-pixel-nn/x86_64-el9-gcc15-opt/lib/libActsTrackReconstruction.so /home/astefl/source/acts/acts-athena-ci/athena-build-native-pixel-nn/x86_64-el9-gcc15-opt/lib/libSiClusterizationToolLib.so > libraries.txt
 printf '%s\n' "$nn_input" > input.txt

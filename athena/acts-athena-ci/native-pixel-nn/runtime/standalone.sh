@@ -5,15 +5,15 @@ source /home/astefl/scripts/athena/acts-athena-ci/nn-inference/env.sh > /tmp/nat
 set -eo pipefail
 runtime_root=/home/astefl/source/acts/acts-athena-ci
 runtime_pkg=$runtime_root/athena-native-pixel-nn/InnerDetector/InDetRecTools/SiClusterizationTool
-runtime_out=$runtime_root/run/native-pixel-nn/runtime-mr/standalone
+runtime_out=${NATIVE_NN_RUN_ROOT:-$runtime_root/run/native-pixel-nn/mr-review}/standalone
 runtime_build=$runtime_root/athena-build-native-pixel-nn
 mkdir -p "$runtime_out/clang"
 source "$runtime_build/x86_64-el9-gcc15-opt/setup.sh" >> /tmp/native-runtime-standalone-env.log 2>&1
 set -u
-cp "$runtime_root/run/native-pixel-nn/cxxutils/bench.cxx" "$runtime_out/bench.cxx"
-runtime_includes=(-I"$runtime_pkg" -I"$NN_STUDY_EXTERNALS/include" -I"$runtime_root/athena-native-pixel-nn/Control/CxxUtils" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3")
+cp /home/astefl/scripts/athena/acts-athena-ci/native-pixel-nn/runtime/bench.cxx "$runtime_out/bench.cxx"
+runtime_includes=(-I"$runtime_pkg" -I"$NN_STUDY_EXTERNALS/include" -I"$runtime_root/athena-native-pixel-nn/Control/CxxUtils" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3" -I"$NN_STUDY_LCG/Boost/1.91.0/x86_64-el9-gcc15-opt/include")
 g++ -O2 -DNDEBUG -std=c++23 -march=x86-64-v2 "${runtime_includes[@]}" "$runtime_out/bench.cxx" -L"$runtime_build/x86_64-el9-gcc15-opt/lib" -lSiClusterizationToolLib -L"$NN_STUDY_EXTERNALS/lib" -lonnxruntime -Wl,-rpath,"$runtime_build/x86_64-el9-gcc15-opt/lib:$NN_STUDY_EXTERNALS/lib" -o "$runtime_out/bench_gcc"
-for runtime_source in NativePixelClusterNN NativePixelClusterNNFromOnnx NativePixelClusterNNBaseline NativePixelClusterNNAvx2; do
+for runtime_source in NativePixelClusterNN NativePixelClusterNNBaseline NativePixelClusterNNAvx2; do
  runtime_flags=(-DSICLUSTERIZATION_NATIVE_NN_HAVE_AVX2)
  if [[ $runtime_source == *Baseline || $runtime_source == *Avx2 ]]; then runtime_flags+=(-fvisibility=hidden -fvisibility-inlines-hidden '-DEIGEN_STRONG_INLINE=inline __attribute__((always_inline))'); fi
  if [[ $runtime_source == *Avx2 ]]; then runtime_flags+=(-mavx2 -mfma -DEIGEN_MAX_ALIGN_BYTES=16); fi

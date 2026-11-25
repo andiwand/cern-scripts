@@ -3,7 +3,7 @@
 set -euo pipefail
 restore_root=/home/astefl/source/acts/acts-athena-ci
 restore_scripts=/home/astefl/scripts/athena/acts-athena-ci/native-pixel-nn
-restore_out=$restore_root/run/native-pixel-nn/runtime-final
+restore_out=${NATIVE_NN_RUN_ROOT:-$restore_root/run/native-pixel-nn/mr-review}
 restore_lib=$restore_root/athena-build-native-pixel-nn/x86_64-el9-gcc15-opt/lib
 sha256sum "$restore_lib/libSiClusterizationToolLib.so" "$restore_lib/libActsTrackReconstruction.so" > "$restore_out/libraries-before-off.txt"
 bash "$restore_scripts/build.sh" -DSICLUSTERIZATION_NATIVE_NN_AVX2=OFF > "$restore_out/final-off-build.log" 2>&1

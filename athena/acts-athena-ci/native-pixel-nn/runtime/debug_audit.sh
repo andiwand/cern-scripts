@@ -5,8 +5,8 @@ source /home/astefl/scripts/athena/acts-athena-ci/nn-inference/env.sh > /tmp/nat
 set -euo pipefail
 debug_root=/home/astefl/source/acts/acts-athena-ci
 debug_pkg=$debug_root/athena-native-pixel-nn/InnerDetector/InDetRecTools/SiClusterizationTool
-debug_out=$debug_root/run/native-pixel-nn/runtime-mr/debug-audit
-debug_includes=(-I"$debug_pkg" -I"$debug_root/athena-native-pixel-nn/Control/CxxUtils" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3")
+debug_out=${NATIVE_NN_RUN_ROOT:-$debug_root/run/native-pixel-nn/mr-review}/debug-audit
+debug_includes=(-I"$debug_pkg" -I"$debug_root/athena-native-pixel-nn/Control/CxxUtils" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3" -I"$NN_STUDY_LCG/Boost/1.91.0/x86_64-el9-gcc15-opt/include")
 for debug_compiler in gcc clang; do
  debug_cxx=g++
  if [[ $debug_compiler == clang ]]; then debug_cxx=/usr/bin/clang++; fi
