@@ -15,7 +15,7 @@ objects = {
 report = {}
 for compiler, directory in objects.items():
     report[compiler] = {}
-    for name in ['NativePixelClusterNN',
+    for name in ['NativePixelClusterNN', 'PixelClusterNNFactory',
                  'NativePixelClusterNNBaseline', 'NativePixelClusterNNAvx2']:
         path = directory/(name + ('.cxx.o' if compiler == 'gcc' else '.o'))
         assembly = subprocess.check_output(['objdump', '-d', '--no-show-raw-insn', str(path)], text=True)

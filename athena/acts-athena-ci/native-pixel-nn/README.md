@@ -36,7 +36,7 @@ Standalone validation reuses the frozen capture and reference outputs in
 `../run/nn-inference` and helpers in `../nn-inference`; those are not part of
 or dependencies of the production implementation.
 
-Final implementation: fixed dimensions, CxxUtils GEMV/blend/division, Eigen exp,
+Final implementation: runtime layer counts/dimensions, CxxUtils GEMV/blend/division, Eigen exp,
 and runtime SSE/AVX2 dispatch. The following retain the earlier Eigen experiments:
 - `make_general_variants.py`, `build_general_variants.sh`,
   `validate_general_variants.sh`, `time_general_variants.sh`: final fixed/dynamic
@@ -100,3 +100,22 @@ Final SIMD tuning and validation:
   `prepare_final.py` records the directory/client/reference setup and refuses
   overwrites. After all measurements, `check_off_restore.sh` tests the OFF build,
   restores ON and verifies exact library hashes before report packaging.
+
+Runtime-sized follow-up (2026-11-25):
+
+- `runtime/generic_compile.sh`: GCC/Clang builds of the runtime-sized kernel and
+  common model interface; 10k captured inputs, all four heads, auto/SSE/ONNX.
+- `runtime/generic_time.py`: three alternating 50k-input × three-repeat cycles
+  against the frozen aligned fixed-size candidate; comparison to ONNX outputs.
+- `runtime/generic_baseline.sh` records that older baseline; do not regenerate it
+  from the current headers. `interface_bench.cxx` exercises virtual inference and
+  the native-preferred/explicit-ONNX factory, with a forced-baseline test path.
+- Results default to `run/native-pixel-nn/generic/final`; override with
+  `NATIVE_NN_RUN_ROOT`. Earlier `runtime/standalone.sh` assumes bit identity with
+  the specialized kernel and is historical; GCC AVX2 now differs within tolerance.
+- The unit test adds shallow/deep/wide/decoder-only models, concurrent ONNX/native
+  calls and fallback. `runtime/generic_full.sh` performs a fresh full campaign in
+  `generic/full`: 100k captured inputs through the actual Athena library; two
+  100-event physics runs; three serial 20-event timing pairs; pre/default-threshold
+  and automatic-fallback smoke jobs; AVX2-OFF tests and ON restoration.
+  `generic_analyze.py` checks fresh-job provenance, shared library hashes and results.

@@ -36,7 +36,7 @@ for path in git('diff',BASE,'--name-only').splitlines():
     cmake_masks={'+':test_build_lines(current),'-':test_build_lines(previous)}
     base='glue'
     if path.endswith('NativePixelClusterNNFromOnnx.cxx'):base='conversion'
-    elif Path(path).name in ('NativePixelClusterNN.cxx','NativePixelClusterNN.h','NativePixelClusterNNKernel.icc','NativePixelClusterNNBaseline.cxx','NativePixelClusterNNAvx2.cxx','NativePixelClusterNNConstants.h','PixelClusterNNLayout.h'):base='inference'
+    elif Path(path).name in ('IPixelClusterNN.h','NativePixelClusterNN.cxx','NativePixelClusterNN.h','NativePixelClusterNNKernel.icc','NativePixelClusterNNBaseline.cxx','NativePixelClusterNNAvx2.cxx','NativePixelClusterNNConstants.h','PixelClusterNNLayout.h'):base='inference'
     elif '/test/' in path:base='tests'
     counts=collections.defaultdict(lambda:dict(added=0,removed=0))
     old=new=0
@@ -61,7 +61,7 @@ for path in git('diff',BASE,'--name-only').splitlines():
 for row in totals.values():row['net']=row['added']-row['removed']
 result={'base':BASE,
         'metric':'Changed nonblank, noncomment physical lines; includes headers, imports, build/configuration and tests. Added includes replacement lines; net subtracts removed lines.',
-        'excludes':'Documentation and external validation/benchmark scripts; no generated code or embedded learned weights.',
+        'excludes':'Documentation, binary ONNX test fixtures and external validation/benchmark scripts; no generated inference code or embedded learned weights. Fixture generator counts as tests; factory/ONNX adapter count as glue.',
         'totals':dict(totals),'files':files}
 OUT.write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result['totals'],indent=2))
