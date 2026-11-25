@@ -131,3 +131,6 @@ MR descriptions are read live and patched in place to preserve user edits.
 `runtime/unroll_review.py` (after sourcing `../nn-inference/env.sh`) compares only
 the SiLU unroll hint on/off under GCC/Clang and SSE/AVX2: 100k-input equivalence
 and seven alternating timing pairs. Results are in `run/native-pixel-nn/unroll-review`.
+`--dense` instead checks both dense hints, each separately, and neither, writing
+`dense-unroll-review`. `runtime/dense_unroll_repeat.py` repeats GCC both/neither
+with thread CPU time on another core; this did not eliminate timing noise.
