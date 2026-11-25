@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
+generic_out=${1:-${NATIVE_NN_RUN_ROOT:-/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn/generic/final}}
 set +e
 source /home/astefl/scripts/athena/acts-athena-ci/nn-inference/env.sh > /tmp/native-generic-env.log 2>&1
 set -euo pipefail
 generic_root=/home/astefl/source/acts/acts-athena-ci
 generic_pkg=$generic_root/athena-native-pixel-nn/InnerDetector/InDetRecTools/SiClusterizationTool
-generic_out=${NATIVE_NN_RUN_ROOT:-$generic_root/run/native-pixel-nn/generic/final}
 generic_includes=(-I"$generic_pkg" -I"$NN_STUDY_EXTERNALS/include" -I"$generic_root/athena-native-pixel-nn/Control/CxxUtils" -I"$NN_STUDY_LCG/eigen/3.4.1/x86_64-el9-gcc15-opt/include/eigen3" -I"$NN_STUDY_LCG/Boost/1.91.0/x86_64-el9-gcc15-opt/include")
 for generic_compiler in gcc clang; do
  generic_cxx=g++

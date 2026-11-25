@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the concise reviewed note/MR after the complete campaign is archived."""
+"""Historical report generator; MR descriptions must be read and edited in place."""
 import json
 from pathlib import Path
 n=Path('/home/astefl/notes/atlas/tsi/notebook')
@@ -97,26 +97,4 @@ Athena dispatch precedents: [GSF](https://gitlab.cern.ch/atlas/athena/-/blob/41d
 '''
 assert len(text.split())<=880,len(text.split())
 (n/'2026-11-24_native-pixel-nn-final-candidate.md').write_text(text)
-body=f'''🤖 Prefer native ACTS pixel NN inference using existing ONNX weights and runtime-sized depths/widths. A common interface provides logged ONNX fallback when native construction fails. Explicit ONNX remains available; legacy ONNX conditions stay unchanged.
-
-We tried intrinsics and Eigen, then chose CxxUtils for performance and SSE/AVX2 runtime dispatch; Eigen supplies exp.
-
-Number + selected position, μs/cluster (GCC 15, Threadripper 3970X):
-
-| Backend | Inference [μs] | LOC total / conversion / inference / glue / generated / tests |
-| --- | ---: | --- |
-| ONNX Runtime | {t['onnx']['mean_us']:.1f} | 45 / 0 / 45 / — / 0 / — |
-| Native | {t['auto']['mean_us']:.1f} AVX2<br>{t['sse']['mean_us']:.1f} SSE | {total} / {breakdown[0]} / {breakdown[1]} / {breakdown[2]} / 0 / {breakdown[3]} |
-| LWTNN float | 6.8 | 46 / 21 / 25 / — / 0 / — |
-| SOFIE/GEMV (patched) | 6.0 | 1,088 / 82 / 26 / — / 980 / — |
-
-Net LOC excludes blanks/comments/library code. Native includes shared glue/tests and the ONNX adapter; — marks uncounted support. LWTNN/SOFIE are earlier prototypes.
-
-100 ttbar μ=200 events, all-cluster NN post-calibration: both {p['efficiency_pct']:.5f}% efficiency and {p['fakes']}/{p['reco']:,} fakes; no gained/lost truth. Three serial timing pairs: CKF {ckf['change_pct']:.1f}%, event {event['change_pct']:.1f}% versus ONNX.
-
-4/4 tests pass with AVX2 ON/OFF; 100k-input comparisons, GCC/Clang ISA audits, pre/default-threshold and fallback smoke checks pass.
-'''
-assert len(body.split())<=224,len(body.split())
-(r/'mr-description.md').write_text(body)
-(r/'mr-update.json').write_text(json.dumps({'description':body}))
-print('words: note',len(text.split()),'MR',len(body.split()))
+print('words: note',len(text.split()))

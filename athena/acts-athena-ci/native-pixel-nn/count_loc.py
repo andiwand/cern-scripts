@@ -61,7 +61,7 @@ for path in git('diff',BASE,'--name-only').splitlines():
 for row in totals.values():row['net']=row['added']-row['removed']
 result={'base':BASE,
         'metric':'Changed nonblank, noncomment physical lines; includes headers, imports, build/configuration and tests. Added includes replacement lines; net subtracts removed lines.',
-        'excludes':'Documentation, binary ONNX test fixtures and external validation/benchmark scripts; no generated inference code or embedded learned weights. Fixture generator counts as tests; factory/ONNX adapter count as glue.',
+        'excludes':'Documentation and external validation/benchmark scripts; no generated inference code or embedded learned weights. C++ fixture construction counts as tests; factory/ONNX adapter count as glue.',
         'totals':dict(totals),'files':files}
 OUT.write_text(json.dumps(result,indent=2)+'\n')
 print(json.dumps(result['totals'],indent=2))

@@ -119,3 +119,11 @@ Runtime-sized follow-up (2026-11-25):
   100-event physics runs; three serial 20-event timing pairs; pre/default-threshold
   and automatic-fallback smoke jobs; AVX2-OFF tests and ON restoration.
   `generic_analyze.py` checks fresh-job provenance, shared library hashes and results.
+
+Review follow-up: test fixtures are generated in C++ via ORT's model editor.
+`runtime/test_source_review.py` compares the explicit ISA wrappers to the frozen
+pre-review library on 100k inputs and three alternating timing pairs.
+`generic_compile.sh OUTPUT` and `debug_audit.sh OUTPUT` capture the output path
+before environment setup, which can reset inherited variables.
+The notebook records this cleanup separately from the full reconstruction run.
+MR descriptions are read live and patched in place to preserve user edits.
