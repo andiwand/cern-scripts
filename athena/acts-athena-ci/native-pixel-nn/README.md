@@ -127,3 +127,7 @@ pre-review library on 100k inputs and three alternating timing pairs.
 before environment setup, which can reset inherited variables.
 The notebook records this cleanup separately from the full reconstruction run.
 MR descriptions are read live and patched in place to preserve user edits.
+
+`runtime/unroll_review.py` (after sourcing `../nn-inference/env.sh`) compares only
+the SiLU unroll hint on/off under GCC/Clang and SSE/AVX2: 100k-input equivalence
+and seven alternating timing pairs. Results are in `run/native-pixel-nn/unroll-review`.
