@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""(copy of seed-track-hits/md2html.py with ### headings) Standalone HTML of a TSI note: markdown body with the stylesheet of an earlier note page, PNGs embedded.
+"""Standalone HTML of a TSI note: markdown body with the stylesheet of an earlier note page, PNGs embedded.
 Handles headings, paragraphs, nested bullet lists with continuation paragraphs, tables and images.
 usage: md2html.py note.md style-template.html out.html [charts.json charts.js]
 With charts.json, an image whose alt text names a figure in it becomes an inline SVG chart (charts.js) instead of the PNG."""
@@ -17,6 +17,7 @@ EXTRA = """<style>
 .colh { font-size: 0.9rem; font-weight: 600; color: var(--fg-2); }
 details > .grid2 { margin-top: 10px; }
 @media (max-width: 760px) { .gridps { grid-template-columns: minmax(0, 1fr); } .colh { display: none; } } .cap { font-size: 0.82rem; color: var(--fg-2); }
+ol { padding-left: 22px; display: grid; gap: 6px; max-width: 72ch; }
 details h4 { font-size: 0.84rem; font-weight: 600; margin: 12px 0 4px; }
 </style>"""
 base = os.path.dirname(os.path.abspath(md_path))
@@ -35,7 +36,7 @@ def inline(t):
     return re.sub(r"\0(\d+)\0", lambda m: f"<code>{codes[int(m.group(1))]}</code>", t)
 def slug(h): return re.sub("[^a-z0-9]+", "-", h.lower()).strip("-")
 cells = lambda l: [c.strip() for c in re.split(r"(?<!\\)\|", l.strip().strip("|"))]
-NUM = re.compile(r"^[\d\s.,%/–≥<>()+−-]+$|^\*\*[\d.,%]+\*\*$")
+NUM = re.compile(r"^[\d\s.,%/–≥<>()+−*-]+$|^\*\*[\d.,%]+\*\*$")
 
 def render_list(lines):
     """lines of a list block -> nested <ul>; an item keeps its paragraphs and sub-items in source order."""
@@ -88,6 +89,13 @@ while i < len(L):
         for r in body:
             t += "<tr>" + "".join(f'<td{" class=n" if c < len(isnum) and isnum[c] else ""}>{inline(x)}</td>' for c, x in enumerate(r)) + "</tr>"
         out.append(t + "</tbody></table></div>"); continue
+    if re.match(r"\d+\. ", l):
+        items = []
+        while i < len(L) and (re.match(r"\d+\. ", L[i]) or (L[i].startswith("   ") and items)):
+            if re.match(r"\d+\. ", L[i]): items.append(re.sub(r"^\d+\. ", "", L[i]).strip())
+            else: items[-1] += " " + L[i].strip()
+            i += 1
+        out.append("<ol>" + "".join(f"<li>{inline(x)}</li>" for x in items) + "</ol>"); continue
     if l.startswith("- "):
         blk = []
         while i < len(L) and (L[i].startswith("- ") or L[i].startswith("  ") or

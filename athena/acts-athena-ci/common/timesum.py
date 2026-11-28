@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Per-algorithm CPU for cycle.sh runs, normalised to ActsPixelClusterizationAlg. usage: timesum2.py <dir> <ref> <variant>..."""
+"""Per-algorithm CPU for cycle.sh runs, normalised to ActsPixelClusterizationAlg. usage: timesum.py <dir> <ref> <variant>..."""
 import re, glob, sys, statistics as st
 PAT = re.compile(r"PerfMonMTSvc\s+INFO Execute\s+(\d+)\s+([0-9.]+)\s+\S+\s+\S+\s+(\S+)\s*$")
 CTRL = "ActsPixelClusterizationAlg"

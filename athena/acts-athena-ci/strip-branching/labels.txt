@@ -1,0 +1,10 @@
+# variant<TAB>short label<TAB>long label (common/charts.py)
+b0	main	main
+bP1	L0 pix	branch strip L0, pixel seeds
+bP2	L0-1 pix	branch strip L0-1, pixel seeds
+bA2	L0-1 all	branch strip L0-1, all seeds
+bP2e	L0-1 pix + edge	branch L0-1 pixel seeds + edge 1 mm
+e1	edge	edge 1 mm only (MR 92667)
+sP	all strip pix	branch all strip layers, pixel seeds
+eP0	EC0 pix	branch strip endcap disk 0, pixel seeds
+bPe0	L0+EC0 pix	branch strip L0 + endcap disk 0, pixel seeds

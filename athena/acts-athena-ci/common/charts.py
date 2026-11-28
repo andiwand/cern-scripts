@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Chart data (charts.js format) and a text summary from IDPVM outputs of several variants; differences vs the first.
-usage: charts.py <ana dir> out.json <base variant> <variant>...  (needs the asetup env for ROOT)
+usage: [LABELS=<study>/labels.txt] charts.py <ana dir> out.json <base variant> <variant>...  (needs the asetup env for ROOT)
+LABELS: variant<TAB>short<TAB>long per line; COLS: colour tokens per variant; LRTJSON: lrtfakes output name.
 Reads <ana dir>/<v>/idpvm_{hs,all}.root and, if present, <ana dir>/lrtfakes.json (lrtfakes.py).
 Everything vs |eta| is folded over +-eta."""
 import sys, json, math, os, ROOT
 D, OUT = sys.argv[1:3]; VS = sys.argv[3:]; V0 = VS[0]
-LAB = {"b0": "main", "bP1": "branch strip L0, pixel seeds", "bP2": "branch strip L0-1, pixel seeds",
-       "bA2": "branch strip L0-1, all seeds", "bP2e": "branch L0-1 pixel seeds + edge 1 mm", "e1": "edge 1 mm only (MR 92667)",
-       "sP": "branch all strip layers, pixel seeds", "eP0": "branch strip endcap disk 0, pixel seeds",
-       "bPe0": "branch strip L0 + endcap disk 0, pixel seeds"}
 COL = dict(zip(VS, os.environ.get("COLS", "--p1 --p2 --p3 --p4 --p6 --p5 --grey").split()))
-SHORT = {"b0": "main", "bP1": "L0 pix", "bP2": "L0-1 pix", "bA2": "L0-1 all", "bP2e": "L0-1 pix + edge", "e1": "edge", "sP": "all strip pix", "eP0": "EC0 pix", "bPe0": "L0+EC0 pix"}
+LAB, SHORT = {}, {}
+if os.environ.get("LABELS"):
+    for l in open(os.environ["LABELS"]):
+        if l.strip() and not l.startswith("#"):
+            k, s, t = l.rstrip("\n").split("\t"); SHORT[k], LAB[k] = s, t
 F = {v: {s: ROOT.TFile.Open(f"{D}/{v}/idpvm_{s}.root") for s in ("hs", "all")} for v in VS}
 G = lambda v, s, p: F[v][s].Get("SquirrelPlots/Tracks/" + p)
 ETA = [0, 0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6, 4.0]

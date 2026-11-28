@@ -1,0 +1,12 @@
+# variant<TAB>short label<TAB>long label (common/charts.py)
+d1	no update	tail, no C+wD update
+d2	no hole resel.	tail, no re-selection on holes
+t4	tail 4/6	tail + cuts 4/6
+g4	G4 tail 4/6	Geant4 tail + cuts 4/6
+c4	4/6	cuts 4/6
+t0	main	main
+t1	tail	tail, primary
+tl	tail+LRT	tail, primary + LRT
+c5	5/7	cuts 5/7
+t5	tail 5/7	tail + cuts 5/7
+w10	10/14	cuts 10/14

@@ -25,6 +25,13 @@ Notes on each piece of work are in `andiwand/cern-notes`
 
 | script | usage |
 |---|---|
+| `build.sh <study>` | configure (once; `CFG=1` again) and build the study's worktree; `BUILD_SRC`, `BUILD_DIR`, `BUILD_ARGS` come from `<study>/env.sh`, the filter from `<study>/package_filter.txt` |
+| `idpvm.sh <study> <variant>...` | IDPVM over `run/<study>/<tag>/<v>/myAOD.pool.root` into `run/<study>/ana/<v>/idpvm_{hs,all,lrt}.root`; `RUNS`, `SETS` |
+| `cycle.sh <study> <tag> <ncycles> <nev> <variant>...` | serial CPU cycles of `<study>/run.sh` (`RUN=` another runner), alternating variants |
+| `timesum.py <dir> <variant>...` | per-algorithm CPU of `cycle.sh` runs, normalised to `ActsPixelClusterizationAlg` |
+| `lrtfakes.py out.json <v>=<aod>,...` | LRT fake rate vs eta/pT/d0 from AODs (parallel, `NPROC`) |
+| `charts.py <ana dir> out.json <v0> <v>...` | chart data from IDPVM outputs, differences vs `v0`; `LABELS=<study>/labels.txt` |
+| `md2html.py note.md style.html out.html [charts.json charts.js]` | standalone note page with inline SVG charts (`charts.js`) |
 | `fingerprint.sh <log>` | algorithm statistics tables of a `log.RAWtoALL`, timestamps stripped: diff two to check the physics output is unchanged |
 
 ## rz-track-finder
