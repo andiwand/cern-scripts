@@ -10,7 +10,8 @@
 # `--ttbar --runs 8 --events 3` (CKF stage).
 #
 # Environment: OUT (default ~/cern/data/benchmark/ab_<BASE>_<CHANGED>),
-# ROUNDS (default 4), plus the CKF_* variables of full_chain_perf.py.
+# ROUNDS (default 4), plus the CKF_* variables of full_chain_perf.py
+# (CKF_RECORD_MATERIAL_STATES defaults to 0 here).
 # NOTE: no `set -u` -- activate.sh expands an unset PYTHONPATH and would abort.
 set -eo pipefail
 
@@ -31,6 +32,7 @@ fi
 
 OUT=${OUT:-$HOME/cern/data/benchmark/ab_${BASE}_${CHANGED}}
 ROUNDS=${ROUNDS:-4}
+export CKF_RECORD_MATERIAL_STATES=${CKF_RECORD_MATERIAL_STATES:-0}
 
 run_side() {
   local name=$1 dir=$2
