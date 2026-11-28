@@ -2,8 +2,8 @@
 """Run the CKF or the RZ finder on the same simulated events and write the
 usual performance files, so that the two can be compared file against file.
 
-    compare.py --finder ckf --out out/ckf
-    compare.py --finder rz  --out out/rz
+    compare.py --finder ckf --out ~/cern/data/rz-track-finder/ckf
+    compare.py --finder rz  --out ~/cern/data/rz-track-finder/rz
 """
 
 import argparse

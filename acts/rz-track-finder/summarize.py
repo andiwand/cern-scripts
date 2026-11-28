@@ -3,7 +3,7 @@
 perigee pulls and the per-event time of one or more compare.py outputs side by
 side.
 
-    summarize.py output/muon-ckf output/muon-rz
+    summarize.py ~/cern/data/rz-track-finder/muon-ckf ~/cern/data/rz-track-finder/muon-rz
 """
 
 import csv
