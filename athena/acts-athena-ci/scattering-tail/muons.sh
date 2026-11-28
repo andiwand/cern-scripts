@@ -8,8 +8,8 @@ rdo() { case $1 in
   1) ls $D/ATLAS-P2-RUN4-04-00-00/*muonpm_Pt1_*/RDO.*;;
   10) ls $D/ATLAS-P2-RUN4-04-00-00/*muonpm_Pt10_*/RDO.*;;
   100) ls $D/ATLAS-P2-RUN4-03-00-01/*muonpm_Pt100_*/RDO.* | head -1;; esac; }
-job() { s=$1 v=$2; case $v in g*) r=run4.sh;; *) r=run2.sh;; esac
-  INPUT_RDO=$3 PAR=1 bash $S/$r mu$s $NT $NEV $v | grep RECO | sed "s/^/mu$s /"; }
+job() { s=$1 v=$2
+  INPUT_RDO=$3 PAR=1 bash $S/run.sh mu$s $NT $NEV $v | grep RECO | sed "s/^/mu$s /"; }
 export -f job
 for s in "$@"; do for v in ${VARIANTS:-t0 c35 t35 g35 c5 t5 g5 w10}; do echo "$s $v $(rdo $s)"; done; done |
   xargs -P ${JOBS:-3} -L1 bash -c "job \$0 \$1 \$2"
