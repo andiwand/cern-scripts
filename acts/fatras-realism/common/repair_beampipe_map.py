@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Fill only empty bins of the known ODD cylindrical Be pipe, using its physical slab."""
+"""Fill only empty bins of the known ODD cylindrical Be pipe, using its physical slab.
+
+The ODD v6 map has beam-pipe material only in its two central z bins although
+the 0.8 mm Be cylinder extends to |z| = 4000 mm. --input is the map inside the
+ODD checkout (its xml/ is read for the pipe dimensions). --constants is a JSON
+with G4_Be x0, l0 (mm), A, Z, rho (ACTS units) and density_g_cm3, or the .json
+written next to a previously repaired map (its slab.constants are reused).
+"""
 import argparse, hashlib, json
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -14,6 +21,7 @@ p.add_argument("--constants", type=Path, required=True)
 a = p.parse_args()
 assert not a.output.exists()
 be = json.loads(a.constants.read_text())
+be = be.get("slab", {}).get("constants", be)
 assert abs(be["density_g_cm3"] - 1.848) < 1e-9
 assert abs(be["A"] - 9.01218) < 1e-6
 assert be["Z"] == 4

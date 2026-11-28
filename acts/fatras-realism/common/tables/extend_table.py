@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Append higher-momentum bins, preserving all existing event/rate records."""
+"""Extend channels of BASE with the bins of EXTENSION, preserving all records.
+
+Each extended channel's new bins must lie entirely above (appended) or below
+(prepended) the base momentum grid. Writes OUTPUT and OUTPUT.json with checks.
+"""
 import argparse, hashlib, json
 from pathlib import Path
 
@@ -42,13 +46,17 @@ checks = {}
 for key, (header, body, grid) in base.items():
     if key in extra:
         h, b, g = extra[key]
-        assert g[0] > grid[-1]
         header[-1] = str(len(grid) + len(g))
-        newbody = body + b
-        assert newbody[: len(body)] == body
+        if g[0] > grid[-1]:
+            newbody = body + b
+            assert newbody[: len(body)] == body
+        else:
+            assert g[-1] < grid[0], f"overlapping momentum grids for {key}"
+            newbody = b + body
+            assert newbody[-len(body) :] == body
         checks[key[0]] = {
             "old_range": [grid[0], grid[-1]],
-            "new_range": [grid[0], g[-1]],
+            "new_range": [min(grid[0], g[0]), max(grid[-1], g[-1])],
             "old_bin_records_sha256": hashlib.sha256(body.encode()).hexdigest(),
             "old_bins_unchanged": True,
         }

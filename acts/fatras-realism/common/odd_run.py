@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Generate identical inputs and compare Geant4 and Fatras in the ODD tracker."""
+"""Generate identical ODD inputs, or simulate them with Geant4 or Fatras.
+
+Run inside run-env.sh. Modes:
+  generate   Pythia8 ttbar + pileup particles (K-short/Lambda undecayed)
+  geant4     FTFP_BERT, 1000 ns time kill, charged primary+secondary hits
+  fatras     EM + native decays + optional hadronic table
+  fatras-em  EM only (baseline)
+Inputs are usually filtered with prepare_inputs.py --matched first; compare
+the three simulations with odd_compare.py. For uncut inclusive comparisons
+use inclusive_run.py.
+"""
 
 import argparse
 import hashlib
@@ -13,8 +23,8 @@ import acts
 import acts.examples
 from acts.examples.simulation import addPythia8, addFatras, addGeant4
 from acts.examples.odd import getOpenDataDetector
-import acts.examples.geant4
-import pion_diagnostics
+
+import paths
 
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("mode", choices=["generate", "geant4", "fatras", "fatras-em"])
@@ -24,9 +34,7 @@ p.add_argument("--events", type=int, default=20)
 p.add_argument("--pileup", type=int, default=200)
 p.add_argument("--seed", type=int, default=42)
 p.add_argument("--table", type=Path)
-p.add_argument("--material-map", type=Path)
-p.add_argument("--projectiles", type=int, nargs="+", default=[211, -211])
-p.add_argument("--diagnostic-prefix", default="pion")
+p.add_argument("--material-map", type=Path, help="Default: the ODD map in $ODD_PATH")
 p.add_argument("--reference-material", action="store_true")
 p.add_argument("--neutral-hadrons", action=argparse.BooleanOptionalAction, default=True)
 p.add_argument("--neutral-ke-min", type=float, default=0.010, help="GeV")
@@ -53,20 +61,15 @@ meta = {
     "p_min_GeV": a.p_min,
     "pt_min_GeV": a.pt_min,
     "acts_revision": subprocess.check_output(
-        [
-            "git",
-            "-C",
-            os.environ.get(
-                "ACTS_VALIDATION_SOURCE", "/Users/andreas/cern/source/acts/acts/dev3"
-            ),
-            "rev-parse",
-            "HEAD",
-        ],
-        text=True,
+        ["git", "-C", str(paths.SOURCE), "rev-parse", "HEAD"], text=True
     ).strip(),
-    "build": os.environ.get(
-        "ACTS_VALIDATION_BUILD", "/Users/andreas/cern/build/acts/acts/dev3"
+    "acts_worktree_dirty": bool(
+        subprocess.check_output(["git", "-C", str(paths.SOURCE), "status", "--porcelain"])
     ),
+    "acts_diff_sha256": hashlib.sha256(
+        subprocess.check_output(["git", "-C", str(paths.SOURCE), "diff", "HEAD"])
+    ).hexdigest(),
+    "build": str(paths.BUILD),
     "table": str(a.table) if a.table else None,
     "reference_material": a.reference_material,
     "neutral_hadrons": a.neutral_hadrons,
@@ -77,15 +80,6 @@ meta = {
     ),
     "input": str(a.input) if a.input else None,
 }
-source = os.environ.get(
-    "ACTS_VALIDATION_SOURCE", "/Users/andreas/cern/source/acts/acts/dev3"
-)
-meta["acts_worktree_dirty"] = bool(
-    subprocess.check_output(["git", "-C", source, "status", "--porcelain"])
-)
-meta["acts_diff_sha256"] = hashlib.sha256(
-    subprocess.check_output(["git", "-C", source, "diff", "HEAD"])
-).hexdigest()
 if a.mode == "generate":
     settings = ["310:mayDecay = off", "3122:mayDecay = off"]
     addPythia8(
@@ -142,35 +136,20 @@ else:
     meta["material_map"] = str(material_map)
     meta["material_map_sha256"] = hashlib.sha256(material_map.read_bytes()).hexdigest()
     if a.mode == "geant4":
-        from acts.examples.geant4 import Geant4Simulation, SensitiveSurfaceMapper
-
-        cfg = Geant4Simulation.Config()
-        cfg.detector = detector
-        cfg.randomNumbers = rnd
-        cfg.inputParticles = "particles_generated"
-        cfg.outputParticles = "particles_simulated"
-        cfg.outputSimHits = "simhits"
-        mapper_config = SensitiveSurfaceMapper.Config()
-        mapper_config.materialMappings = ["Silicon"]
-        cfg.sensitiveSurfaceMapper = SensitiveSurfaceMapper.create(
-            mapper_config, level, geometry
-        )
-        cfg.magneticField = field
-        cfg.killVolume = geometry.highestTrackingVolume
-        cfg.killAfterTime = 1000 * u.ns
-        cfg.keepParticlesWithoutHits = True
-        cfg.recordHitsOfSecondaries = True
-        alg = pion_diagnostics.make_geant4(
-            cfg, str(a.output), str(a.table), level, a.projectiles, a.diagnostic_prefix
-        )
-        s.addAlgorithm(alg)
-        s.addWriter(
-            acts.examples.CsvSimHitWriter(
-                level=level,
-                inputSimHits="simhits",
-                outputDir=str(a.output),
-                outputStem="hits",
-            )
+        addGeant4(
+            s,
+            detector,
+            geometry,
+            field,
+            rnd,
+            inputParticles="particles_generated",
+            outputDirCsv=a.output,
+            recordHitsOfSecondaries=True,
+            keepParticlesWithoutHits=True,
+            killSecondaries=False,
+            killVolume=geometry.highestTrackingVolume,
+            physicsList="FTFP_BERT",
+            killAfterTime=1000 * u.ns,
         )
         meta["physics"] = (
             "FTFP_BERT; charged primary and secondary hits; 1000 ns global time cut"
@@ -208,20 +187,8 @@ else:
     meta["geometry"] = (
         "ODD tracker only (pixels + strips); no calorimeter or muon system"
     )
-if a.mode != "generate":
-    s.addWriter(
-        pion_diagnostics.PionWriter(
-            "particles_simulated", str(a.output), a.projectiles, a.diagnostic_prefix
-        )
-    )
-meta["diagnostic_projectiles"] = a.projectiles
-meta["diagnostic_prefix"] = a.diagnostic_prefix
-meta["diagnostics"] = (
-    "external hadron step observer and final-state writer; G4 truth reused only after hit replay verification"
-)
 (a.output / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
 t0 = time.perf_counter()
 s.run()
-pion_diagnostics.flush()
 meta["sequencer_seconds"] = time.perf_counter() - t0
 (a.output / "metadata.json").write_text(json.dumps(meta, indent=2) + "\n")

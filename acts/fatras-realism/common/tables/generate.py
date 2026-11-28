@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate a Fatras interaction library with an external Geant4 build."""
+"""Generate a Fatras interaction library with the external Geant4 generator.
+
+Build the generator first: cmake -S . -B BUILD -DGeant4_DIR=...; cmake --build BUILD
+Supported projectiles: 211, -211, 2212, -2212, 2112, -2112, 130, 321, -321.
+"""
 import argparse
 import hashlib
 import json
@@ -24,6 +28,11 @@ def main():
         nargs="+",
         default=[0.1 * math.exp(math.log(200) * i / 47) for i in range(48)],
     )
+    p.add_argument(
+        "--diagnostic-rejection",
+        action="store_true",
+        help="Reject nonphysical residuals instead of failing; conditional diagnostic spectra only, never production calibration",
+    )
     a = p.parse_args()
     if a.output.exists():
         p.error("output already exists")
@@ -46,6 +55,9 @@ def main():
         if len(paths) != 1:
             p.error(f"expected one {stem} dataset in {a.data_root}")
         env[key] = str(paths[0].resolve())
+    env.pop("FATRAS_DIAGNOSTIC_REJECT_INVALID_RESIDUALS", None)
+    if a.diagnostic_rejection:
+        env["FATRAS_DIAGNOSTIC_REJECT_INVALID_RESIDUALS"] = "1"
     binary = a.build.resolve() / "generate-table"
     command = [
         str(binary),
@@ -66,6 +78,7 @@ def main():
         "projectiles": a.projectiles,
         "seed": a.seed,
         "events_per_node": a.events,
+        "diagnostic_rejection": a.diagnostic_rejection,
         "datasets": {key: env[key] for key in datasets},
         "generator_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
         "source_sha256": hashlib.sha256(
