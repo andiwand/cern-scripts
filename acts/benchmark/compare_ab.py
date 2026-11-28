@@ -2,7 +2,7 @@
 """Compare the per-event times of an interleaved A/B run.
 
 Reads <dir>/main_<i>/times.csv and <dir>/changed_<i>/times.csv, as written by
-full_chain_perf_ab.sh, and prints the medians of each round and of all rounds.
+ab.sh, and prints the medians of each round and of all rounds.
 """
 
 import argparse

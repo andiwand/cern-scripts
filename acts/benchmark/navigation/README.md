@@ -20,5 +20,3 @@ It prints the number of successful propagations and the step count next to the
 timing, and that is not decoration: without the `EndOfWorldReached` aborter every
 propagation ran to the step limit and returned an error, and the benchmark
 produced a confident, entirely bogus -10%.
-
-See `~/cern/notes/acts/notebook/2026-08-21_navigation-operation-budget.md`.
