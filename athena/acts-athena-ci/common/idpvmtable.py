@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Table of the IDPVM headline numbers for several runs: cmpidpvm.py <dir> ..."""
+"""Table of the IDPVM headline numbers (eta-averaged) for several runs.
+usage: idpvmtable.py <idpvm.root | dir with idpvm.root> ..."""
 import sys, ROOT
 ROOT.gROOT.SetBatch(True)
 KEYS=[("effLoose","SquirrelPlots/Tracks/Efficiency/efficiency_vs_eta"),
@@ -31,8 +32,9 @@ def avg(f,p):
         if e>0: tot+=h.GetBinContent(i)*e; n+=e
     return tot/n if n else float('nan')
 dirs=sys.argv[1:]
-rows={d:{k:avg(ROOT.TFile.Open(f"{d}/idpvm.root"),p) for k,p in KEYS} for d in dirs}
-names=[d.replace("mu_pt10_","") for d in dirs]
+def path(d): return d if d.endswith(".root") else f"{d}/idpvm.root"
+rows={d:{k:avg(ROOT.TFile.Open(path(d)),p) for k,p in KEYS} for d in dirs}
+names=[d.rstrip("/")[-10:] for d in dirs]
 print(f"{'':9s}"+"".join(f"{n:>11s}" for n in names))
 for k,_ in KEYS:
     print(f"{k:9s}"+"".join(f"{rows[d][k]:11.4g}" for d in dirs))

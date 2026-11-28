@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Efficiency / duplicates / track quality per |eta| for GBTS seed split variants, paired against the first.
-usage: splitsum.py [--pu] name=dir ...   (dir holds myAOD.pool.root; cached in dir/splitsum.pkl)
+"""Efficiency / duplicates / track quality per |eta| of several reco variants, paired particle by particle against the first.
+usage: pairedeff.py [--pu] name=dir ...   (dir holds myAOD.pool.root; cached in dir/splitsum.pkl)
 --pu: count pile-up truth too (full-truth sample); otherwise hard scatter only."""
 import sys, os, pickle, collections, ctypes, math
 EB = [0, 0.3, 0.6, 1.0, 1.5, 2.5, 4.0]

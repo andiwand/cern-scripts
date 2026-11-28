@@ -2,7 +2,7 @@
 """Integrated residual and pull widths for several runs, from the 1D histograms.
 
 Uses the iterative-Gaussian core width IDPVM itself fits, so the number is not
-one of the sparse per-eta fits.  usage: d0res.py <dir> ...
+one of the sparse per-eta fits.  usage: corewidth.py <idpvm.root | dir with idpvm.root> ...
 """
 import sys, ROOT
 ROOT.gROOT.SetBatch(True)
@@ -17,12 +17,13 @@ def corewidth(h, nsig=3.0, iters=6):
         mu, sg = r.Parameter(1), r.Parameter(2)
     return sg, h.GetEntries()
 vars_=["d0","z0","phi","theta"]
-print(f"{'':22s}"+"".join(f"{d.replace('mu_pt',''):>13s}" for d in sys.argv[1:]))
+def path(d): return d if d.endswith(".root") else f"{d}/idpvm.root"
+print(f"{'':22s}"+"".join(f"{d.rstrip('/')[-12:]:>13s}" for d in sys.argv[1:]))
 for kind,fmt in (("res","%9.3f"),("pull","%9.3f")):
     for v in vars_:
         row=[]
         for d in sys.argv[1:]:
-            f=ROOT.TFile.Open(f"{d}/idpvm.root")
+            f=ROOT.TFile.Open(path(d))
             w,n=corewidth(f.Get(BASE+f"{kind}_{v}"))
             scale = 1000. if (kind=="res" and v in ("d0","z0")) else 1.
             row.append(w*scale)

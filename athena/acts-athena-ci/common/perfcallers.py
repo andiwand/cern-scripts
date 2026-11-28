@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Callers of given symbols in a perf profile: for each sample containing the
-symbol, the frame directly above its outermost occurrence."""
-import sys, re, collections, subprocess
-data = sys.argv[1]; targets = sys.argv[2:]
+symbol, the frame directly above its outermost occurrence.
+usage: perfcallers.py perf.data <symbol>...   env: UNDER (only samples below this frame, e.g. TrackFindingAlg::execute; default all)"""
+import os, sys, re, collections, subprocess
+data = sys.argv[1]; targets = sys.argv[2:]; under = os.environ.get("UNDER", "")
 proc = subprocess.Popen(["perf", "script", "-i", data, "--no-inline", "-F", "ip,sym,dso"],
                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, errors="replace")
 FRAME = re.compile(r"^\s+[0-9a-f]+\s+(.*?)\s+\((.*)\)\s*$")
@@ -15,7 +16,7 @@ frames = []
 def flush(fr):
     if not fr: return
     syms = [short(f) for f in fr]
-    if not any("TrackFindingRzAlg::execute" in s for s in syms): return
+    if under and not any(under in s for s in syms): return
     for t in targets:
         idx = [i for i, s in enumerate(syms) if t in s]
         if not idx: continue
