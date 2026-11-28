@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Verify exported inclusive efficiency and fakes against official IDPVM."""
+"""Verify exported inclusive efficiency and fakes against official IDPVM (HS + pile-up truth).
+
+usage: audit_idpvm.py RUN_DIR IDPVM_ROOT   RUN_DIR: one run.sh output (rows.tsv); writes RUN_DIR/idpvm-audit.json
+"""
 import json
 from pathlib import Path
 import sys
@@ -7,7 +10,7 @@ import ROOT
 from analyze import load, counts
 
 root = Path(sys.argv[1])
-f = ROOT.TFile.Open(str(root / "idpvm/idpvm.root"))
+f = ROOT.TFile.Open(sys.argv[2])
 assert f and not f.IsZombie()
 report = {}
 for key, path in [
@@ -22,7 +25,7 @@ for key, path in [
         total=int(total.Integral(1, total.GetNbinsX())),
         range=[total.GetXaxis().GetXmin(), total.GetXaxis().GetXmax()],
     )
-ours = counts(load(root / "core7_on"), "none", 0)
+ours = counts(load(root), "none", 0)
 report["export"] = ours
 assert report["efficiency"]["passed"] == ours["matched"], report
 assert report["efficiency"]["total"] == ours["truth"], report
