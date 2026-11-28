@@ -18,8 +18,6 @@ Build: `../athena-build-native-pixel-nn`; results: `../run/native-pixel-nn`.
   outcome comparison and control-normalized timing. Repeated timing events are
   not pooled into the physics denominator. `compare_records.py Native [RESULT_ROOT]`
   separates discrete tracking quantities from fitted floating-point differences.
-- `fingerprint_probe.cxx`: feasibility experiment for graph signatures with
-  learned values externalized through public ORT APIs; not shipped in Athena.
 - `eigen_compare.sh`, `time_eigen.sh`: paired Eigen/intrinsics standalone
   comparison. `.cxx` and assembly snapshots are kept with the results.
 - `validate.sh`, `isa_check.sh`: 100k real-input comparison to ONNX, all four

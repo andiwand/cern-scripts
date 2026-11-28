@@ -59,7 +59,7 @@ NN / cluster-response follow-up:
   ONNX/native decision comparisons before tuning. `nn_analyze.py` reuses the original
   definitions; its vectorized counters were checked against the regression fixture.
   `review_nn_training.py` checks original truth, settings and model hashes.
-- `nn_finish.sh` was superseded after native pilot agreement. Its dispatchers were
+- `nn_finish.sh` (removed; in git history) was superseded after native pilot agreement. Its dispatchers were
   stopped; the running core4/core5/core7 ONNX controls were preserved. See
   remote `nn/handoff.json`; the main NN results live under `nn-native/`.
 - `cross_nn.py RUN [nn-extended] [retention=0.995]`: common-target, paired raw/NN differences and common-truth
