@@ -20,8 +20,7 @@ GEANT4_LIB = Path(
 )
 RUN_ENV = HERE / "run-env.sh"
 
-# Reference inputs produced by earlier runs (see README "Data").
+# Reference inputs produced by earlier runs (see README "Setup").
 INPUTS = DATA / "fatras-runtime-model/results/2026-10-15/inputs"
 MATERIAL_MAP = DATA / "fatras-pion-validation/data/2026-10-14/odd-material-beampipe.root"
 ID_WORLD = DATA / "fatras-charged-mesons/data/2026-10-14"
-TABLE = DATA / "fatras-neutral-refinement/data/2026-10-14/silicon-all-low.table"
