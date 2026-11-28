@@ -1,3 +1,0 @@
-+ Tracking/Acts/ActsTrackReconstruction
-+ Tracking/Acts/ActsConfig
-- .*

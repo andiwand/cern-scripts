@@ -1,3 +1,0 @@
-+ Tracking/Acts/ActsPatternRecognition
-+ Tracking/Acts/ActsTrackReconstruction
-- .*
