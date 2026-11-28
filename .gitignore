@@ -24,3 +24,5 @@ profiles/
 **/.snakemake/
 
 *.pkl
+
+.claude/
