@@ -6,8 +6,9 @@ compile_commands.json (dropping -o/-c and unit-specific defines), then the
 given sources are compiled and linked against ACTS (and optionally Geant4).
 
   acts_compile.py --template fatras-test --output check check.cpp
-  acts_compile.py --template geant4-plugin --shared --geant4 run geometry global \
+  acts_compile.py --template geant4-plugin --shared --acts --geant4 run geometry global \
       --output id_world.so g4/id-world.cpp
+  acts_compile.py -I bridge --output cache-test bridge/cache-test.cpp
 """
 
 import argparse
@@ -44,10 +45,15 @@ def compile_flags(build, template, source=None):
     """
     suffix, drop = TEMPLATES[template]
     entry = next(
-        e
-        for e in json.loads((build / "compile_commands.json").read_text())
-        if e["file"].endswith(suffix)
+        (
+            e
+            for e in json.loads((build / "compile_commands.json").read_text())
+            if e["file"].endswith(suffix)
+        ),
+        None,
     )
+    if entry is None:
+        raise RuntimeError(f"{build} does not compile *{suffix}; enable the target for '{template}'")
     old = configured_source(build) if source else None
     words = shlex.split(entry["command"])
     flags = []
@@ -157,6 +163,7 @@ def main():
     p.add_argument("--geant4", nargs="*", help="Geant4 components (default: all)")
     p.add_argument("--clhep", action="store_true")
     p.add_argument("--shared", action="store_true", help="Python extension module")
+    p.add_argument("--include", "-I", type=Path, action="append", default=[])
     p.add_argument("--record", type=Path, help="Write command and source hashes")
     a = p.parse_args()
     if a.geant4 is not None and a.geant4_lib is None:
@@ -173,6 +180,7 @@ def main():
         clhep=a.clhep,
         shared=a.shared,
         source=a.source,
+        extra=["-I" + str(d.resolve()) for d in a.include],
     )
 
 

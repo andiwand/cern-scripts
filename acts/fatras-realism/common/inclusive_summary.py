@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Inclusive ODD summary: no momentum, time, multiplicity or ancestry cuts."""
+"""Inclusive ODD summary PDF: no momentum, time, multiplicity or ancestry cuts.
+
+  inclusive_summary.py --run "ACTS main" MAIN --run "Changed Fatras" FATRAS \
+      --run "Geant4 default, ID only" GEANT4 --output DIR
+
+Runs are inclusive_run.py outputs on identical inputs (checked by hash).
+Geant4 runs (mode geant4) must have the physical ID world and no time kill.
+Writes DIR/inclusive-summary.json (reuse with --cached) and the PDF/PNG pages.
+"""
 
 import argparse, collections, json
 from pathlib import Path
@@ -12,9 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 p = argparse.ArgumentParser(description=__doc__)
-p.add_argument("--main", type=Path, required=True)
-p.add_argument("--fatras", type=Path, required=True)
-p.add_argument("--geant4", type=Path, required=True)
+p.add_argument("--run", nargs=2, action="append", metavar=("LABEL", "DIR"), default=[])
 p.add_argument("--output", type=Path, required=True)
 p.add_argument("--cached", action="store_true")
 a = p.parse_args()
@@ -22,10 +28,16 @@ a.output.mkdir(parents=True, exist_ok=True)
 BAR = ["particle_id_" + v for v in ["pv", "sv", "part", "gen", "subpart"]]
 PT = [0, 0.001, 0.005, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 10, 100, np.inf]
 TIME = [0, 1, 10, 100, 1000, 10000, 1e6, np.inf]
-labels = ["ACTS main", "Changed Fatras", "Geant4 default, ID only"]
-colors = ["#777777", "#4c78a8", "#f28e2b"]
-folders = [a.main, a.fatras, a.geant4]
 cache = a.output / "inclusive-summary.json"
+if a.cached:
+    labels = list(json.loads(cache.read_text())["runs"])
+else:
+    if not a.run:
+        p.error("give --run LABEL DIR at least once, or --cached")
+    labels = [label for label, _ in a.run]
+folders = [Path(folder) for _, folder in a.run]
+colors = (["#777777", "#4c78a8", "#f28e2b", "#59a14f", "#e15759", "#b07aa1"] * 2)[: len(labels)]
+width = 0.8 / len(labels)
 
 
 def csv(path, **kwargs):
@@ -61,7 +73,7 @@ if not a.cached:
             meta["input_selection"]["p_min_GeV"] is None
             and meta["input_selection"]["pt_min_GeV"] is None
         )
-        if label.startswith("Geant4"):
+        if meta["mode"] == "geant4":
             assert (
                 meta["geant4_explicit_time_max_ns"] is None
                 and meta["geant4_world"]["world_solid"] == "G4Tubs"
@@ -106,7 +118,7 @@ if not a.cached:
                 row[region + "_pdg"] = counts(
                     truth.particle_type.to_numpy()[where[mask]]
                 )
-            if label.startswith("Geant4"):
+            if meta["mode"] == "geant4":
                 row["outside_ID_hits"] = int(
                     (
                         (np.hypot(h.tx, h.ty) > 1202.001) | (np.abs(h.tz) > 4002.001)
@@ -122,6 +134,7 @@ if not a.cached:
             rows.append(row)
             print(label, event, row["ID_secondary"], row["pixel_secondary"], flush=True)
         result["runs"][label] = {
+            "geant4": meta["mode"] == "geant4",
             "folder": str(folder),
             "metadata": meta,
             "events": rows,
@@ -150,7 +163,7 @@ else:
     result = json.loads(cache.read_text())
 n = len(result["runs"][labels[0]]["events"])
 plt.rcParams.update({"font.size": 10, "pdf.fonttype": 42})
-footer = f"{n} matched ttbar + 200 fixed pileup events, seed 42, Bz=2 T. No input or analysis momentum cuts; ID birth boundary only.\nGeant4 FTFP_BERT defaults, no additional time kill; physical world r=1202 mm, |z|=4002 mm. All recorded charged sensitive hits."
+footer = f"{n} matched events, Bz=2 T. No input or analysis momentum cuts; ID birth boundary only.\nGeant4 FTFP_BERT defaults, no additional time kill; physical world r=1202 mm, |z|=4002 mm. All recorded charged sensitive hits."
 page = 0
 with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
 
@@ -164,7 +177,7 @@ with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
         plt.close(fig)
 
     fig, axes = plt.subplots(1, 2, figsize=(11.7, 8.3))
-    fig.suptitle("Inclusive secondary hits — ACTS main, changed Fatras and Geant4")
+    fig.suptitle("Inclusive secondary hits")
     for ax, key, title in zip(
         axes,
         ["ID_secondary", "pixel_secondary"],
@@ -172,8 +185,8 @@ with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
     ):
         values = [result["summary"][k][key]["mean"] for k in labels]
         errors = [result["summary"][k][key]["sem"] for k in labels]
-        ax.bar(range(3), values, yerr=errors, capsize=4, color=colors)
-        ax.set_xticks(range(3), labels, rotation=20, ha="right")
+        ax.bar(range(len(labels)), values, yerr=errors, capsize=4, color=colors)
+        ax.set_xticks(range(len(labels)), labels, rotation=20, ha="right")
         ax.set_ylabel("Secondary hits/event")
         ax.set_title(title)
         for i, v in enumerate(values):
@@ -181,7 +194,7 @@ with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
         ax.set_ylim(0, max(v + e for v, e in zip(values, errors)) * 1.2)
     save(
         fig,
-        "No normalization to Geant4. Error bars: event SEM; five events are a diagnostic sample.",
+        "No normalization to Geant4. Error bars: event SEM.",
     )
     fig, ax = plt.subplots(figsize=(11.7, 8.3))
     ax.axis("off")
@@ -287,9 +300,9 @@ with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
     for j, (label, c) in enumerate(zip(labels, colors)):
         rows = result["runs"][label]["events"]
         axes[0].bar(
-            np.arange(7) + (j - 1) * 0.25,
+            np.arange(7) + (j - (len(labels) - 1) / 2) * width,
             [mean([e["pixel_process"].get(str(k), 0) for e in rows]) for k in range(7)],
-            width=0.25,
+            width=width,
             label=label,
             color=c,
         )
@@ -330,7 +343,7 @@ with PdfPages(a.output / "inclusive_summary.pdf") as pdf:
                 ]
             )
         )
-        axes[0].bar(np.arange(9) + (j - 1) * 0.25, ys, width=0.25, label=label, color=c)
+        axes[0].bar(np.arange(9) + (j - (len(labels) - 1) / 2) * width, ys, width=width, label=label, color=c)
         axes[1].plot(
             range(7),
             np.mean([e["ID_secondary_time"] for e in rows], axis=0),

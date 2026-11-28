@@ -1,4 +1,9 @@
-"""Deterministic charged probes spanning soft loopers and displaced tracks."""
+"""Deterministic charged probes spanning soft loopers and displaced tracks.
+
+1440 stable muons: pT 0.2 MeV-1 GeV, eta 0/1/2, eight azimuths, birth radius
+0/40/120 mm, both charges. Use the output as inclusive_run.py --input with
+--soft --transport-only --events 1 to test navigation without physics.
+"""
 
 import argparse
 import csv
