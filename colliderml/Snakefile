@@ -1,3 +1,12 @@
+# ColliderML ODD performance plots: snakemake -c 8 -s ~/cern/scripts/colliderml/Snakefile
+# Data and plots go to ~/cern/data/colliderml; the mu_* edm4hep inputs are
+# expected in data/sim there, ttbar200 is downloaded.
+import os
+
+SCRIPTS = os.path.join(workflow.basedir, "scripts")
+
+workdir: os.path.expanduser("~/cern/data/colliderml")
+
 rule all:
     input:
         "data/reco/mu_pt0.5-100/performance_seeding.root",
@@ -24,7 +33,7 @@ rule download_data_ttbar200:
 rule reconstruction:
     input:
         data = "data/sim/{label}.edm4hep.root",
-        script = "scripts/reco.py",
+        script = SCRIPTS + "/reco.py",
     output:
         "data/reco/{label}/performance_seeding.root",
         "data/reco/{label}/performance_finding_ambi.root",
@@ -33,67 +42,67 @@ rule reconstruction:
     params:
         events = 100000,
     shell:
-        "scripts/activate_and_run.sh python {input.script} --input-file {input.data} --output-dir data/reco/{wildcards.label} --events {params.events} --threads {threads}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} --input-file {input.data} --output-dir data/reco/{wildcards.label} --events {params.events} --threads {threads}"
 
 rule plot_mu_seeding_efficiency_vs_eta:
     input:
         data = ["data/reco/mu_pt1/performance_seeding.root", "data/reco/mu_pt10/performance_seeding.root", "data/reco/mu_pt100/performance_seeding.root"],
-        script = "scripts/plot_mu_seeding_efficiency_vs_eta.py",
+        script = SCRIPTS + "/plot_mu_seeding_efficiency_vs_eta.py",
     output:
         "plots/mu_seeding_efficiency_vs_eta.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_mu_finding_efficiency_vs_eta:
     input:
         data = ["data/reco/mu_pt1/performance_finding_ambi.root", "data/reco/mu_pt10/performance_finding_ambi.root", "data/reco/mu_pt100/performance_finding_ambi.root"],
-        script = "scripts/plot_mu_finding_efficiency_vs_eta.py",
+        script = SCRIPTS + "/plot_mu_finding_efficiency_vs_eta.py",
     output:
         "plots/mu_finding_efficiency_vs_eta.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_mu_finding_efficiency_vs_pt:
     input:
         data = "data/reco/mu_pt0.5-100/performance_finding_ambi.root",
-        script = "scripts/plot_mu_finding_efficiency_vs_pt.py",
+        script = SCRIPTS + "/plot_mu_finding_efficiency_vs_pt.py",
     output:
         "plots/mu_finding_efficiency_vs_pt.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_mu_fitting_resolution_d0_vs_eta:
     input:
         data = ["data/reco/mu_pt1/performance_fitting_ambi.root", "data/reco/mu_pt10/performance_fitting_ambi.root", "data/reco/mu_pt100/performance_fitting_ambi.root"],
-        script = "scripts/plot_mu_fitting_resolution_d0_vs_eta.py",
+        script = SCRIPTS + "/plot_mu_fitting_resolution_d0_vs_eta.py",
     output:
         "plots/mu_fitting_resolution_d0_vs_eta.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_mu_fitting_pullwidth_vs_eta:
     input:
         data = ["data/reco/mu_pt1/performance_fitting_ambi.root", "data/reco/mu_pt10/performance_fitting_ambi.root", "data/reco/mu_pt100/performance_fitting_ambi.root"],
-        script = "scripts/plot_mu_fitting_pullwidth_vs_eta.py",
+        script = SCRIPTS + "/plot_mu_fitting_pullwidth_vs_eta.py",
     output:
         "plots/mu_fitting_pullwidth_vs_eta.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_e_finding_efficiency_vs_eta:
     input:
         data = ["data/reco/e_pt1/performance_finding_ambi.root", "data/reco/e_pt10/performance_finding_ambi.root", "data/reco/mu_pt10/performance_finding_ambi.root"],
-        script = "scripts/plot_e_finding_efficiency_vs_eta.py",
+        script = SCRIPTS + "/plot_e_finding_efficiency_vs_eta.py",
     output:
         "plots/e_finding_efficiency_vs_eta.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} --output {output}"
 
 rule plot_ttbar_finding_efficiency:
     input:
         data = ["data/reco/ttbar200/performance_finding_ambi.root"],
-        script = "scripts/plot_ttbar_finding_efficiency.py",
+        script = SCRIPTS + "/plot_ttbar_finding_efficiency.py",
     output:
         "plots/ttbar_finding_efficiency_vs_{y}.pdf",
     shell:
-        "scripts/activate_and_run.sh python {input.script} {input.data} {wildcards.y} --output {output}"
+        SCRIPTS + "/activate_and_run.sh python {input.script} {input.data} {wildcards.y} --output {output}"
