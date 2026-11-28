@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Interleaved A/B: perf1 (baseline) vs perf2 (changed), CKF material states off.
+# Interleaved A/B: BASE (baseline) vs CHANGED, CKF material states off.
+# BASE and CHANGED name clones in ~/cern/source/acts/acts with a build of the
+# same name in ~/cern/build/acts/acts and an activate.sh in the clone.
 # NOTE: no `set -u` -- activate.sh expands an unset PYTHONPATH and would abort.
 set -eo pipefail
 
@@ -8,6 +10,8 @@ FULL_CHAIN=$SCRIPT_DIR/full_chain_perf.py
 
 OUT=${OUT:-$SCRIPT_DIR/results_ab_run}
 ROUNDS=${ROUNDS:-4}
+BASE=${BASE:-perf1}
+CHANGED=${CHANGED:-perf2}
 export CKF_RUNS=${CKF_RUNS:-8}
 export CKF_EVENTS=${CKF_EVENTS:-3}
 export CKF_RECORD_MATERIAL_STATES=${CKF_RECORD_MATERIAL_STATES:-0}
@@ -26,9 +30,9 @@ run_side() {
 
 cd "$SCRIPT_DIR"
 for i in $(seq 1 "$ROUNDS"); do
-  echo "round $i: main"
-  run_side perf1 "$OUT/main_$i"
-  echo "round $i: changed"
-  run_side perf2 "$OUT/changed_$i"
+  echo "round $i: main ($BASE)"
+  run_side "$BASE" "$OUT/main_$i"
+  echo "round $i: changed ($CHANGED)"
+  run_side "$CHANGED" "$OUT/changed_$i"
 done
 echo "done -> $OUT"
