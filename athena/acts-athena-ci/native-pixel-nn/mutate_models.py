@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
-"""Generate acceptance/rejection cases; ONNX is an offline test dependency only."""
+"""Generate changed-model acceptance/rejection fixtures for validate_layout.sh.
+
+mutate_models.py [OUT] [--source MODEL_DIR]
+Writes OUT/CASE/{number,pos1,pos2,pos3}.onnx. Accepted: weights, metadata, extra.
+Rejected: nonfinite, normalization, activation, shape, missing, dtype, precision,
+output_order. ONNX (Python) is an offline test dependency only.
+"""
+import argparse
 from pathlib import Path
 import numpy as np
 import onnx
 from onnx import numpy_helper
-source=Path('/cvmfs/atlas.cern.ch/repo/sw/database/GroupData/ITkPixelClusterization/nn-01-01-01')
-root=Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn/mutations')
+parser=argparse.ArgumentParser()
+parser.add_argument('out',nargs='?',type=Path,default=Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn/mutations'))
+parser.add_argument('--source',type=Path,default=Path('/cvmfs/atlas.cern.ch/repo/sw/database/GroupData/ITkPixelClusterization/nn-01-01-01'))
+args=parser.parse_args()
+source=args.source
+root=args.out
 for case in ['weights','nonfinite','normalization','activation','shape','extra','missing','dtype','metadata','precision','output_order']:
     folder=root/case
     folder.mkdir(parents=True,exist_ok=True)

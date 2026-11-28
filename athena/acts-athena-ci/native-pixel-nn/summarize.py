@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
-"""Keep physics event counts separate from repeated timing samples."""
+"""Physics outcome counts and control-normalized serial timing of a campaign.
+
+summarize.py [RESULT_ROOT] [--timing-events 20]
+Physics: RESULT_ROOT/physics/{OnnxRuntime,Native}/outcomes.txt.gz (from extract.sh).
+Timing: RESULT_ROOT/timing/c*/BACKEND perfmon (first event excluded). Repeated
+timing events are not pooled into the physics counts. Writes RESULT_ROOT/summary.json.
+"""
+import argparse
 import gzip
 import hashlib
 import json
 import re
 import statistics as st
-import sys
 import tarfile
 from pathlib import Path
-R=Path(sys.argv[1]) if len(sys.argv)>1 else Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn')
+parser=argparse.ArgumentParser()
+parser.add_argument('root',nargs='?',type=Path,default=Path('/home/astefl/source/acts/acts-athena-ci/run/native-pixel-nn'))
+parser.add_argument('--timing-events',type=int,default=20)
+args=parser.parse_args()
+R=args.root
 out={'physics':{},'timing':{}}
 records={};truths={}
 for backend in ['OnnxRuntime','Native']:
@@ -43,8 +53,8 @@ for backend in ['OnnxRuntime','Native']:
         assert 'runArgs.threads = 0' in (p/'runargs.RAWtoALL.py').read_text()
         with tarfile.open(p/'perfmonmt_RAWtoALL.json.tar.gz') as tar:
             data=json.load(tar.extractfile(tar.getmembers()[0]))
-        c=data['componentLevel']['Execute'];n=c['ActsTrackFindingAlg']['count'];assert n==19
-        rows.append({'cycle':p.parent.name,'events':20,'timed_events':n,
+        c=data['componentLevel']['Execute'];n=c['ActsTrackFindingAlg']['count'];assert n==args.timing_events-1
+        rows.append({'cycle':p.parent.name,'events':args.timing_events,'timed_events':n,
                      'ckf_ms':c['ActsTrackFindingAlg']['cpuTime']/n,
                      'control_ms':c['ActsPixelClusterizationAlg']['cpuTime']/n,
                      'event_ms':data['summary']['snapshotLevel']['Execute']['dCPU']/n,

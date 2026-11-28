@@ -1,24 +1,40 @@
 #!/usr/bin/env bash
-set +e
-source /home/astefl/scripts/athena/acts-athena-ci/nn-inference/env.sh > /tmp/native-layout-env.log 2>&1
-set -e
-native_root=/home/astefl/source/acts/acts-athena-ci
-native_out=$native_root/run/native-pixel-nn
-source "$native_root/athena-build-native-pixel-nn/x86_64-el9-gcc15-opt/setup.sh" >> /tmp/native-layout-env.log 2>&1
-for native_case in weights metadata extra; do
- native_dir="$native_out/final-review/$native_case"
- mkdir -p "$native_dir"
- "$native_out/bench_production" dump "$NN_STUDY_ROOT/captured-inputs.bin" 1000 "$native_dir/native.bin" "$native_out/mutations/$native_case" > "$native_dir/load.log" 2>&1
- NN_STUDY_MODEL_DIR="$native_out/mutations/$native_case" "$NN_STUDY_ROOT/build/bench" dump original "$NN_STUDY_ROOT/captured-inputs.bin" "$native_dir/original.bin" 1000 > "$native_dir/reference.log" 2>&1
- python3 /home/astefl/scripts/athena/acts-athena-ci/nn-inference/validate.py "$native_dir" > "$native_dir/report.txt"
- echo "Accepted and checked $native_case"
+# Changed-model acceptance/rejection through a bench binary (e.g. bench_build.sh OUT athena).
+#   validate_layout.sh BENCH MUTATIONS OUT [--count 1000]
+# MUTATIONS is mutate_models.py output. Accepted cases (weights, metadata, extra) must
+# load natively and agree with ONNX on the same models (validate_outputs.sh). Rejected
+# cases must fail native construction; semantic mismatches must report the startup
+# disagreement with ONNX.
+set -eo pipefail
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+usage() { sed -n '2,7p' "$0" >&2; exit 2; }
+(($# >= 3)) || usage
+bench=$(realpath "$1") mutations=$(realpath "$2") out=$(realpath -m "$3"); shift 3
+count=1000
+while (($#)); do
+ case $1 in
+  --count) count=$2; shift 2;;
+  *) usage;;
+ esac
 done
-for native_case in nonfinite normalization activation shape missing dtype precision output_order; do
- if "$native_out/bench_production" dump "$NN_STUDY_ROOT/captured-inputs.bin" 1 "$native_out/final-review/unused.bin" "$native_out/mutations/$native_case" > "$native_out/final-review/reject-$native_case.log" 2>&1; then
-  echo "Incorrectly accepted $native_case";exit 1
+mkdir -p "$out"
+for case in weights metadata extra; do
+ mkdir -p "$out/$case"
+ bash "$here/validate_outputs.sh" "$out/$case" --count "$count" --models "$mutations/$case" \
+  native="$bench" onnx="$bench:NATIVE_NN_FORCE_ONNX=1" > "$out/$case/check.log" 2>&1
+ echo "Accepted and checked $case"
+done
+inputs=${NATIVE_NN_INPUTS:-}
+source "$here/bench_env.sh"
+set -euo pipefail
+inputs=${inputs:-$NN_STUDY_ROOT/captured-inputs.bin}
+for case in nonfinite normalization activation shape missing dtype precision output_order; do
+ log=$out/reject-$case.log
+ if env -u NATIVE_NN_FORCE_SSE -u NATIVE_NN_FORCE_ONNX -u LD_PRELOAD "$bench" dump "$inputs" 1 "$out/unused.bin" "$mutations/$case" > "$log" 2>&1; then
+  echo "Incorrectly accepted $case"; exit 1
  fi
- if [[ $native_case =~ ^(normalization|activation|precision|output_order)$ ]]; then
-  rg -q 'Native pixel NN disagrees with ONNX' "$native_out/final-review/reject-$native_case.log"
+ if [[ $case =~ ^(normalization|activation|precision|output_order)$ ]]; then
+  grep -q 'Native pixel NN disagrees with ONNX' "$log"
  fi
- echo "Rejected $native_case"
+ echo "Rejected $case"
 done

@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Count changed physical code lines, including declarations/imports/build glue."""
+"""Count changed physical code lines, including declarations/imports/build glue.
+
+count_loc.py [OUT.json] [--base COMMIT]
+Diffs the candidate checkout against BASE (default: the branch's Athena main base)
+and splits nonblank, noncomment lines into conversion/inference/glue/tests.
+"""
+import argparse
 import collections
 import hashlib
 import json
 import re
 import subprocess
-import sys
 from pathlib import Path
 ROOT=Path('/home/astefl/source/acts/acts-athena-ci/athena-native-pixel-nn')
-BASE='41da040949efeca5de0e5adbd84054868a5165c6'
-OUT=Path(sys.argv[1]) if len(sys.argv)>1 else ROOT.parent/'run/native-pixel-nn/loc.json'
+parser=argparse.ArgumentParser()
+parser.add_argument('out',nargs='?',type=Path,default=ROOT.parent/'run/native-pixel-nn/loc.json')
+parser.add_argument('--base',default='41da040949efeca5de0e5adbd84054868a5165c6')
+args=parser.parse_args()
+BASE=args.base
+OUT=args.out
 def git(*args):
     return subprocess.check_output(['git','-C',str(ROOT),*args],text=True,stderr=subprocess.DEVNULL)
 def code_lines(text,suffix):
