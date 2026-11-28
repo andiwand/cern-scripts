@@ -1,22 +1,59 @@
-# CKF scattering tail
+# CKF scattering tail on the ODD
 
-Benchmark of the CKF scattering tail modes on ODD ttbar with <μ> = 200.
-The code is on the acts branch `proto-ckf-scattering-tail` (andiwand/acts).
-The notes are in `cern-notes/acts/notebook/2026-10-23_ckf-scattering-tail-*`.
+Efficiency, fakes and resolutions of the CKF with the silicon scattering-tail
+model against plain chi2 cuts, on ODD ttbar with pile-up and the Fatras
+general-mixture scattering. ACTS branch `feat-ckf-scattering-tail-score`
+(main plus tail PR 6572). Note:
+`~/cern/notes/acts/notebook/2026-11-27_ckf-scattering-tail-score.md`.
 
-## Scripts
+- `run.py`: generate ODD ttbar + pile-up once; shared Fatras GeneralMixture,
+  digitization and seeds; paired CKF/greedy ambiguity variants.
+- `analyze.py`: truth efficiency, fake fraction, post-ambiguity score scans,
+  paired event bootstrap, fit-chi2/tail-weight comparisons and pilot
+  byte-equality check.
+- `rates.py`: export ROOT efficiency/fake counters with PyROOT.
+- `compare.py`: no/previous/new tail handling; rates versus pT/eta and
+  perigee residual widths versus pT, with a common-truth cross-check.
+- `plot.py`: efficiency/fake trade-off. Offline cuts do not replay finding or
+  ambiguity resolution; `tail80` applies a live branch/output cut instead.
+- `fitmix.py`: two-Gaussian fit to the Fatras semi-Gaussian model; prints the
+  table in `Core/.../detail/ScatteringTail.hpp`. Rerun when the model changes.
 
-- `run.py`: the ODD chain (`full_chain_odd.py --ttbar`). `--mode` sets `ScatteringTailMode` (0 none, 1 retry, 2 retry + branch, 3 select only, 4 mixture). `--chi2` sets the measurement and outlier cuts. `--record-scatters` writes the Fatras scatters above 3× Highland.
-- `run_all.sh OUT [N]`: the physics runs of the six main configurations.
-- `run_scan.sh RUNS TIMING`: the intermediate baseline cuts 25/50 and 35/70, physics and timing.
-- `timing.sh OUT [N] [ROUNDS]`: single-thread CKF timing, with the configurations interleaved.
-- `fitmix.py`: the two-Gaussian fit to the Fatras semi-Gaussian model. It prints the table in `detail/ScatteringTail.hpp`.
-- `analyze.py RUNS --timing T --pdf P --json J --export E`: efficiency, fakes, pulls, p-values and CPU.
-- `make_report.py export.json content.html out.html`: the interactive report. `content.html` holds the prose (force-added, because `*.html` is ignored).
-- `compare_stages.py`: per-event checksums of each stage between repeated runs.
+Variants: `core15/core25/core49` are measurement/outlier cuts 15/25, 25/50,
+49/100 per measurement dimension; `tail` is 15/25 plus the tail model;
+`custom` a fixed per-slab tail fraction .03, width 5 (interface check only).
+Efficiency denominator: charged truth, pT >= 1 GeV, |eta| < 3, >= 9
+measurements; fakes by standard double truth matching.
 
-## Traps
+## Run
 
-- The Pythia8 pile-up generator keeps state across events. With more than 1 thread, events 9 and 127 of the 200 differ between runs. Use `compare_stages.py` to find such events.
-- The tail flag comes from the scatter CSVs of the first run only. All runs must use the same events.
-- The dev3 build has forced assertions. Only the relative CPU numbers are meaningful.
+In an ACTS Python environment with DD4hep, Pythia8 and ROOT:
+
+```sh
+out=~/cern/data/ckf-scattering-tail/2026-11-27_score
+python run.py --output "$out/pilot" --events 2 --pu 200 \
+  --variants core15 core25 tail unscored custom tail0
+for pu in 200 400; do
+  python run.py --output "$out/pu$pu" --events 20 --pu "$pu" \
+    --variants core15 core25 core49 tail tail80
+done
+python rates.py "$out/pu200"
+python rates.py "$out/pu400"
+```
+
+`run.py` overwrites its output directory. Analyze in a Python environment with
+numpy, awkward, uproot, scipy and matplotlib. Locally that is
+`ci-dependencies/.python-env/bin/python` without sourcing
+`this_acts_withdeps.sh`, whose library paths break the pyarrow wheel.
+
+```sh
+python analyze.py "$out/pu200"
+python compare.py "$out/pu200"
+python plot.py "$out"
+```
+
+Resolution widths are half the central 68.27% / 95% residual intervals,
+one matched track per truth particle, >= 30 tracks per bin. Rate errors are
+68.27% Clopper-Pearson; paired differences in `summary.json` use 10,000
+event-bootstrap samples. This is a Fatras occupancy stress test, not an
+ITk/Geant4 occupancy match.
