@@ -1,11 +1,15 @@
-"""Paired raw/NN comparison at the same frozen training match target."""
+"""Paired raw/NN comparison at the same frozen training match target.
+
+usage: cross_nn.py RUN [NN_SUBDIR=nn-native] [RETENTION=0.995]
+RUN is the raw pipeline.sh study, RUN/NN_SUBDIR the NN one (tuned with REF=RUN/training.json).
+Writes RUN/NN_SUBDIR/cross-calibration[-RETENTION].json.
+"""
 
 import json
 from pathlib import Path
 import sys
 import numpy as np
-from analyze import load, check_same, selection, best, event_counts
-from nn_analyze import counts
+from analyze import load, check_same, selection, best, event_counts, counts
 
 root = Path(sys.argv[1])
 nn_directory = root / (sys.argv[2] if len(sys.argv) > 2 else "nn-native")

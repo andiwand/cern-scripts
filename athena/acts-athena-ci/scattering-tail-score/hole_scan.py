@@ -1,4 +1,12 @@
-"""Bounded, training-selected hole/outlier scan; all pT selections unchanged."""
+"""Bounded, training-selected hole/outlier scan; all pT selections unchanged.
+
+usage: hole_scan.py ROOT [--baseline DIR]   (ROOT new, e.g. RUN/hole-scan; baseline default ROOT/../nn-extended)
+22 (core|tail)<meas>u<outlier>h<holes>o<outliers> variants around core10/tail5 (run.sh LIB=native NN=1),
+reusing the baseline's training/validation outputs and ROOT/../training.json match targets. Each run is
+audited (only the four scanned flags may differ from the baseline core10), training AODs are removed after
+export. Starts need 12 GiB free; a run is stopped below 8 GiB. Any failure writes ROOT/STOP; no resume
+over incomplete outputs.
+"""
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -6,13 +14,11 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import shutil
 import subprocess
-import time
 
 import numpy as np
-from analyze import check_same, load
-from nn_analyze import counts
+from analyze import check_same, counts, load
+from batch import launch
 
 SCRIPTS = Path(__file__).resolve().parent
 
@@ -59,7 +65,7 @@ def design(root):
         fixed="All pT cuts, truth/fake definitions, NN pre-calibration, seeds, mixture, shared-hit policy, per-subdetector limits and combined-count policy unchanged",
         caveat="Existing evaluation events have been inspected; exploratory, not fresh confirmation",
         original_plan_sha256=sha(root.parent / "training.json"),
-        baseline_plan_sha256=sha(root.parent / "nn-extended/training.json"),
+        baseline_plan_sha256=sha(BASE / "training.json"),
     )
 
 
@@ -68,7 +74,7 @@ def initialize(root):
     (root / "training").mkdir()
     plan = design(root)
     write(root / "design.json", plan)
-    for directory in sorted((root.parent / "nn-extended/training").iterdir()):
+    for directory in sorted((BASE / "training").iterdir()):
         if directory.is_dir():
             (root / "training" / directory.name).symlink_to(directory.resolve())
     return plan
@@ -103,8 +109,8 @@ def audit_run(path, variant, events, reference):
     assert {k: v for k, v in actual.items() if k not in changed} == {
         k: v for k, v in original.items() if k not in changed
     }, "Unexpected tracking-pass change, including pT"
-    assert sha(path / "nn_native_config.py") == sha(
-        reference_path / "nn_native_config.py"
+    assert sha(path / "nn_config.py") == sha(
+        reference_path / "nn_config.py"
     )
     assert (path / "library-sha256.txt").read_text() == (
         reference_path / "library-sha256.txt"
@@ -121,7 +127,7 @@ def audit_run(path, variant, events, reference):
 
 def run_batch(root, stage, variants, events, skip, parallel):
     global reference_path
-    reference_path = root.parent / "nn-extended" / stage / "core10"
+    reference_path = BASE / stage / "core10"
     reference = load(reference_path)
     stop = root / "STOP"
 
@@ -133,35 +139,15 @@ def run_batch(root, stage, variants, events, skip, parallel):
             ).exists(), f"Incomplete previous run: {path}"
             return
         assert not stop.exists(), "Scan stopped; inspect STOP"
-        assert (
-            shutil.disk_usage(root).free > 12 * 2**30
-        ), "Less than 12 GiB free before run"
-        with (root / stage / (variant + ".driver.log")).open("x") as stream:
-            process = subprocess.Popen(
-                [
-                    "bash",
-                    str(SCRIPTS / "run_hole_scan.sh"),
-                    str(path),
-                    variant,
-                    str(events),
-                    str(skip),
-                    "4" if stage == "training" else "8",
-                    "1",
-                ],
-                stdout=stream,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
+        try:
+            rc = launch(
+                path, variant, events, skip, 4 if stage == "training" else 8, 1,
+                dict(LIB="native", NN="1"), min_free=12 * 2**30, stop_free=8 * 2**30, watch=root,
             )
-            while process.poll() is None:
-                if shutil.disk_usage(root).free < 8 * 2**30:
-                    import os, signal
-
-                    stop.write_text("Disk reserve reached; reconstruction stopped\n")
-                    os.killpg(process.pid, signal.SIGTERM)
-                    process.wait()
-                    raise RuntimeError("Disk reserve reached")
-                time.sleep(5)
-            assert process.returncode == 0, (variant, process.returncode)
+        except RuntimeError:
+            stop.write_text("Disk reserve reached; reconstruction stopped\n")
+            raise
+        assert rc == 0, (variant, rc)
         audit_run(path, variant, events, reference)
         if stage == "training":
             aod = path / "myAOD.pool.root"
@@ -218,7 +204,7 @@ def freeze(root):
     )
     (root / "validation").mkdir()
     for v in selected:
-        old = root.parent / "nn-extended/validation" / v
+        old = BASE / "validation" / v
         if old.exists():
             (root / "validation" / v).symlink_to(old.resolve())
     return selected
@@ -227,8 +213,10 @@ def freeze(root):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("root", type=Path)
+    parser.add_argument("--baseline", type=Path, help="default: ROOT/../nn-extended")
     args = parser.parse_args()
     root = args.root.resolve()
+    BASE = (args.baseline or root.parent / "nn-extended").resolve()
     try:
         manifest = initialize(root)
         run_batch(root, "training", sorted(manifest["variants"]), 200, 0, 4)
@@ -236,7 +224,7 @@ if __name__ == "__main__":
             subprocess.run(
                 [
                     "python",
-                    str(SCRIPTS / "nn_analyze.py"),
+                    str(SCRIPTS / "analyze.py"),
                     "tune",
                     str(root / "training"),
                     str(root / "training.json"),
@@ -260,7 +248,7 @@ if __name__ == "__main__":
             subprocess.run(
                 [
                     "python",
-                    str(SCRIPTS / "nn_analyze.py"),
+                    str(SCRIPTS / "analyze.py"),
                     "evaluate",
                     str(root / "validation"),
                     str(root / "validation.json"),

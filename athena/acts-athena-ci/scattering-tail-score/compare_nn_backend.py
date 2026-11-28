@@ -4,8 +4,7 @@ import json
 from pathlib import Path
 import sys
 import numpy as np
-from analyze import load
-from nn_analyze import counts
+from analyze import counts, load
 
 p, q, out = map(Path, sys.argv[1:])
 a, b = load(p), load(q)

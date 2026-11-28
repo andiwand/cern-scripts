@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Freeze training-only choices; evaluate independent, paired validation events."""
+"""Tune training-only quality cuts; evaluate them on independent, paired validation events.
+
+usage: analyze.py tune DIR training.json [--reference-plan RAW/training.json]
+       analyze.py evaluate DIR validation.json --plan training.json
+DIR holds one run.sh output per variant. tune: per retained-match target (99.5% etc. of the
+tail5 matches, or the reference plan's targets) choose variant/metric/cut minimizing fakes,
+for families core (chi2, chi2/dim), previous (tail, chi2 or chi2/dim), new (tail, score/dim).
+"""
 import argparse
 import json
 from pathlib import Path
@@ -107,24 +114,20 @@ def best(r):
 
 def counts(data, metric, cut):
     r = selection(data, metric, cut)
-    m = best(r)
-    truth = set(keys(data["P"]))
-    assert set(m) <= truth
+    matches = r[(r["prob"] > 0.5) & (r["id"] != 0)]
+    unique = np.unique(matches[["run", "event", "id"]])
     accepted = r[np.abs(r["eta"]) < 4]
     fake = (~np.isfinite(accepted["prob"])) | (accepted["prob"] < 0.5)
-    out = dict(
+    return dict(
         events=len(data["E"]),
-        truth=len(truth),
-        matched=len(m),
+        truth=len(data["P"]),
+        matched=len(unique),
         tracks=len(accepted),
         fakes=int(fake.sum()),
-    )
-    out.update(
-        efficiency=len(m) / len(truth),
+        efficiency=len(unique) / len(data["P"]),
         fake_rate=int(fake.sum()) / len(accepted),
-        duplicates=int(sum((r["prob"] > 0.5) & (r["id"] != 0)) - len(m)),
+        duplicates=len(matches) - len(unique),
     )
-    return out
 
 
 def threshold(data, metric, target):
@@ -192,12 +195,41 @@ def check_same(data):
         ), f"State score dimension/copy mismatch: {name}"
 
 
+def cache_last_selection():
+    """Evaluation reuses one immutable selection/ranking many times; keep only the last."""
+    global selection, best
+    select_impl, best_impl = selection, best
+    selected_key = selected = ranked_input = ranked = None
+
+    def cached_selection(data, metric, cut):
+        nonlocal selected_key, selected
+        key = (id(data), metric, cut)
+        if key != selected_key:
+            selected = select_impl(data, metric, cut)
+            selected_key = key
+        return selected
+
+    def cached_best(rows):
+        nonlocal ranked_input, ranked
+        if rows is not ranked_input:
+            ranked = best_impl(rows)
+            ranked_input = rows
+        return ranked
+
+    selection, best = cached_selection, cached_best
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=["tune", "evaluate"])
     ap.add_argument("directory", type=Path)
     ap.add_argument("output", type=Path)
-    ap.add_argument("--plan", type=Path)
+    ap.add_argument("--plan", type=Path, help="evaluate: frozen training plan")
+    ap.add_argument(
+        "--reference-plan",
+        type=Path,
+        help="tune: take events and match targets from this plan (e.g. the raw study)",
+    )
     args = ap.parse_args()
     data = {
         p.name: load(p)
@@ -206,16 +238,29 @@ def main():
     }
     check_same(data)
     if args.action == "tune":
-        ref = counts(data["tail5"], "none", 0)["matched"]
+        events = [
+            list(map(int, (e["run"], e["event"])))
+            for e in next(iter(data.values()))["E"]
+        ]
+        if args.reference_plan:
+            raw = json.loads(args.reference_plan.read_text())
+            assert events == raw["events"]
+            reference, ref = "reference plan " + raw["reference"], raw["reference_matches"]
+            targets = {r: p["target"] for r, p in raw["choices"].items()}
+        else:
+            reference, ref = "tail5", counts(data["tail5"], "none", 0)["matched"]
+            targets = {
+                str(r): int(np.ceil(r * ref))
+                for r in [0.98, 0.985, 0.99, 0.995, 0.998, 1.0]
+            }
         report = dict(
-            reference="tail5",
+            reference=reference,
             reference_matches=ref,
-            events=[list(map(int, (e["run"], e["event"]))) for e in data["tail5"]["E"]],
+            events=events,
             inclusive={n: counts(d, "none", 0) for n, d in data.items()},
             choices={},
         )
-        for retention in [0.98, 0.985, 0.99, 0.995, 0.998, 1.0]:
-            target = int(np.ceil(retention * ref))
+        for retention, target in targets.items():
             groups = {}
             for family in ["core", "previous", "new"]:
                 candidates = []
@@ -245,8 +290,9 @@ def main():
                             c["training"]["tracks"],
                         ),
                     )
-            report["choices"][str(retention)] = dict(target=target, groups=groups)
+            report["choices"][retention] = dict(target=target, groups=groups)
     else:
+        cache_last_selection()
         plan = json.loads(args.plan.read_text())
         train_events = set(map(tuple, plan["events"]))
         events = [
