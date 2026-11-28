@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Record source revisions, input metadata and binary/script hashes."""
+"""Record source revisions, input metadata and binary/script hashes.
+
+usage: provenance.py [RUN]   (default run/scattering-tail-score) -> RUN/provenance.json, includes RUN/frozen-plan.json
+"""
 import hashlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 from PyUtils.MetaReader import read_metadata
 
 base = Path("/home/astefl/source/acts/acts-athena-ci")
-run = base / "run/scattering-tail-score"
+run = Path(sys.argv[1]) if len(sys.argv) > 1 else base / "run/scattering-tail-score"
 
 
 def sha(path):

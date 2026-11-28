@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Require unchanged reconstruction and valid optional AOD scores."""
+"""Require unchanged reconstruction and valid optional AOD scores (pilot.sh output).
+
+usage: audit_pilot.py PILOT_DIR   compares every <variant>_on with <variant>_off; writes audit.json
+"""
 import json
 from pathlib import Path
 import sys
@@ -8,7 +11,7 @@ from analyze import load
 
 root = Path(sys.argv[1])
 report = {}
-for variant in ["core7", "tail5"]:
+for variant in sorted(p.name[:-3] for p in root.glob("*_on") if p.is_dir()):
     on, off = (load(root / (variant + "_" + state)) for state in ["on", "off"])
     assert np.array_equal(on["P"], off["P"]), variant
     assert np.array_equal(on["E"], off["E"]), variant
@@ -24,7 +27,7 @@ for variant in ["core7", "tail5"]:
     assert np.array_equal(r["dim"], r["ndf"])
     assert np.all(r["score"] >= 0) and np.all(r["dim"] > 0)
     assert np.all((r["weight"] >= 0) & (r["weight"] <= r["dim"]))
-    if variant == "core7":
+    if variant.startswith("core"):
         assert np.all(r["weight"] == 0)
     else:
         assert np.count_nonzero(r["weight"]) > 0
