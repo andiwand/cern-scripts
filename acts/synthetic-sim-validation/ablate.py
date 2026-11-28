@@ -31,6 +31,7 @@ from acts.fatras import synthetic as syn
 
 import fit_event_config as fit
 import presets
+from sample import DATA_DIR
 
 
 @dataclass(frozen=True)
@@ -117,7 +118,7 @@ def quick(term: Term, config, layout, description, target):
 
 
 def refit(term: Term, detector: str, target, fullsim=None, events=None,
-          cache_dir="."):
+          cache_dir=DATA_DIR):
     """Fit the whole model again with a term taken out.
 
     A fresh description each time, so that nothing a previous fit did to one
@@ -168,7 +169,7 @@ def main() -> None:
     parser.add_argument("--fullsim", default=None,
                         help="the ITk dump; unused for the ODD, which downloads")
     parser.add_argument("--events", type=int, default=None)
-    parser.add_argument("--cache-dir", default=".")
+    parser.add_argument("--cache-dir", default=str(DATA_DIR))
     parser.add_argument("--refit", action="store_true",
                         help="refit the whole model without each term, which "
                              "takes minutes per term rather than seconds")

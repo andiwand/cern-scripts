@@ -16,6 +16,7 @@ import argparse
 import ablate
 import fit_event_config as fit
 import presets
+from sample import DATA_DIR
 
 
 def main() -> None:
@@ -24,7 +25,7 @@ def main() -> None:
     parser.add_argument("--fullsim", default=None)
     parser.add_argument("--events", type=int, default=50)
     parser.add_argument("--skip-events", type=int, default=0)
-    parser.add_argument("--cache-dir", default=".")
+    parser.add_argument("--cache-dir", default=str(DATA_DIR))
     parser.add_argument("--set", action="append", default=[], metavar="NAME=X",
                         help="override a field before scoring")
     args = parser.parse_args()

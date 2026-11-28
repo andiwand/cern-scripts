@@ -12,6 +12,9 @@ from pathlib import Path
 
 import numpy as np
 
+#: where reduced references, caches and plots live by default
+DATA_DIR = Path.home() / "cern/data/synthetic-sim-validation"
+
 #: Space point positions in mm and whether each came from a generator particle,
 #: then one entry per particle: transverse momentum in GeV, the perigee
 #: parameters in mm and rad, the production vertex in mm, whether the particle

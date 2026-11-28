@@ -556,10 +556,10 @@ def _add_shared(parser: argparse.ArgumentParser, events: int) -> None:
                              "validation sees different ones from the fit")
     parser.add_argument("--events", type=int, default=events,
                        help="full-simulation events to read")
-    parser.add_argument("--cache-dir", default=".",
+    parser.add_argument("--cache-dir", default=str(sample.DATA_DIR),
                         help="where to keep the reduced reference between runs; "
                              "empty to re-read it every time")
-    parser.add_argument("-o", "--outdir", default="plots",
+    parser.add_argument("-o", "--outdir", default=str(sample.DATA_DIR / "plots"),
                        help="plots go into <outdir>/<detector>/")
     parser.add_argument("--format", default="pdf", choices=("pdf", "png", "svg"),
                        help="figure format")

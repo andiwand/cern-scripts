@@ -35,6 +35,7 @@ from scipy.optimize import minimize
 
 import fastsim  # noqa: F401  (kept importable alongside the loaders)
 import presets
+from sample import DATA_DIR
 
 
 def robust_sigma(values: np.ndarray) -> float:
@@ -483,13 +484,14 @@ def cached_target(path: Path, build):
             print("reference from %s" % path)
             return target
     target = build()
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("wb") as handle:
         pickle.dump(target.__dict__, handle)
     print("reference reduced and cached to %s" % path)
     return target
 
 
-def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
+def reference(detector: str, *, fullsim=None, events=None, cache_dir=DATA_DIR,
               skip_events=0):
     """The layout description and reduced reference of one detector.
 
@@ -504,7 +506,6 @@ def reference(detector: str, *, fullsim=None, events=None, cache_dir=".",
     @param cache_dir where the reduced reference is kept between runs
     @return (description, target, provenance)
     """
-    import sample
     import sample
     import validate  # for the per-detector bands
 
@@ -1114,7 +1115,7 @@ def main() -> None:
                         help="the ITk dump; unused for the ODD, which downloads")
     parser.add_argument("--events", type=int, default=None)
     parser.add_argument("--pileup", type=int, default=200)
-    parser.add_argument("--cache-dir", default=".",
+    parser.add_argument("--cache-dir", default=str(DATA_DIR),
                         help="where the reduced reference is kept, so that "
                              "repeated fits do not reload the full sample")
     parser.add_argument("--no-decays", action="store_true",
